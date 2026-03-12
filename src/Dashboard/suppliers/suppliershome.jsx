@@ -14,11 +14,12 @@ const SupplierManagement = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [viewModal, setViewModal] = useState(null);
   const [editModal, setEditModal] = useState(null);
+  const [deleteModal, setDeleteModal] = useState(null); // For delete confirmation
   const [formData, setFormData] = useState({});
   const [isAddPage, setIsAddPage] = useState(false);
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [deleteId, setDeleteId] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Fetch suppliers on component mount
   useEffect(() => {
@@ -140,20 +141,21 @@ const SupplierManagement = () => {
   };
 
   /* ---------- DELETE ---------- */
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this supplier?")) return;
+  const handleDelete = async () => {
+    if (!deleteModal) return;
     
+    setDeleting(true);
     try {
-      setDeleteId(id);
-      await API.delete(`/suppliers/${id}`);
+      await API.delete(`/suppliers/${deleteModal.id}`);
       
-      setSuppliers(prev => prev.filter(s => s.id !== id));
+      setSuppliers(prev => prev.filter(s => s.id !== deleteModal.id));
+      setDeleteModal(null);
       toast.success("Supplier deleted successfully!");
     } catch (err) {
       console.error("Delete supplier error:", err);
       toast.error(err.response?.data?.message || "Failed to delete supplier");
     } finally {
-      setDeleteId(null);
+      setDeleting(false);
     }
   };
 
@@ -247,7 +249,6 @@ const SupplierManagement = () => {
                         <td className="px-4 py-3">{s.phone}</td>
                         <td className="px-4 py-3 text-blue-500">{s.email || '-'}</td>
                         <td className="px-4 py-3">{s.company || '-'}</td>
-                        {/* <td className="px-4 py-3">{s.address || '-'}</td> */}
                         <td className="px-4 py-3">{s.city || '-'}</td>
                         <td className="px-4 py-3">{s.country || '-'}</td>
                         <td className="px-4 py-3">
@@ -271,18 +272,13 @@ const SupplierManagement = () => {
                               <Edit3 size={16} />
                             </button>
                             <button
-                              onClick={() => handleDelete(s.id)}
-                              disabled={deleteId === s.id}
+                              onClick={() => setDeleteModal(s)}
                               className={`p-2 rounded-xl shadow-md ${
                                 darkMode ? "bg-red-900 text-red-300 hover:bg-red-800" : "bg-red-50 text-red-600 hover:bg-red-100"
-                              } ${deleteId === s.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              }`}
                               title="Delete"
                             >
-                              {deleteId === s.id ? (
-                                <div className="w-4 h-4 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
-                              ) : (
-                                <Trash2 size={16} />
-                              )}
+                              <Trash2 size={16} />
                             </button>
                           </div>
                         </td>
@@ -452,6 +448,84 @@ const SupplierManagement = () => {
           </div>
         </div>
       )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      {deleteModal && (
+        <DeleteConfirmationModal
+          title="Delete Supplier"
+          onClose={() => setDeleteModal(null)}
+          onConfirm={handleDelete}
+          data={deleteModal}
+          darkMode={darkMode}
+          deleting={deleting}
+        />
+      )}
+    </div>
+  );
+};
+
+/* ===================== DELETE CONFIRMATION MODAL ===================== */
+const DeleteConfirmationModal = ({ title, onClose, onConfirm, data, darkMode, deleting }) => {
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+      <div className={`w-full max-w-md rounded-2xl p-6 shadow-2xl relative ${darkMode ? "bg-slate-800 text-white" : "bg-white text-slate-900"}`}>
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 opacity-60 hover:opacity-100"
+          disabled={deleting}
+        >
+          <X />
+        </button>
+
+        <div className="text-center mb-6">
+          <div className="flex items-center justify-center mb-4">
+            <div className="w-20 h-20 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center">
+              <Trash2 size={40} className="text-red-600 dark:text-red-400" />
+            </div>
+          </div>
+          
+          <h2 className="text-2xl font-black mb-2">{title}</h2>
+          
+          <p className="text-slate-500 dark:text-slate-400 mb-4">
+            Are you sure you want to delete this supplier?
+          </p>
+          
+          <div className={`p-4 rounded-xl ${darkMode ? "bg-slate-700" : "bg-slate-100"} text-left mb-4`}>
+            <p className="font-bold text-lg">{data.name}</p>
+            <p className="text-sm opacity-70 mt-1">ID: {data.id}</p>
+            {data.phone && <p className="text-sm opacity-70 mt-1">Phone: {data.phone}</p>}
+            {data.email && <p className="text-sm opacity-70 mt-1">Email: {data.email}</p>}
+          </div>
+          
+          <p className="text-sm text-red-600 dark:text-red-400 font-medium">
+            This action cannot be undone.
+          </p>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            disabled={deleting}
+            className={`flex-1 px-4 py-3 rounded-xl font-bold transition ${
+              darkMode 
+                ? "bg-slate-700 hover:bg-slate-600 text-white" 
+                : "bg-slate-200 hover:bg-slate-300 text-slate-800"
+            } ${deleting ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={deleting}
+            className="flex-1 px-4 py-3 rounded-xl font-bold bg-red-600 hover:bg-red-700 text-white transition disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {deleting && (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            )}
+            {deleting ? 'Deleting...' : 'Delete'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

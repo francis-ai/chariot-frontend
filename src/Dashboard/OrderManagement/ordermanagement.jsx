@@ -1,72 +1,193 @@
 import React, { useState, useEffect } from "react";
-import { Eye, Edit3, Plus, X } from "lucide-react";
+import { Eye, Edit3, Plus, X, Save, Trash2 } from "lucide-react";
 import Sidebar from "../../component/sidebar";
 import NavBar from "../../component/navigation";
 import { useTheme } from "../../context/ThemeContext";
+import API from "../../utils/api";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 /* ===================== DASHBOARD ===================== */
 const EnterpriseDashboard = () => {
   const { darkMode } = useTheme();
 
   const [activeTab, setActiveTab] = useState("All Purchase Orders");
-  const [tableData, setTableData] = useState([]);
+  const [purchaseOrders, setPurchaseOrders] = useState([]);
+  const [filteredData, setFilteredData] = useState([]);
   const [viewModal, setViewModal] = useState(null);
   const [editModal, setEditModal] = useState(null);
   const [createModal, setCreateModal] = useState(false);
-
-  /* ===================== STATS ===================== */
-  const stats = [
+  const [deleteModal, setDeleteModal] = useState(null); // For delete confirmation
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState([
     { label: "Total POs", value: "0" },
     { label: "Pending Approval", value: "0" },
     { label: "Total PO Value", value: "₦0" },
     { label: "Avg. Delivery (Days)", value: "0" },
-  ];
+  ]);
 
-  /* ===================== DATA ===================== */
-  const originalData = [
-    { id: "PO-2023-0030", supplier: "Supplier A", date: "2026-01-01", delivery: "2026-01-10", amount: "₦100,000", status: "Pending" },
-    { id: "PO-2023-0029", supplier: "Supplier B", date: "2026-01-02", delivery: "2026-01-12", amount: "₦200,000", status: "Approved" },
-    { id: "PO-2023-0028", supplier: "Supplier C", date: "2026-01-03", delivery: "2026-01-15", amount: "₦150,000", status: "Received" },
-    { id: "PO-2023-0027", supplier: "Supplier D", date: "2026-01-04", delivery: "2026-01-18", amount: "₦120,000", status: "Approved" },
-    { id: "PO-2023-0026", supplier: "Supplier E", date: "2026-01-05", delivery: "2026-01-20", amount: "₦180,000", status: "Approved" },
-  ];
+  const tabs = ["All Purchase Orders", "Pending", "Approved", "Received"];
 
-  const tabs = ["All Purchase Orders", "Received", "Approved", "Pending"];
-
+  // Fetch purchase orders on component mount
   useEffect(() => {
-    if (activeTab === "All Purchase Orders") {
-      const approved = originalData.filter(d => d.status === "Approved").slice(0, 3);
-      const others = originalData.filter(d => !approved.includes(d));
-      setTableData([...approved, ...others]);
-    } else {
-      setTableData(originalData.filter(po => po.status === activeTab));
+    fetchPurchaseOrders();
+  }, []);
+
+  // Filter data when active tab changes
+  useEffect(() => {
+    filterData();
+  }, [activeTab, purchaseOrders]);
+
+  const fetchPurchaseOrders = async () => {
+    try {
+      setLoading(true);
+      const res = await API.get("/purchase-orders");
+      console.log("Fetched purchase orders:", res.data);
+      
+      // Map API response to component format
+      const mappedOrders = res.data.map(po => ({
+        id: po.id || po._id,
+        po_number: po.po_number,
+        supplier_id: po.supplier_id,
+        supplier_name: po.supplier_name || "",
+        order_date: po.order_date ? po.order_date.split('T')[0] : "",
+        delivery_date: po.delivery_date ? po.delivery_date.split('T')[0] : "",
+        total_amount: Number(po.total_amount || 0),
+        formatted_amount: `₦${Number(po.total_amount || 0).toLocaleString()}`,
+        status: po.status || "Pending",
+        created_at: po.created_at,
+        updated_at: po.updated_at
+      }));
+      
+      setPurchaseOrders(mappedOrders);
+      calculateStats(mappedOrders);
+    } catch (err) {
+      console.error("Fetch purchase orders error:", err);
+      toast.error(err.response?.data?.message || "Failed to fetch purchase orders");
+      setPurchaseOrders([]);
+    } finally {
+      setLoading(false);
     }
-  }, [activeTab]);
+  };
+
+  const calculateStats = (orders) => {
+    const totalPOs = orders.length;
+    const pendingCount = orders.filter(po => po.status === "Pending").length;
+    const totalValue = orders.reduce((sum, po) => sum + (po.total_amount || 0), 0);
+    
+    // Calculate average delivery days
+    let totalDays = 0;
+    let daysCount = 0;
+    orders.forEach(po => {
+      if (po.order_date && po.delivery_date) {
+        const orderDate = new Date(po.order_date);
+        const deliveryDate = new Date(po.delivery_date);
+        const diffDays = Math.round((deliveryDate - orderDate) / (1000 * 60 * 60 * 24));
+        if (diffDays > 0) {
+          totalDays += diffDays;
+          daysCount++;
+        }
+      }
+    });
+    const avgDays = daysCount > 0 ? Math.round(totalDays / daysCount) : 0;
+
+    setStats([
+      { label: "Total POs", value: totalPOs.toString() },
+      { label: "Pending Approval", value: pendingCount.toString() },
+      { label: "Total PO Value", value: `₦${totalValue.toLocaleString()}` },
+      { label: "Avg. Delivery (Days)", value: avgDays.toString() },
+    ]);
+  };
+
+  const filterData = () => {
+    if (activeTab === "All Purchase Orders") {
+      setFilteredData(purchaseOrders);
+    } else {
+      setFilteredData(purchaseOrders.filter(po => po.status === activeTab));
+    }
+  };
+
+  /* ===================== CREATE ===================== */
+  const handleCreate = async (poData) => {
+    try {
+      const payload = {
+        po_number: poData.po_number || `PO-${Date.now()}`,
+        supplier_id: poData.supplier_id,
+        order_date: poData.order_date,
+        delivery_date: poData.delivery_date || null,
+        total_amount: parseFloat(poData.total_amount) || 0,
+        status: poData.status || "Pending"
+      };
+
+      console.log("Creating PO with payload:", payload);
+      await API.post("/purchase-orders", payload);
+      
+      // Fetch updated list to get the complete data with supplier name
+      await fetchPurchaseOrders();
+      setCreateModal(false);
+      toast.success("Purchase order created successfully!");
+    } catch (err) {
+      console.error("Create PO error:", err);
+      toast.error(err.response?.data?.message || "Failed to create purchase order");
+    }
+  };
+
+  /* ===================== UPDATE ===================== */
+  const handleUpdate = async (poData) => {
+    try {
+      const payload = {
+        po_number: poData.po_number,
+        supplier_id: poData.supplier_id,
+        order_date: poData.order_date,
+        delivery_date: poData.delivery_date || null,
+        total_amount: parseFloat(poData.total_amount) || 0,
+        status: poData.status
+      };
+
+      console.log("Updating PO with payload:", payload);
+      await API.put(`/purchase-orders/${poData.id}`, payload);
+
+      // Fetch updated list
+      await fetchPurchaseOrders();
+      setEditModal(null);
+      toast.success("Purchase order updated successfully!");
+    } catch (err) {
+      console.error("Update PO error:", err);
+      toast.error(err.response?.data?.message || "Failed to update purchase order");
+    }
+  };
+
+  /* ===================== DELETE ===================== */
+  const handleDelete = async () => {
+    if (!deleteModal) return;
+    
+    try {
+      await API.delete(`/purchase-orders/${deleteModal.id}`);
+      
+      setPurchaseOrders(prev => prev.filter(po => po.id !== deleteModal.id));
+      setDeleteModal(null);
+      toast.success("Purchase order deleted successfully!");
+    } catch (err) {
+      console.error("Delete PO error:", err);
+      toast.error(err.response?.data?.message || "Failed to delete purchase order");
+    }
+  };
 
   const getStatusStyle = (status) => {
     switch (status) {
-      case "Pending": return "bg-orange-100 text-orange-600";
-      case "Approved": return "bg-emerald-100 text-emerald-600";
-      case "Received": return "bg-cyan-100 text-cyan-600";
-      default: return "bg-gray-100 text-gray-600";
+      case "Pending": return "bg-orange-100 text-orange-600 dark:bg-orange-900 dark:text-orange-300";
+      case "Approved": return "bg-emerald-100 text-emerald-600 dark:bg-emerald-900 dark:text-emerald-300";
+      case "Received": return "bg-cyan-100 text-cyan-600 dark:bg-cyan-900 dark:text-cyan-300";
+      default: return "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300";
     }
-  };
-
-  const handleSaveEdit = (updated) => {
-    setTableData(prev => prev.map(row => row.id === updated.id ? updated : row));
-    setEditModal(null);
-  };
-
-  const handleSaveCreate = (newRow) => {
-    setTableData(prev => [newRow, ...prev]);
-    setCreateModal(false);
   };
 
   return (
     <div className={`min-h-screen flex flex-col md:flex-row ${darkMode ? "bg-gray-900 text-gray-200" : "bg-gray-50 text-gray-800"}`}>
+      <ToastContainer position="top-right" autoClose={2500} hideProgressBar />
 
       {/* SIDEBAR */}
-      <aside className=" md:block w-64 fixed top-0 h-screen z-40">
+      <aside className="md:block w-64 fixed top-0 h-screen z-40">
         <Sidebar />
       </aside>
 
@@ -78,7 +199,7 @@ const EnterpriseDashboard = () => {
           <NavBar />
         </div>
 
-        <div className="p-4 md:p-6 space-y-4">
+        <div className="p-4 md:p-6 mt-20 space-y-4">
 
           {/* STATS */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -100,7 +221,7 @@ const EnterpriseDashboard = () => {
             <h1 className="text-lg font-bold">Purchase Order Management</h1>
             <button
               onClick={() => setCreateModal(true)}
-              className="flex items-center gap-2 bg-[#1d7cf2] text-white px-3 py-2 rounded-md"
+              className="flex items-center gap-2 bg-[#1d7cf2] text-white px-3 py-2 rounded-md hover:bg-blue-600 transition"
             >
               <Plus size={16} /> Create Purchase Order
             </button>
@@ -112,12 +233,12 @@ const EnterpriseDashboard = () => {
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`px-3 py-1 text-sm rounded-full ${
+                className={`px-3 py-1 text-sm rounded-full transition ${
                   activeTab === tab
                     ? "bg-[#1d7cf2] text-white"
                     : darkMode
-                      ? "bg-gray-700 text-gray-300"
-                      : "bg-gray-200 text-gray-600"
+                      ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                      : "bg-gray-200 text-gray-600 hover:bg-gray-300"
                 }`}
               >
                 {tab}
@@ -125,114 +246,440 @@ const EnterpriseDashboard = () => {
             ))}
           </div>
 
+          {/* LOADING STATE */}
+          {loading && (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p>Loading purchase orders...</p>
+            </div>
+          )}
+
+          {/* EMPTY STATE */}
+          {!loading && filteredData.length === 0 && (
+            <div className={`text-center py-12 rounded-2xl ${darkMode ? "bg-gray-800" : "bg-white"}`}>
+              <p className="text-gray-400 mb-4">No purchase orders found</p>
+              <button
+                onClick={() => setCreateModal(true)}
+                className="text-blue-600 hover:text-blue-700 font-medium"
+              >
+                Create your first purchase order
+              </button>
+            </div>
+          )}
+
           {/* TABLE */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[600px]">
-              <thead className="opacity-70">
-                <tr>
-                  <th className="px-2 py-2 text-left">PO #</th>
-                  <th className="px-2 py-2 text-left">Supplier</th>
-                  <th className="px-2 py-2 text-left">Date</th>
-                  <th className="px-2 py-2 text-left">Delivery</th>
-                  <th className="px-2 py-2 text-left">Amount</th>
-                  <th className="px-2 py-2 text-left">Status</th>
-                  <th className="px-2 py-2 text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tableData.map(row => (
-                  <tr key={row.id} className={darkMode ? "hover:bg-gray-800" : "hover:bg-gray-100"}>
-                    <td className="px-2 py-1 text-blue-500 font-medium">{row.id}</td>
-                    <td className="px-2 py-1">{row.supplier}</td>
-                    <td className="px-2 py-1">{row.date}</td>
-                    <td className="px-2 py-1">{row.delivery}</td>
-                    <td className="px-2 py-1 font-bold">{row.amount}</td>
-                    <td className="px-2 py-1">
-                      <span className={`px-2 py-0.5 text-xs rounded-full ${getStatusStyle(row.status)}`}>
-                        {row.status}
-                      </span>
-                    </td>
-                    <td className="px-2 py-1 flex justify-center gap-2">
-                      <button onClick={() => setViewModal(row)} className="text-blue-500"><Eye size={14} /></button>
-                      <button onClick={() => setEditModal(row)} className="text-amber-500"><Edit3 size={14} /></button>
-                    </td>
+          {!loading && filteredData.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[800px]">
+                <thead className="opacity-70">
+                  <tr>
+                    <th className="px-2 py-2 text-left">PO #</th>
+                    <th className="px-2 py-2 text-left">Supplier</th>
+                    <th className="px-2 py-2 text-left">Order Date</th>
+                    <th className="px-2 py-2 text-left">Delivery Date</th>
+                    <th className="px-2 py-2 text-left">Amount</th>
+                    <th className="px-2 py-2 text-left">Status</th>
+                    <th className="px-2 py-2 text-center">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {filteredData.map(row => (
+                    <tr key={row.id} className={darkMode ? "hover:bg-gray-800" : "hover:bg-gray-100"}>
+                      <td className="px-2 py-2 text-blue-500 font-medium">{row.po_number}</td>
+                      <td className="px-2 py-2">{row.supplier_name}</td>
+                      <td className="px-2 py-2">{row.order_date}</td>
+                      <td className="px-2 py-2">{row.delivery_date || '-'}</td>
+                      <td className="px-2 py-2 font-bold">{row.formatted_amount}</td>
+                      <td className="px-2 py-2">
+                        <span className={`px-2 py-1 text-xs rounded-full ${getStatusStyle(row.status)}`}>
+                          {row.status}
+                        </span>
+                      </td>
+                      <td className="px-2 py-2">
+                        <div className="flex justify-center gap-2">
+                          <button 
+                            onClick={() => setViewModal(row)} 
+                            className="text-blue-500 hover:text-blue-600 p-1"
+                            title="View"
+                          >
+                            <Eye size={16} />
+                          </button>
+                          <button 
+                            onClick={() => setEditModal(row)} 
+                            className="text-amber-500 hover:text-amber-600 p-1"
+                            title="Edit"
+                          >
+                            <Edit3 size={16} />
+                          </button>
+                          <button 
+                            onClick={() => setDeleteModal(row)} 
+                            className="text-red-500 hover:text-red-600 p-1"
+                            title="Delete"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
         </div>
       </main>
 
-      {/* MODALS */}
-      {viewModal && <Modal title="View Purchase Order" onClose={() => setViewModal(null)} content={viewModal} />}
-      {editModal && <Modal title="Edit Purchase Order" onClose={() => setEditModal(null)} form={editModal} onSave={handleSaveEdit} />}
-      {createModal && <Modal title="Create Purchase Order" onClose={() => setCreateModal(false)} create onSave={handleSaveCreate} />}
+      {/* VIEW MODAL */}
+      {viewModal && (
+        <ViewModal 
+          title="View Purchase Order" 
+          onClose={() => setViewModal(null)} 
+          data={viewModal} 
+          darkMode={darkMode}
+        />
+      )}
+      
+      {/* EDIT MODAL */}
+      {editModal && (
+        <FormModal 
+          title="Edit Purchase Order" 
+          onClose={() => setEditModal(null)} 
+          data={editModal}
+          onSave={handleUpdate}
+          darkMode={darkMode}
+        />
+      )}
+      
+      {/* CREATE MODAL */}
+      {createModal && (
+        <FormModal 
+          title="Create Purchase Order" 
+          onClose={() => setCreateModal(false)} 
+          create={true}
+          onSave={handleCreate}
+          darkMode={darkMode}
+        />
+      )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      {deleteModal && (
+        <DeleteConfirmationModal
+          title="Delete Purchase Order"
+          onClose={() => setDeleteModal(null)}
+          onConfirm={handleDelete}
+          data={deleteModal}
+          darkMode={darkMode}
+        />
+      )}
     </div>
   );
 };
 
-/* ===================== MODAL ===================== */
-const Modal = ({ title, onClose, content, form, create, onSave }) => {
-  const { darkMode } = useTheme();
-
+/* ===================== VIEW MODAL ===================== */
+const ViewModal = ({ title, onClose, data, darkMode }) => {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className={`w-full max-w-md rounded-lg p-4 relative ${darkMode ? "bg-gray-800 text-gray-200" : "bg-white text-gray-800"}`}>
-        <button onClick={onClose} className="absolute top-3 right-3"><X /></button>
-        <h2 className="text-lg font-bold mb-3">{title}</h2>
+      <div className={`w-full max-w-md rounded-lg p-6 relative ${darkMode ? "bg-gray-800 text-gray-200" : "bg-white text-gray-800"}`}>
+        <button 
+          onClick={onClose} 
+          className="absolute top-4 right-4 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+        >
+          <X />
+        </button>
+        
+        <h2 className="text-xl font-bold mb-4">{title}</h2>
 
-        {content && (
-          <div className="space-y-1 text-sm">
-            {Object.entries(content).map(([k, v]) => (
-              <p key={k}><strong>{k}:</strong> {v}</p>
-            ))}
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs uppercase opacity-60">PO Number</label>
+              <p className="font-semibold text-blue-500">{data.po_number}</p>
+            </div>
+            <div>
+              <label className="text-xs uppercase opacity-60">Supplier</label>
+              <p className="font-semibold">{data.supplier_name}</p>
+            </div>
+            <div>
+              <label className="text-xs uppercase opacity-60">Order Date</label>
+              <p className="font-semibold">{data.order_date}</p>
+            </div>
+            <div>
+              <label className="text-xs uppercase opacity-60">Delivery Date</label>
+              <p className="font-semibold">{data.delivery_date || '-'}</p>
+            </div>
+            <div>
+              <label className="text-xs uppercase opacity-60">Amount</label>
+              <p className="font-bold text-green-600">{data.formatted_amount}</p>
+            </div>
+            <div>
+              <label className="text-xs uppercase opacity-60">Status</label>
+              <p className="font-semibold">{data.status}</p>
+            </div>
           </div>
-        )}
-
-        {(form || create) && <FormComponent data={form} create={create} onSave={onSave} />}
+        </div>
       </div>
     </div>
   );
 };
 
-/* ===================== FORM ===================== */
-const FormComponent = ({ data, create, onSave }) => {
-  const { darkMode } = useTheme();
-
-  const [form, setForm] = useState(data || {
-    id: "",
-    supplier: "",
-    date: "",
-    delivery: "",
-    amount: "",
-    status: "Pending",
+/* ===================== FORM MODAL ===================== */
+const FormModal = ({ title, onClose, data, create, onSave, darkMode }) => {
+  const [form, setForm] = useState(data ? {
+    po_number: data.po_number,
+    supplier_id: data.supplier_id || "",
+    order_date: data.order_date || new Date().toISOString().split('T')[0],
+    delivery_date: data.delivery_date || "",
+    total_amount: data.total_amount || "",
+    status: data.status || "Pending"
+  } : {
+    po_number: `PO-${Date.now()}`,
+    supplier_id: "",
+    order_date: new Date().toISOString().split('T')[0],
+    delivery_date: "",
+    total_amount: "",
+    status: "Pending"
   });
 
-  const inputStyle = `px-2 py-1 rounded w-full ${
+  const [suppliers, setSuppliers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [fetchingSuppliers, setFetchingSuppliers] = useState(true);
+
+  // Fetch suppliers for dropdown
+  useEffect(() => {
+    const fetchSuppliers = async () => {
+      try {
+        setFetchingSuppliers(true);
+        const res = await API.get("/suppliers");
+        console.log("Fetched suppliers:", res.data);
+        setSuppliers(res.data);
+      } catch (err) {
+        console.error("Fetch suppliers error:", err);
+        toast.error("Failed to fetch suppliers");
+      } finally {
+        setFetchingSuppliers(false);
+      }
+    };
+    fetchSuppliers();
+  }, []);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async () => {
+    // Validation
+    if (!form.supplier_id) {
+      toast.error("Please select a supplier");
+      return;
+    }
+    if (!form.order_date) {
+      toast.error("Order date is required");
+      return;
+    }
+    if (!form.total_amount || form.total_amount <= 0) {
+      toast.error("Valid amount is required");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await onSave(form);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const inputStyle = `px-3 py-2 rounded w-full ${
     darkMode ? "bg-gray-700 text-white" : "bg-gray-100"
-  }`;
+  } focus:outline-none focus:ring-2 focus:ring-blue-500`;
 
   return (
-    <div className="flex flex-col gap-2 mt-3">
-      <input className={inputStyle} placeholder="PO #" value={form.id} onChange={e => setForm({ ...form, id: e.target.value })} />
-      <input className={inputStyle} placeholder="Supplier" value={form.supplier} onChange={e => setForm({ ...form, supplier: e.target.value })} />
-      <input type="date" className={inputStyle} value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
-      <input type="date" className={inputStyle} value={form.delivery} onChange={e => setForm({ ...form, delivery: e.target.value })} />
-      <input className={inputStyle} placeholder="Amount" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} />
-      <select className={inputStyle} value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>
-        <option>Pending</option>
-        <option>Approved</option>
-        <option>Received</option>
-      </select>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className={`w-full max-w-md rounded-lg p-6 relative ${darkMode ? "bg-gray-800 text-gray-200" : "bg-white text-gray-800"}`}>
+        <button 
+          onClick={onClose} 
+          className="absolute top-4 right-4 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+        >
+          <X />
+        </button>
+        
+        <h2 className="text-xl font-bold mb-4">{title}</h2>
 
-      <button
-        onClick={() => onSave({ ...form, id: form.id || `PO-${Date.now()}` })}
-        className="bg-[#1d7cf2] text-white py-2 rounded mt-2"
-      >
-        Save
-      </button>
+        <div className="flex flex-col gap-3">
+          {create && (
+            <div>
+              <label className="text-sm font-medium mb-1 block">PO Number</label>
+              <input
+                name="po_number"
+                value={form.po_number}
+                onChange={handleChange}
+                className={inputStyle}
+                placeholder="PO Number"
+                readOnly
+              />
+            </div>
+          )}
+
+          <div>
+            <label className="text-sm font-medium mb-1 block">Supplier *</label>
+            <select
+              name="supplier_id"
+              value={form.supplier_id}
+              onChange={handleChange}
+              className={inputStyle}
+              required
+              disabled={fetchingSuppliers}
+            >
+              <option value="">
+                {fetchingSuppliers ? "Loading suppliers..." : "Select Supplier"}
+              </option>
+              {suppliers.map(s => (
+                <option key={s.id || s._id} value={s.id || s._id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-sm font-medium mb-1 block">Order Date *</label>
+              <input
+                type="date"
+                name="order_date"
+                value={form.order_date}
+                onChange={handleChange}
+                className={inputStyle}
+                required
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Delivery Date</label>
+              <input
+                type="date"
+                name="delivery_date"
+                value={form.delivery_date}
+                onChange={handleChange}
+                className={inputStyle}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium mb-1 block">Amount (₦) *</label>
+            <input
+              type="number"
+              name="total_amount"
+              value={form.total_amount}
+              onChange={handleChange}
+              className={inputStyle}
+              placeholder="Enter amount"
+              min="0"
+              step="0.01"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium mb-1 block">Status</label>
+            <select
+              name="status"
+              value={form.status}
+              onChange={handleChange}
+              className={inputStyle}
+            >
+              <option value="Pending">Pending</option>
+              <option value="Approved">Approved</option>
+              <option value="Received">Received</option>
+            </select>
+          </div>
+
+          <button
+            onClick={handleSubmit}
+            disabled={loading || fetchingSuppliers}
+            className="w-full bg-[#1d7cf2] text-white py-3 rounded mt-2 hover:bg-blue-600 transition disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {loading && (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            )}
+            <Save size={18} /> {create ? 'Create Purchase Order' : 'Save Changes'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ===================== DELETE CONFIRMATION MODAL ===================== */
+const DeleteConfirmationModal = ({ title, onClose, onConfirm, data, darkMode }) => {
+  const [deleting, setDeleting] = useState(false);
+
+  const handleConfirm = async () => {
+    setDeleting(true);
+    try {
+      await onConfirm();
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className={`w-full max-w-md rounded-lg p-6 relative ${darkMode ? "bg-gray-800 text-gray-200" : "bg-white text-gray-800"}`}>
+        <button 
+          onClick={onClose} 
+          className="absolute top-4 right-4 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+          disabled={deleting}
+        >
+          <X />
+        </button>
+        
+        <h2 className="text-xl font-bold mb-4">{title}</h2>
+
+        <div className="mb-6">
+          <div className="flex items-center justify-center mb-4">
+            <div className="w-16 h-16 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center">
+              <Trash2 size={32} className="text-red-600 dark:text-red-400" />
+            </div>
+          </div>
+          
+          <p className="text-center mb-2">
+            Are you sure you want to delete this purchase order?
+          </p>
+          <p className="text-center font-bold text-lg">
+            {data.po_number} - {data.supplier_name}
+          </p>
+          <p className="text-center text-sm opacity-60 mt-2">
+            This action cannot be undone.
+          </p>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            disabled={deleting}
+            className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
+              darkMode 
+                ? "bg-gray-700 hover:bg-gray-600 text-gray-200" 
+                : "bg-gray-200 hover:bg-gray-300 text-gray-800"
+            } ${deleting ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleConfirm}
+            disabled={deleting}
+            className="flex-1 px-4 py-2 rounded-lg font-medium bg-red-600 hover:bg-red-700 text-white transition disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {deleting && (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            )}
+            {deleting ? 'Deleting...' : 'Delete'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

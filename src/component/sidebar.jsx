@@ -35,11 +35,11 @@ export default function Sidebar() {
     { icon: <FaBoxes />, label: "Inventory", path: "/Inventory" },
     { icon: <FaBuilding />, label: "Supplier", path: "/Suppliershome" },
     { icon: <FaUsers />, label: "Customers", path: "/Customer" },
-    { icon: <FaChartBar />, label: "Report", path: "/Report" },
     { icon: <FaFolder  />, label: "Categories", path: "/Categories" },
+    { icon: <FaChartBar />, label: "Report", path: "/Report" },
     { icon: <FaPlus  />, label: "Users", path: "/user" },
+    // { icon: <FaUserShield    />, label: "Administrators", path: "/Administrators" },
     { icon: <FaCog    />, label: "Settings", path: "/Settings" },
-    { icon: <FaUserShield    />, label: "Administrators", path: "/Administrators" },
   
   
     ];

@@ -1,90 +1,274 @@
-import React, { useState } from 'react';
-import { Eye, Download, Edit3, Plus, Search, Filter } from 'lucide-react';
-import CreateQuotation from "../Quotation/createquoation"; // ensure correct path
+import React, { useState, useEffect } from 'react';
+import { Eye, Download, Edit3, Plus, Trash2, X } from 'lucide-react';
+import CreateQuotation from "../Quotation/createquoation";
 import NavBar from '../../component/navigation';
 import Sidebar from '../../component/sidebar';
 import { useTheme } from "../../context/ThemeContext";
+import API from "../../utils/api";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 // Modal Component for Viewing/Editing
-const QuotationModal = ({ quotation, onClose, editable = false, onSave }) => {
-  const { darkMode } = useTheme();
+const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode, customers = [] }) => {
   const [form, setForm] = useState({ ...quotation });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (quotation) {
+      setForm({ ...quotation });
+    }
+  }, [quotation]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm({ ...form, [name]: value });
   };
 
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onSave(form);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Get customer name from customers list
+  const getCustomerName = () => {
+    if (form.customer) return form.customer;
+    if (form.customer_id) {
+      const customer = customers.find(c => c.id === form.customer_id || c._id === form.customer_id);
+      return customer ? customer.name : `Customer #${form.customer_id}`;
+    }
+    return '';
+  };
+
   return (
-    <div
-      className={`fixed inset-0 flex items-center justify-center z-50 p-4 transition-colors ${
-        darkMode ? 'bg-black bg-opacity-60' : 'bg-gray-200 bg-opacity-50'
-      }`}
-    >
-      <div
-        className={`w-full max-w-full sm:max-w-md md:max-w-2xl relative p-4 sm:p-6 space-y-6 rounded-xl shadow-xl transition-transform transform scale-100 ${
-          darkMode ? 'bg-gray-800 text-gray-200' : 'bg-white text-gray-800'
-        }`}
-      >
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className={`w-full max-w-2xl relative p-6 rounded-xl shadow-xl ${darkMode ? 'bg-gray-800 text-gray-200' : 'bg-white text-gray-800'}`}>
         <button
           onClick={onClose}
-          className={`absolute top-4 right-4 p-2 rounded-full transition ${
-            darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
-          }`}
+          disabled={saving}
+          className={`absolute top-4 right-4 p-2 rounded-full transition ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
         >
-          ✕
+          <X size={20} />
         </button>
 
-        <h2 className="text-xl font-bold">{editable ? 'Edit Quotation' : 'View Quotation'}</h2>
+        <h2 className="text-xl font-bold mb-6">{editable ? 'Edit Quotation' : 'View Quotation'}</h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {['id', 'customer', 'date', 'valid', 'amount', 'status'].map((field) => (
-            <div key={field} className="flex flex-col">
-              <label className="text-sm font-medium">{field.toUpperCase()}</label>
-              {editable && field !== 'id' ? (
-                <input
-                  name={field}
-                  value={form[field]}
-                  onChange={handleChange}
-                  className={`px-3 py-2 border rounded-lg outline-none w-full transition-colors ${
-                    darkMode
-                      ? 'bg-gray-700 border-gray-600 text-gray-200 focus:ring-blue-500'
-                      : 'bg-gray-100 border-gray-300 text-gray-800 focus:ring-blue-500'
-                  }`}
-                />
-              ) : (
-                <span
-                  className={`px-3 py-2 border rounded-lg w-full truncate transition-colors ${
-                    darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-gray-100 border-gray-300 text-gray-800'
-                  }`}
-                >
-                  {form[field]}
-                </span>
-              )}
+          <div className="flex flex-col">
+            <label className="text-sm font-medium mb-1">Quotation #</label>
+            <span className={`px-3 py-2 border rounded-lg w-full ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-100 border-gray-300'}`}>
+              {form.quotation_number || form.id}
+            </span>
+          </div>
+
+          <div className="flex flex-col">
+            <label className="text-sm font-medium mb-1">Status</label>
+            {editable ? (
+              <select
+                name="status"
+                value={form.status}
+                onChange={handleChange}
+                disabled={saving}
+                className={`px-3 py-2 border rounded-lg outline-none w-full ${
+                  darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-gray-100 border-gray-300 text-gray-800'
+                }`}
+              >
+                <option value="Pending">Pending</option>
+                <option value="Approved">Approved</option>
+                <option value="Rejected">Rejected</option>
+                <option value="Expired">Expired</option>
+              </select>
+            ) : (
+              <span className={`px-3 py-2 border rounded-lg w-full ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-100 border-gray-300'}`}>
+                {form.status}
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-col">
+            <label className="text-sm font-medium mb-1">Customer</label>
+            {editable ? (
+              <select
+                name="customer"
+                value={form.customer}
+                onChange={handleChange}
+                disabled={saving}
+                className={`px-3 py-2 border rounded-lg outline-none w-full ${
+                  darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-gray-100 border-gray-300 text-gray-800'
+                }`}
+              >
+                <option value="">Select Customer</option>
+                {customers.map(customer => (
+                  <option key={customer.id || customer._id} value={customer.company}>
+                    {customer.company}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className={`px-3 py-2 border rounded-lg w-full ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-100 border-gray-300'}`}>
+                {getCustomerName()}
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-col">
+            <label className="text-sm font-medium mb-1">Quotation Date</label>
+            {editable ? (
+              <input
+                type="date"
+                name="quotation_date"
+                value={form.quotation_date}
+                onChange={handleChange}
+                disabled={saving}
+                className={`px-3 py-2 border rounded-lg outline-none w-full ${
+                  darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-gray-100 border-gray-300 text-gray-800'
+                }`}
+              />
+            ) : (
+              <span className={`px-3 py-2 border rounded-lg w-full ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-100 border-gray-300'}`}>
+                {form.quotation_date}
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-col">
+            <label className="text-sm font-medium mb-1">Valid Until</label>
+            {editable ? (
+              <input
+                type="date"
+                name="valid_until"
+                value={form.valid_until}
+                onChange={handleChange}
+                disabled={saving}
+                className={`px-3 py-2 border rounded-lg outline-none w-full ${
+                  darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-gray-100 border-gray-300 text-gray-800'
+                }`}
+              />
+            ) : (
+              <span className={`px-3 py-2 border rounded-lg w-full ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-100 border-gray-300'}`}>
+                {form.valid_until}
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-col">
+            <label className="text-sm font-medium mb-1">Amount</label>
+            {editable ? (
+              <input
+                type="number"
+                name="amount"
+                value={form.amount}
+                onChange={handleChange}
+                disabled={saving}
+                className={`px-3 py-2 border rounded-lg outline-none w-full ${
+                  darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-gray-100 border-gray-300 text-gray-800'
+                }`}
+              />
+            ) : (
+              <span className={`px-3 py-2 border rounded-lg w-full font-bold ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-100 border-gray-300'}`}>
+                ₦{Number(form.amount || 0).toLocaleString()}
+              </span>
+            )}
+          </div>
+
+          {form.notes && (
+            <div className="md:col-span-2">
+              <label className="text-sm font-medium mb-1">Notes</label>
+              <p className={`px-3 py-2 border rounded-lg w-full ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-100 border-gray-300'}`}>
+                {form.notes}
+              </p>
             </div>
-          ))}
+          )}
         </div>
 
         {editable && (
-          <div className="flex flex-col sm:flex-row justify-end gap-3">
+          <div className="flex justify-end gap-3 mt-6">
             <button
               onClick={onClose}
-              className={`px-4 py-2 rounded-lg font-medium w-full sm:w-auto transition-colors ${
-                darkMode ? 'bg-gray-600 hover:bg-gray-700 text-gray-200' : 'bg-gray-300 hover:bg-gray-400 text-gray-800'
+              disabled={saving}
+              className={`px-4 py-2 rounded-lg font-medium transition ${
+                darkMode ? 'bg-gray-600 hover:bg-gray-700' : 'bg-gray-300 hover:bg-gray-400'
               }`}
             >
               Cancel
             </button>
             <button
-              onClick={() => { onSave(form); onClose(); }}
-              className={`px-4 py-2 rounded-lg font-medium w-full sm:w-auto transition-colors ${
-                darkMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'
-              }`}
+              onClick={handleSave}
+              disabled={saving}
+              className="px-4 py-2 rounded-lg font-medium bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
             >
-              Save
+              {saving && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+              {saving ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         )}
+      </div>
+    </div>
+  );
+};
+
+// Delete Confirmation Modal
+const DeleteConfirmationModal = ({ onClose, onConfirm, data, darkMode, deleting }) => {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className={`w-full max-w-md rounded-xl p-6 relative ${darkMode ? 'bg-gray-800 text-gray-200' : 'bg-white text-gray-800'}`}>
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+          disabled={deleting}
+        >
+          <X size={20} />
+        </button>
+
+        <div className="text-center mb-6">
+          <div className="flex items-center justify-center mb-4">
+            <div className={`w-20 h-20 rounded-full flex items-center justify-center ${
+              darkMode ? 'bg-red-900/20' : 'bg-red-100'
+            }`}>
+              <Trash2 size={40} className="text-red-600" />
+            </div>
+          </div>
+          
+          <h2 className="text-xl font-bold mb-2">Delete Quotation</h2>
+          
+          <p className="text-gray-500 dark:text-gray-400 mb-4">
+            Are you sure you want to delete this quotation?
+          </p>
+          
+          <div className={`p-4 rounded-lg text-left mb-4 ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+            <p className="font-bold text-lg">{data.quotation_number || data.id}</p>
+            <p className="text-sm mt-2">Customer: {data.customer}</p>
+            <p className="text-sm">Amount: ₦{Number(data.amount || 0).toLocaleString()}</p>
+            <p className="text-sm">Status: {data.status}</p>
+          </div>
+          
+          <p className="text-sm text-red-600 font-medium">
+            This action cannot be undone.
+          </p>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            disabled={deleting}
+            className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
+              darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'
+            } ${deleting ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={deleting}
+            className="flex-1 px-4 py-2 rounded-lg font-medium bg-red-600 hover:bg-red-700 text-white transition disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {deleting && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+            {deleting ? 'Deleting...' : 'Delete'}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -97,12 +281,161 @@ const QuotationManagement = () => {
   const [activeTab, setActiveTab] = useState('All Quotations');
   const [modalData, setModalData] = useState(null);
   const [isEditable, setIsEditable] = useState(false);
-  const [quotations, setQuotations] = useState([
-    { id: 'QUT-2023-0020', customer: 'ABC Corporation', date: '2023-10-16', valid: '2023-10-30', amount: '₦245,000', status: 'Pending' },
-    { id: 'QUT-2023-0019', customer: 'New Ventures Inc', date: '2023-10-15', valid: '2023-10-29', amount: '₦189,000', status: 'Pending' },
-    { id: 'QUT-2023-0018', customer: 'Global Solutions Ltd', date: '2023-10-13', valid: '2023-10-27', amount: '₦320,000', status: 'Accepted' },
-    { id: 'QUT-2023-0017', customer: 'Tech Innovations', date: '2023-10-05', valid: '2023-10-19', amount: '₦89,000', status: 'Expired' },
-  ]);
+  const [deleteModal, setDeleteModal] = useState(null);
+  const [quotations, setQuotations] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const tabs = ['All Quotations', 'Pending', 'Accepted', 'Expired'];
+
+  // Fetch customers on mount
+  const fetchCustomers = async () => {
+    try {
+      const res = await API.get("/customers");
+      console.log("Fetched customers:", res.data);
+      
+      // Map customers to a consistent format - CHANGE name TO company
+      const mappedCustomers = res.data.map(customer => ({
+        id: customer.id || customer._id,
+        company: customer.company || customer.name || "", // <-- CHANGE HERE: use company instead of name
+        name: customer.name || "", // keep name as fallback
+        email: customer.email || "",
+        phone: customer.phone || "",
+      }));
+      
+      setCustomers(mappedCustomers);
+    } catch (err) {
+      console.error("Fetch customers error:", err);
+      toast.error("Failed to fetch customers");
+      setCustomers([]);
+    }
+  };
+
+  // Fetch quotations on mount
+  const fetchQuotations = async () => {
+    try {
+      setLoading(true);
+      const res = await API.get("/quoation");
+      console.log("Fetched quotations:", res.data);
+      
+      // Map API response to component format
+      const mappedQuotations = res.data.map(q => ({
+        id: q.id || q._id,
+        quotation_number: q.quotation_number || q.id,
+        customer: q.customer || "",
+        quotation_date: q.quotation_date ? q.quotation_date.split('T')[0] : "",
+        valid_until: q.valid_until ? q.valid_until.split('T')[0] : "",
+        amount: q.amount || 0,
+        formatted_amount: `₦${Number(q.amount || 0).toLocaleString()}`,
+        status: q.status || "Pending",
+        notes: q.notes || "",
+      }));
+      
+      setQuotations(mappedQuotations);
+    } catch (err) {
+      console.error("Fetch quotations error:", err);
+      toast.error(err.response?.data?.message || "Failed to fetch quotations");
+      setQuotations([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initial data fetch
+  useEffect(() => {
+    const loadData = async () => {
+      await fetchCustomers();
+      await fetchQuotations();
+    };
+    loadData();
+  }, []);
+
+  const handleSaveQuotation = async (quotationData) => {
+    try {
+      setSubmitting(true);
+      
+      // Generate quotation number if not exists
+      const quotation_number = quotationData.quotation_number || `QUT-${Date.now()}`;
+      
+      const payload = {
+        quotation_number: quotation_number,
+        customer: quotationData.customer,
+        quotation_date: quotationData.quotation_date,
+        valid_until: quotationData.valid_until,
+        amount: parseFloat(quotationData.amount) || 0,
+        status: quotationData.status,
+        notes: quotationData.notes || ""
+      };
+
+      console.log("Saving quotation with payload:", payload);
+
+      if (quotationData.id) {
+        // Update existing
+        await API.put(`/quoation/${quotationData.id}`, payload);
+        toast.success("Quotation updated successfully!");
+      } else {
+        // Create new
+        await API.post("/quoation", payload);
+        toast.success("Quotation created successfully!");
+      }
+      
+      await fetchQuotations(); // Refresh with latest data
+      setModalData(null);
+      setNewQuotation(false);
+    } catch (err) {
+      console.error("Save quotation error:", err);
+      toast.error(err.response?.data?.message || "Failed to save quotation");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteModal) return;
+    
+    setDeleting(true);
+    try {
+      await API.delete(`/quoation/${deleteModal.id}`);
+      
+      setQuotations(prev => prev.filter(q => q.id !== deleteModal.id));
+      setDeleteModal(null);
+      toast.success("Quotation deleted successfully!");
+    } catch (err) {
+      console.error("Delete quotation error:", err);
+      toast.error(err.response?.data?.message || "Failed to delete quotation");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDownload = (quotation) => {
+    // Create a text representation of the quotation
+    const content = `
+QUOTATION
+====================
+Number: ${quotation.quotation_number || quotation.id}
+Customer: ${quotation.customer}
+Date: ${quotation.quotation_date}
+Valid Until: ${quotation.valid_until}
+Amount: ₦${Number(quotation.amount).toLocaleString()}
+Status: ${quotation.status}
+Notes: ${quotation.notes || 'N/A'}
+====================
+    `;
+    
+    // Create and download file
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `quotation-${quotation.quotation_number || quotation.id}.txt`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+    
+    toast.success("Quotation downloaded successfully!");
+  };
 
   const getStatusStyles = (status) => {
     switch (status) {
@@ -125,23 +458,21 @@ const QuotationManagement = () => {
     }
   };
 
-  const handleSave = (updatedQuotation) => {
-    setQuotations((prev) => prev.map((q) => (q.id === updatedQuotation.id ? updatedQuotation : q)));
-  };
+  const filteredQuotations = quotations.filter(q => 
+    activeTab === 'All Quotations' || q.status === activeTab
+  );
 
   return (
-    <div
-      className={`flex min-h-screen flex-col md:flex-row transition-colors ${
-        darkMode ? 'bg-gray-900 text-gray-200' : 'bg-gray-50 text-gray-800'
-      }`}
-    >
+    <div className={`flex min-h-screen flex-col md:flex-row transition-colors ${
+      darkMode ? 'bg-gray-900 text-gray-200' : 'bg-gray-50 text-gray-800'
+    }`}>
+      <ToastContainer position="top-right" autoClose={2500} hideProgressBar />
       <Sidebar />
 
       <div className="flex-1 flex flex-col">
         <NavBar />
 
-        <main className="p-4 mt-20  md:p-6 lg:p-8 flex-1">
-
+        <main className="p-4 mt-20 md:p-6 lg:p-8 flex-1">
           {/* Header */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
             <h1 className="text-2xl font-bold tracking-tight">Quotation Management</h1>
@@ -155,12 +486,17 @@ const QuotationManagement = () => {
           </div>
 
           {newQuotation ? (
-            <CreateQuotation onCancel={() => setNewQuotation(false)} />
+            <CreateQuotation 
+              onCancel={() => setNewQuotation(false)} 
+              onSave={handleSaveQuotation}
+              darkMode={darkMode}
+              customers={customers}
+            />
           ) : (
             <>
               {/* Tabs */}
               <div className="flex flex-wrap gap-2 mb-4 border-b border-gray-200">
-                {['All Quotations', 'Pending', 'Accepted', 'Expired'].map((tab) => (
+                {tabs.map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
@@ -177,79 +513,125 @@ const QuotationManagement = () => {
                 ))}
               </div>
 
+              {/* Loading State */}
+              {loading && (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                  <p>Loading quotations...</p>
+                </div>
+              )}
+
+              {/* Empty State */}
+              {!loading && filteredQuotations.length === 0 && (
+                <div className={`text-center py-12 rounded-xl border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+                  <p className="text-gray-400 mb-4">No quotations found</p>
+                  <button
+                    onClick={() => setNewQuotation(true)}
+                    className="text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    Create your first quotation
+                  </button>
+                </div>
+              )}
+
               {/* Table */}
-              <div
-                className={`overflow-x-auto rounded-xl border shadow-sm transition-colors ${
+              {!loading && filteredQuotations.length > 0 && (
+                <div className={`overflow-x-auto rounded-xl border shadow-sm transition-colors ${
                   darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
-                }`}
-              >
-                <table className="min-w-full table-auto">
-                  <thead className={`transition-colors ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
-                    <tr>
-                      {['Quotation #', 'Customer', 'Date', 'Valid Until', 'Amount', 'Status', 'Actions'].map((h) => (
-                        <th key={h} className="px-4 py-2 text-xs font-bold uppercase">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {quotations
-                      .filter((q) => activeTab === 'All Quotations' || q.status === activeTab)
-                      .map((q) => (
+                }`}>
+                  <table className="min-w-full table-auto">
+                    <thead className={`transition-colors ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                      <tr>
+                        {['Quotation #', 'Customer', 'Date', 'Valid Until', 'Amount', 'Status', 'Actions'].map((h) => (
+                          <th key={h} className="px-4 py-2 text-xs font-bold uppercase">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredQuotations.map((q) => (
                         <tr key={q.id} className={`hover:transition-colors ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}>
-                          <td className="px-4 py-2 font-semibold text-blue-600 truncate">{q.id}</td>
+                          <td className="px-4 py-2 font-semibold text-blue-600 truncate">{q.quotation_number}</td>
                           <td className="px-4 py-2 truncate">{q.customer}</td>
-                          <td className="px-4 py-2 text-sm truncate">{q.date}</td>
-                          <td className="px-4 py-2 text-sm truncate">{q.valid}</td>
-                          <td className="px-4 py-2 font-bold truncate">{q.amount}</td>
+                          <td className="px-4 py-2 text-sm truncate">{q.quotation_date}</td>
+                          <td className="px-4 py-2 text-sm truncate">{q.valid_until}</td>
+                          <td className="px-4 py-2 font-bold truncate">{q.formatted_amount}</td>
                           <td className="px-4 py-2">
                             <span className={`px-2 py-1 rounded text-xs font-semibold border uppercase ${getStatusStyles(q.status)}`}>
                               {q.status}
                             </span>
                           </td>
-                          <td className="px-4 py-2 flex flex-wrap gap-1">
-                            <button
-                              onClick={() => { setModalData(q); setIsEditable(false); }}
-                              className="p-2 rounded-md transition-colors bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white"
-                            >
-                              <Eye size={16} />
-                            </button>
-                            <button
-                              onClick={() => alert(`Downloading ${q.id}`)}
-                              className="p-2 rounded-md transition-colors bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white"
-                            >
-                              <Download size={16} />
-                            </button>
-                            <button
-                              onClick={() => { setModalData(q); setIsEditable(true); }}
-                              className="p-2 rounded-md transition-colors bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white"
-                            >
-                              <Edit3 size={16} />
-                            </button>
+                          <td className="px-4 py-2">
+                            <div className="flex flex-wrap gap-1">
+                              <button
+                                onClick={() => { setModalData(q); setIsEditable(false); }}
+                                className="p-2 rounded-md transition-colors bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white"
+                                title="View"
+                              >
+                                <Eye size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleDownload(q)}
+                                className="p-2 rounded-md transition-colors bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white"
+                                title="Download"
+                              >
+                                <Download size={16} />
+                              </button>
+                              <button
+                                onClick={() => { setModalData(q); setIsEditable(true); }}
+                                className="p-2 rounded-md transition-colors bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white"
+                                title="Edit"
+                              >
+                                <Edit3 size={16} />
+                              </button>
+                              <button
+                                onClick={() => setDeleteModal(q)}
+                                className="p-2 rounded-md transition-colors bg-red-50 text-red-600 hover:bg-red-600 hover:text-white"
+                                title="Delete"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
-                  </tbody>
-                </table>
-              </div>
+                    </tbody>
+                  </table>
+                </div>
+              )}
 
               {/* Pagination */}
-              <div className="flex flex-col md:flex-row justify-between items-center gap-2 mt-3 text-xs transition-colors">
-                <span className="italic">{`Showing 1 to ${quotations.length} of ${quotations.length} entries`}</span>
-                <div className="flex gap-1">
-                  <button className="px-3 py-1.5 border rounded hover:bg-gray-50">Previous</button>
-                  <button className="px-4 py-1.5 bg-gray-800 text-white rounded hover:bg-gray-700">Next</button>
+              {!loading && filteredQuotations.length > 0 && (
+                <div className="flex flex-col md:flex-row justify-between items-center gap-2 mt-3 text-xs transition-colors">
+                  <span className="italic">{`Showing 1 to ${filteredQuotations.length} of ${filteredQuotations.length} entries`}</span>
+                  <div className="flex gap-1">
+                    <button className="px-3 py-1.5 border rounded hover:bg-gray-50">Previous</button>
+                    <button className="px-4 py-1.5 bg-gray-800 text-white rounded hover:bg-gray-700">Next</button>
+                  </div>
                 </div>
-              </div>
+              )}
             </>
           )}
 
-          {/* Modal */}
+          {/* View/Edit Modal */}
           {modalData && (
             <QuotationModal
               quotation={modalData}
               editable={isEditable}
               onClose={() => setModalData(null)}
-              onSave={handleSave}
+              onSave={handleSaveQuotation}
+              darkMode={darkMode}
+              customers={customers}
+            />
+          )}
+
+          {/* Delete Confirmation Modal */}
+          {deleteModal && (
+            <DeleteConfirmationModal
+              onClose={() => setDeleteModal(null)}
+              onConfirm={handleDelete}
+              data={deleteModal}
+              darkMode={darkMode}
+              deleting={deleting}
             />
           )}
         </main>
