@@ -1,180 +1,341 @@
-import React, { useState } from "react";
-import { toast, ToastContainer } from "react-toastify";
-import 'react-toastify/dist/ReactToastify.css';
-import { useTheme } from "../../context/ThemeContext";
+import React, { useState, useEffect } from "react";
 
-export default function AddInventoryItem() {
-  const { darkMode } = useTheme();
+const AddNewInventory = ({ categories, onSave, onClose, initialData, isEdit = false }) => {
+  const [form, setForm] = useState({
+    product_name: "",
+    sku: `SKU-${Date.now()}`,
+    category: "",
+    current_stock: 0,
+    min_stock: 10,
+    purchase_price: 0,
+    selling_price: 0,
+  });
 
-  const [productName, setProductName] = useState("");
-  const [sku, setSku] = useState("AUTO-001");
-  const [category, setCategory] = useState("");
-  const [currentStock, setCurrentStock] = useState(0);
-  const [minStock, setMinStock] = useState(10);
-  const [purchasePrice, setPurchasePrice] = useState("");
-  const [sellingPrice, setSellingPrice] = useState("");
-  const [description, setDescription] = useState("");
+  const [errors, setErrors] = useState({});
+  const [showPreview, setShowPreview] = useState(false);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!productName || !category || !purchasePrice || !sellingPrice) {
-      toast.error("Required fields missing!", { autoClose: 2000 });
-      return;
+  // Load initial data if in edit mode
+  useEffect(() => {
+    if (initialData && isEdit) {
+      setForm({
+        product_name: initialData.name || initialData.product_name || "",
+        sku: initialData.sku || `SKU-${Date.now()}`,
+        category: initialData.category || "",
+        current_stock: initialData.current_stock || initialData.stock || 0,
+        min_stock: initialData.min_stock || initialData.min || 10,
+        purchase_price: initialData.purchase_price || 0,
+        selling_price: initialData.selling_price || initialData.price || 0,
+      });
     }
-    toast.success("Item added successfully!", { autoClose: 2000 });
-    // Reset form
-    setProductName(""); setCategory(""); setCurrentStock(0); setMinStock(10);
-    setPurchasePrice(""); setSellingPrice(""); setDescription("");
+  }, [initialData, isEdit]);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm({ ...form, [name]: value });
+    
+    // Clear error for this field when user starts typing
+    if (errors[name]) {
+      setErrors({ ...errors, [name]: null });
+    }
   };
 
-  const inputClass = `w-full p-2 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
-    darkMode ? "bg-slate-700 border-slate-600 text-slate-200 placeholder:text-slate-400" : "bg-gray-50 border-gray-300 text-gray-900 placeholder:text-gray-400"
-  }`;
+  const validateForm = () => {
+    const newErrors = {};
+    
+    if (!form.product_name?.trim()) {
+      newErrors.product_name = "Product name is required";
+    }
+    if (!form.category) {
+      newErrors.category = "Category is required";
+    }
+    if (!form.purchase_price || form.purchase_price <= 0) {
+      newErrors.purchase_price = "Valid purchase price is required";
+    }
+    if (!form.selling_price || form.selling_price <= 0) {
+      newErrors.selling_price = "Valid selling price is required";
+    }
+    if (form.selling_price < form.purchase_price) {
+      newErrors.selling_price = "Selling price should be greater than purchase price";
+    }
+    if (form.current_stock < 0) {
+      newErrors.current_stock = "Stock cannot be negative";
+    }
+    if (form.min_stock < 0) {
+      newErrors.min_stock = "Minimum stock cannot be negative";
+    }
 
-  const textareaClass = `w-full p-2 border rounded text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
-    darkMode ? "bg-slate-700 border-slate-600 text-slate-200 placeholder:text-slate-400" : "bg-gray-50 border-gray-300 text-gray-900 placeholder:text-gray-400"
-  }`;
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
+  const handlePreview = () => {
+    if (validateForm()) {
+      setShowPreview(true);
+    }
+  };
+
+  const handleSubmit = () => {
+    // Prepare data for saving
+    const submitData = {
+      ...form,
+      // Include ID if editing
+      ...(isEdit && initialData?.id && { id: initialData.id }),
+    };
+    onSave(submitData);
+    setShowPreview(false);
+  };
+
+  const handleBack = () => {
+    setShowPreview(false);
+  };
+
+  // Preview Mode
+  if (showPreview) {
+    return (
+      <div className="flex flex-col gap-4">
+        <h3 className="text-lg font-bold mb-2">Preview {isEdit ? 'Changes' : 'Item'}</h3>
+        
+        <div className="bg-gray-50 dark:bg-slate-700 p-4 rounded-lg space-y-2">
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <span className="font-medium">Product Name:</span>
+            <span>{form.product_name}</span>
+            
+            <span className="font-medium">SKU:</span>
+            <span className="text-blue-600 font-mono">{form.sku}</span>
+            
+            <span className="font-medium">Category:</span>
+            <span>{form.category}</span>
+            
+            <span className="font-medium">Current Stock:</span>
+            <span>{form.current_stock} units</span>
+            
+            <span className="font-medium">Minimum Stock:</span>
+            <span>{form.min_stock} units</span>
+            
+            <span className="font-medium">Purchase Price:</span>
+            <span>₦{Number(form.purchase_price).toLocaleString()}</span>
+            
+            <span className="font-medium">Selling Price:</span>
+            <span>₦{Number(form.selling_price).toLocaleString()}</span>
+            
+            <span className="font-medium">Profit Margin:</span>
+            <span className={form.selling_price > form.purchase_price ? 'text-green-600' : 'text-red-600'}>
+              ₦{(form.selling_price - form.purchase_price).toLocaleString()} 
+              ({((form.selling_price - form.purchase_price) / form.purchase_price * 100 || 0).toFixed(1)}%)
+            </span>
+            
+            <span className="font-medium">Total Value:</span>
+            <span className="font-bold">₦{(form.current_stock * form.selling_price).toLocaleString()}</span>
+            
+            <span className="font-medium">Status:</span>
+            <span>
+              {form.current_stock === 0 ? (
+                <span className="text-red-600 font-medium">Out of Stock</span>
+              ) : form.current_stock <= form.min_stock ? (
+                <span className="text-amber-600 font-medium">Low Stock</span>
+              ) : (
+                <span className="text-emerald-600 font-medium">In Stock</span>
+              )}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex gap-2 justify-end mt-2">
+          <button 
+            onClick={handleBack} 
+            className="px-4 py-2 border rounded hover:bg-gray-50 dark:hover:bg-slate-700"
+          >
+            Back to Edit
+          </button>
+          <button 
+            onClick={handleSubmit} 
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Confirm {isEdit ? 'Update' : 'Save'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Edit/Create Mode
   return (
-    <div className={`flex justify-center items-start py-4 px-4 min-h-screen transition-colors ${
-      darkMode ? "bg-slate-900 text-slate-200" : "bg-gray-50 text-gray-900"
-    }`}>
-      <ToastContainer position="top-right" autoClose={2000} hideProgressBar />
+    <div className="flex flex-col gap-3">
+      {/* Product Name */}
+      <div>
+        <label className="block text-sm font-medium mb-1">
+          Product Name <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          name="product_name"
+          value={form.product_name}
+          onChange={handleChange}
+          placeholder="Enter product name"
+          className={`w-full p-2 border rounded ${
+            errors.product_name ? 'border-red-500' : ''
+          }`}
+        />
+        {errors.product_name && (
+          <p className="text-red-500 text-xs mt-1">{errors.product_name}</p>
+        )}
+      </div>
 
-      <form
-        onSubmit={handleSubmit}
-        className={`shadow-md rounded-lg p-6 w-full max-w-2xl space-y-4 border transition-colors ${
-          darkMode ? "bg-slate-800 border-slate-700" : "bg-white border-gray-100"
-        }`}
-      >
-        <div className="flex justify-between items-center mb-1">
-          <h2 className={`text-lg font-bold ${darkMode ? "text-slate-200" : "text-gray-800"}`}>New Inventory Item</h2>
-          <span className={`text-xs ${darkMode ? "text-slate-400" : "text-gray-400"}`}>* Required</span>
-        </div>
+      {/* SKU - Read Only */}
+      <div>
+        <label className="block text-sm font-medium mb-1">SKU (Auto-generated)</label>
+        <input
+          type="text"
+          name="sku"
+          value={form.sku}
+          readOnly
+          className="w-full p-2 border rounded bg-gray-50 dark:bg-slate-700"
+        />
+      </div>
 
-        {/* Row 1: Name & SKU */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="md:col-span-2">
-            <label className="block text-xs font-bold uppercase mb-1">Product Name *</label>
-            <input
-              type="text"
-              value={productName}
-              onChange={(e) => setProductName(e.target.value)}
-              className={inputClass}
-              placeholder="e.g. Wireless Mouse"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold uppercase mb-1">SKU</label>
-            <input
-              type="text"
-              value={sku}
-              readOnly
-              className={`w-full p-2 rounded text-sm ${darkMode ? "bg-slate-700 border-slate-600 text-slate-400" : "bg-gray-50 border-gray-200 text-gray-500"}`}
-            />
-          </div>
-        </div>
+      {/* Category */}
+      <div>
+        <label className="block text-sm font-medium mb-1">
+          Category <span className="text-red-500">*</span>
+        </label>
+        <select
+          name="category"
+          value={form.category}
+          onChange={handleChange}
+          className={`w-full p-2 border rounded ${
+            errors.category ? 'border-red-500' : ''
+          }`}
+        >
+          <option value="">Select Category</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.name}>{c.name}</option>
+          ))}
+        </select>
+        {errors.category && (
+          <p className="text-red-500 text-xs mt-1">{errors.category}</p>
+        )}
+      </div>
 
-        {/* Row 2: Category & Stocks */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div>
-            <label className="block text-xs font-bold uppercase mb-1">Category *</label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className={inputClass}
-              required
-            >
-              <option value="">Select...</option>
-              <option value="Electronics">Electronics</option>
-              <option value="Apparel">Apparel</option>
-              <option value="Furniture">Furniture</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-bold uppercase mb-1">Current Stock</label>
-            <input
-              type="number"
-              value={currentStock}
-              onChange={(e) => setCurrentStock(Number(e.target.value))}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold uppercase mb-1">Min. Level</label>
-            <input
-              type="number"
-              value={minStock}
-              onChange={(e) => setMinStock(Number(e.target.value))}
-              className={inputClass}
-            />
-          </div>
-        </div>
-
-        {/* Row 3: Pricing */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-bold uppercase mb-1">Purchase Price (₦) *</label>
-            <input
-              type="number"
-              value={purchasePrice}
-              onChange={(e) => setPurchasePrice(e.target.value)}
-              className={inputClass}
-              placeholder="0.00"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold uppercase mb-1">Selling Price (₦) *</label>
-            <input
-              type="number"
-              value={sellingPrice}
-              onChange={(e) => setSellingPrice(e.target.value)}
-              className={inputClass}
-              placeholder="0.00"
-              required
-            />
-          </div>
-        </div>
-
-        {/* Row 4: Description */}
+      {/* Stock Information */}
+      <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="block text-xs font-bold uppercase mb-1">Description</label>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows="3"
-            className={textareaClass}
-            placeholder="Short details..."
-          ></textarea>
+          <label className="block text-sm font-medium mb-1">Current Stock</label>
+          <input
+            type="number"
+            name="current_stock"
+            value={form.current_stock}
+            onChange={handleChange}
+            min="0"
+            className={`w-full p-2 border rounded ${
+              errors.current_stock ? 'border-red-500' : ''
+            }`}
+          />
+          {errors.current_stock && (
+            <p className="text-red-500 text-xs mt-1">{errors.current_stock}</p>
+          )}
         </div>
 
-        {/* Footer Actions */}
-        <div className="flex justify-end gap-2 pt-2 border-t transition-colors border-gray-100">
-          <button
-            type="button"
-            onClick={() => {
-              setProductName(""); setCategory(""); setCurrentStock(0); setMinStock(10);
-              setPurchasePrice(""); setSellingPrice(""); setDescription("");
-              toast.info("Form cleared", { autoClose: 1500 });
-            }}
-            className={`px-4 py-1.5 text-sm font-medium rounded transition-colors ${
-              darkMode ? "text-slate-200 hover:text-slate-100" : "text-gray-500 hover:text-gray-700"
+        <div>
+          <label className="block text-sm font-medium mb-1">Minimum Stock</label>
+          <input
+            type="number"
+            name="min_stock"
+            value={form.min_stock}
+            onChange={handleChange}
+            min="0"
+            className={`w-full p-2 border rounded ${
+              errors.min_stock ? 'border-red-500' : ''
             }`}
-          >
-            Clear
-          </button>
-          <button
-            type="submit"
-            className={`px-6 py-1.5 text-sm font-bold rounded shadow transition-colors ${
-              darkMode ? "bg-blue-600 text-white hover:bg-blue-500" : "bg-blue-600 text-white hover:bg-blue-700"
-            }`}
-          >
-            Save Item
-          </button>
+          />
+          {errors.min_stock && (
+            <p className="text-red-500 text-xs mt-1">{errors.min_stock}</p>
+          )}
         </div>
-      </form>
+      </div>
+
+      {/* Price Information */}
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="block text-sm font-medium mb-1">
+            Purchase Price (₦) <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="number"
+            name="purchase_price"
+            value={form.purchase_price}
+            onChange={handleChange}
+            min="0"
+            step="0.01"
+            className={`w-full p-2 border rounded ${
+              errors.purchase_price ? 'border-red-500' : ''
+            }`}
+          />
+          {errors.purchase_price && (
+            <p className="text-red-500 text-xs mt-1">{errors.purchase_price}</p>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">
+            Selling Price (₦) <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="number"
+            name="selling_price"
+            value={form.selling_price}
+            onChange={handleChange}
+            min="0"
+            step="0.01"
+            className={`w-full p-2 border rounded ${
+              errors.selling_price ? 'border-red-500' : ''
+            }`}
+          />
+          {errors.selling_price && (
+            <p className="text-red-500 text-xs mt-1">{errors.selling_price}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Summary Information */}
+      {form.purchase_price > 0 && form.selling_price > 0 && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg text-sm">
+          <p className="font-medium mb-1">Summary:</p>
+          <div className="flex justify-between">
+            <span>Profit per unit:</span>
+            <span className={form.selling_price > form.purchase_price ? 'text-green-600' : 'text-red-600'}>
+              ₦{(form.selling_price - form.purchase_price).toLocaleString()}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span>Margin:</span>
+            <span className={form.selling_price > form.purchase_price ? 'text-green-600' : 'text-red-600'}>
+              {((form.selling_price - form.purchase_price) / form.purchase_price * 100 || 0).toFixed(1)}%
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span>Total value:</span>
+            <span className="font-bold">₦{(form.current_stock * form.selling_price).toLocaleString()}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Action Buttons */}
+      <div className="flex gap-2 justify-end mt-4">
+        <button 
+          onClick={onClose} 
+          className="px-4 py-2 border rounded hover:bg-gray-50 dark:hover:bg-slate-700"
+        >
+          Cancel
+        </button>
+        <button 
+          onClick={handlePreview} 
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+        >
+          Preview {isEdit ? 'Changes' : 'Item'}
+        </button>
+      </div>
     </div>
   );
-}
+};
+
+export default AddNewInventory;

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import API from "../utils/api";
 
 export default function Registration() {
   const navigate = useNavigate();
@@ -19,8 +20,9 @@ export default function Registration() {
   };
 
   // Handle form submission
-  const handleForm = (e) => {
+  const handleForm = async (e) => {
     e.preventDefault();
+
     const newError = {};
 
     if (!data.username) newError.username = "Please enter your username!";
@@ -28,17 +30,34 @@ export default function Registration() {
     if (!data.password) newError.password = "Please enter your password!";
 
     setError(newError);
+
     if (Object.keys(newError).length > 0) return;
 
-    setLoading(true);
+    try {
+      setLoading(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      toast.success("Registration successful!");
-      setData({ username: "", email: "", password: "" });
+      const res = await API.post("/auth/register", data);
+
+      toast.success(res.data.message || "Registration successful!");
+
+      setData({
+        username: "",
+        email: "",
+        password: "",
+      });
+
+      setTimeout(() => {
+        navigate("/login");
+      }, 1500);
+
+    } catch (err) {
+      const message =
+        err.response?.data?.message || "Registration failed";
+
+      toast.error(message);
+    } finally {
       setLoading(false);
-      navigate("/HomeDashboard");
-    }, 2000);
+    }
   };
 
   return (
@@ -50,7 +69,7 @@ export default function Registration() {
         {/* Top Inventory Heading with Image */}
         <div className="flex flex-col md:flex-row items-center gap-4 md:gap-6 mb-8">
           <img
-            src="public/unnamed (1).jpg"
+            src="/logo.jpg"
             alt="Inventory"
             className="w-20 h-20 md:w-28 md:h-28 object-contain rounded-lg shadow-lg"
           />
@@ -158,15 +177,6 @@ export default function Registration() {
             {error.password && (
               <p className="text-red-500 text-sm mt-1">{error.password}</p>
             )}
-          </div>
-
-          {/* Logo */}
-          <div className="bg-white/70 rounded-lg w-full flex justify-center items-center py-3 shadow-inner">
-            <img
-              className="w-12 h-12 object-contain"
-              src="8e4241399baefbe8f8feffab0fe67682e140e1b1.png"
-              alt="Logo"
-            />
           </div>
 
           {/* Submit Button */}

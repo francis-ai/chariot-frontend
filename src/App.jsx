@@ -1,10 +1,12 @@
 import React from "react";
 import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
+import ProtectedRoute from "./routes/ProtectedRoute.jsx";
 
 // Auth
 import Login from "./Auth/Login";
 import Registration from "./Auth/Register";
 import ForgotPassword from "./Auth/forgetpassword";
+import ResetPassword from "./Auth/ResetPassword.jsx"
 import ChatBot from "./chat";
 
 // Dashboard Pages
@@ -30,12 +32,12 @@ import Footer from "./Footer";
 // Context
 import { SearchProvider } from "./context/searchcontex";
 import { ThemeProvider } from "./context/ThemeContext";
+import { AuthProvider } from "./context/authContext.jsx"; 
 
 // Wrapper to conditionally show Footer
 const AppWrapper = () => {
   const location = useLocation();
 
-  // Paths where footer should NOT show
   const noFooterPaths = [
     "/login",
     "/register",
@@ -54,31 +56,99 @@ const AppWrapper = () => {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Registration />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password/:token" element={<ResetPassword />} />
 
-          {/* Dashboard */}
-          <Route path="/HomeDashboard" element={<HomeDashboard />} />
-          <Route path="/invoiceManagement" element={<InvoiceManagement />} />
-          <Route path="/QuotationPage" element={<QuotationPage />} />
-          <Route path="/Waybill" element={<Waybill />} />
-          <Route path="/ordermanagement" element={<Ordermanagement />} />
-          <Route path="/purchase" element={<Supplierhome />} />
-          <Route path="/Inventory" element={<Inventory />} />
-          <Route path="/Suppliershome" element={<Suppliershome />} />
-          <Route path="/Customer" element={<Customer />} />
-          <Route path="/Report" element={<Report />} />
-          <Route path="/user" element={<User />} />
-          <Route path="/chat" element={<ChatBot />} />
-          <Route path="/Categories" element={<Categories />} />
-          <Route path="/new-invoice" element={<NewInvoice />} />
-          <Route path="/receipt" element={<Receipt />} />
-          <Route path="/Settings" element={<Settings />} />
+          {/* Dashboard / Protected Routes */}
+          <Route path="/HomeDashboard" element={
+            <ProtectedRoute>
+              <HomeDashboard />
+            </ProtectedRoute>
+          }/>
+          <Route path="/invoiceManagement" element={
+            <ProtectedRoute>
+              <InvoiceManagement />
+            </ProtectedRoute>
+          }/>
+          <Route path="/QuotationPage" element={
+            <ProtectedRoute>
+              <QuotationPage />
+            </ProtectedRoute>
+          }/>
+          <Route path="/Waybill" element={
+            <ProtectedRoute>
+              <Waybill />
+            </ProtectedRoute>
+          }/>
+          <Route path="/ordermanagement" element={
+            <ProtectedRoute>
+              <Ordermanagement />
+            </ProtectedRoute>
+          }/>
+          <Route path="/purchase" element={
+            <ProtectedRoute>
+              <Supplierhome />
+            </ProtectedRoute>
+          }/>
+          <Route path="/Inventory" element={
+            <ProtectedRoute>
+              <Inventory />
+            </ProtectedRoute>
+          }/>
+          <Route path="/Suppliershome" element={
+            <ProtectedRoute>
+              <Suppliershome />
+            </ProtectedRoute>
+          }/>
+          <Route path="/Customer" element={
+            <ProtectedRoute>
+              <Customer />
+            </ProtectedRoute>
+          }/>
+          <Route path="/Report" element={
+            <ProtectedRoute>
+              <Report />
+            </ProtectedRoute>
+          }/>
+          <Route path="/user" element={
+            <ProtectedRoute>
+              <User />
+            </ProtectedRoute>
+          }/>
+          <Route path="/chat" element={
+            <ProtectedRoute>
+              <ChatBot />
+            </ProtectedRoute>
+          }/>
+          <Route path="/Categories" element={
+            <ProtectedRoute>
+              <Categories />
+            </ProtectedRoute>
+          }/>
+          <Route path="/new-invoice" element={
+            <ProtectedRoute>
+              <NewInvoice />
+            </ProtectedRoute>
+          }/>
+          <Route path="/receipt" element={
+            <ProtectedRoute>
+              <Receipt />
+            </ProtectedRoute>
+          }/>
+          <Route path="/Settings" element={
+            <ProtectedRoute>
+              <Settings />
+            </ProtectedRoute>
+          }/>
 
           {/* Catch-all */}
-          <Route path="*" element={<HomeDashboard />} />
+          <Route path="*" element={
+            <ProtectedRoute>
+              <HomeDashboard />
+            </ProtectedRoute>
+          }/>
         </Routes>
       </div>
 
-      {/* Footer only on allowed pages */}
       {showFooter && <Footer />}
     </div>
   );
@@ -88,9 +158,11 @@ export default function App() {
   return (
     <ThemeProvider>
       <SearchProvider>
-        <Router>
-          <AppWrapper />
-        </Router>
+        <AuthProvider> {/* Wrap with AuthProvider */}
+          <Router>
+            <AppWrapper />
+          </Router>
+        </AuthProvider>
       </SearchProvider>
     </ThemeProvider>
   );

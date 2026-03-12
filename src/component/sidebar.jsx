@@ -1,5 +1,6 @@
-import React, { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import React, { useState, useContext } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { AuthContext } from "../context/authContext.jsx"; // <-- import AuthContext
 import {
   FaHome,
   FaFileInvoice,
@@ -22,6 +23,8 @@ import {
 export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(false); // Sidebar toggle for mobile
   const location = useLocation(); // For highlighting active link
+  const { logout } = useContext(AuthContext); // get logout function
+  const navigate = useNavigate();
 
   const menuItems = [
     { icon: <FaHome />, label: "Dashboard", path: "/HomeDashboard" },
@@ -33,10 +36,10 @@ export default function Sidebar() {
     { icon: <FaBuilding />, label: "Supplier", path: "/Suppliershome" },
     { icon: <FaUsers />, label: "Customers", path: "/Customer" },
     { icon: <FaChartBar />, label: "Report", path: "/Report" },
-     { icon: <FaFolder  />, label: "Categories", path: "/Categories" },
+    { icon: <FaFolder  />, label: "Categories", path: "/Categories" },
     { icon: <FaPlus  />, label: "Users", path: "/user" },
-      { icon: <FaCog    />, label: "Settings", path: "/Settings" },
-  { icon: <FaUserShield    />, label: "Administrators", path: "/Administrators" },
+    { icon: <FaCog    />, label: "Settings", path: "/Settings" },
+    { icon: <FaUserShield    />, label: "Administrators", path: "/Administrators" },
   
   
     ];
@@ -63,7 +66,7 @@ export default function Sidebar() {
         `}
       >
         {/* Logo / Title */}
-       <img src="unnamed (1).jpg" alt="Logo" className="w-20 h-20 rounded-full mb-4 mx-auto" />
+       <img src="/logo.jpg" alt="Logo" className="w-20 h-20 rounded-full mb-4 mx-auto" />
 
         {/* Navigation */}
         <nav className="flex-1">
@@ -93,7 +96,13 @@ export default function Sidebar() {
 
         {/* Footer / Logout */}
         <div className="mt-auto">
-          <button className="flex items-center gap-3 p-3 rounded hover:bg-red-500 transition w-full bg-white">
+          <button
+            onClick={() => {
+              logout();           // clear user & token
+              navigate("/login"); // redirect to login page
+            }}
+            className="flex items-center gap-3 p-3 rounded hover:bg-red-500 transition w-full bg-white"
+          >
             <FaSignOutAlt className="w-5 h-5 text-red-600" />
             <span className="text-gray-800 font-medium">Logout</span>
           </button>
