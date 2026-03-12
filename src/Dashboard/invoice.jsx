@@ -1,16 +1,14 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { toast, ToastContainer } from "react-toastify";
-import { X } from "lucide-react";
+import { X, Save } from "lucide-react";
 import "react-toastify/dist/ReactToastify.css";
-import { useTheme } from "../context/ThemeContext";
+import API from "../utils/api";
 
-export default function InvoiceForm({ onClose }) {
-  const { darkMode } = useTheme();
-
+export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) {
   const [form, setForm] = useState({
     customer: "",
-    invoiceDate: "",
-    dueDate: "",
+    invoice_date: new Date().toISOString().split('T')[0],
+    due_date: "",
     item: "",
     description: "",
     quantity: 1,
@@ -18,112 +16,231 @@ export default function InvoiceForm({ onClose }) {
     discount: 0,
     notes: ""
   });
+  const [customers, setCustomers] = useState([]);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState({ customers: true, items: true });
+  const [selectedItemId, setSelectedItemId] = useState("");
 
-  const taxRate = 0.075;
+  // Load invoice data if editing
+  useEffect(() => {
+    if (invoiceData) {
+      setForm({
+        customer: invoiceData.customer || "",
+        invoice_date: invoiceData.invoice_date || new Date().toISOString().split('T')[0],
+        due_date: invoiceData.due_date || "",
+        item: invoiceData.item || "",
+        description: invoiceData.description || "",
+        quantity: invoiceData.quantity || 1,
+        price: invoiceData.price || 0,
+        discount: invoiceData.discount || 0,
+        notes: invoiceData.notes || ""
+      });
+    }
+  }, [invoiceData]);
+
+  // Find the item ID for the select dropdown when items are loaded
+  useEffect(() => {
+    if (invoiceData && items.length > 0) {
+      const item = items.find(i => i.product_name === invoiceData.item);
+      if (item) {
+        setSelectedItemId(String(item.id || item._id));
+      }
+    }
+  }, [invoiceData, items]);
+
+  // Fetch customers
+  useEffect(() => {
+    const fetchCustomers = async () => {
+      try {
+        setFetching(prev => ({ ...prev, customers: true }));
+        const res = await API.get("/customers");
+        console.log("Fetched customers:", res.data);
+        setCustomers(res.data || []);
+      } catch (err) {
+        console.error("Fetch customers error:", err);
+        toast.error("Failed to load customers");
+        setCustomers([]);
+      } finally {
+        setFetching(prev => ({ ...prev, customers: false }));
+      }
+    };
+    fetchCustomers();
+  }, []);
+
+  // Fetch inventory items
+  useEffect(() => {
+    const fetchItems = async () => {
+      try {
+        setFetching(prev => ({ ...prev, items: true }));
+        const res = await API.get("/inventory");
+        console.log("Fetched inventory items:", res.data);
+        setItems(res.data || []);
+      } catch (err) {
+        console.error("Fetch inventory error:", err);
+        // Don't show error toast for inventory, just log it
+        setItems([]);
+      } finally {
+        setFetching(prev => ({ ...prev, items: false }));
+      }
+    };
+    fetchItems();
+  }, []);
+
+  // Handle item selection - auto-fill price
+  const handleItemChange = (e) => {
+    const selectedId = e.target.value;
+    setSelectedItemId(selectedId);
+    
+    const selectedItem = items.find(
+      (item) => String(item.id) === String(selectedId) || String(item._id) === String(selectedId)
+    );
+
+    if (selectedItem) {
+      setForm(prev => ({
+        ...prev,
+        item: selectedItem.product_name || selectedItem.name || "",
+        price: Number(selectedItem.selling_price || selectedItem.price || 0),
+        description: prev.description || selectedItem.description || ""
+      }));
+    } else {
+      setForm(prev => ({
+        ...prev,
+        item: "",
+        price: 0,
+        description: ""
+      }));
+    }
+  };
+
+  // Calculations
   const subtotal = form.quantity * form.price;
-  const tax = subtotal * taxRate;
-  const total = subtotal + tax - form.discount;
+  const total = subtotal - (form.discount || 0);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm({ ...form, [name]: value });
+    setForm(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e, print = false) => {
+  const handleSubmit = async (e, print = false) => {
     e.preventDefault();
 
-    if (!form.customer || !form.invoiceDate || !form.dueDate || !form.item) {
-      toast.error("Please fill all required fields", { autoClose: 3000 });
+    // Validation
+    if (!form.customer) {
+      toast.error("Please select a customer");
+      return;
+    }
+    if (!form.invoice_date) {
+      toast.error("Invoice date is required");
+      return;
+    }
+    if (!form.due_date) {
+      toast.error("Due date is required");
+      return;
+    }
+    if (!form.item) {
+      toast.error("Please select an item");
       return;
     }
 
-    if (print) {
-      toast.success("Invoice saved! Printing...", { autoClose: 2000 });
-      setTimeout(() => window.print(), 500);
-    } else {
-      toast.success("Invoice saved successfully", { autoClose: 3000 });
+    setLoading(true);
+    try {
+      await onSave(form);
+      
+      if (print) {
+        toast.success("Invoice saved! Printing...");
+        setTimeout(() => window.print(), 500);
+      }
+    } catch (err) {
+      console.error("Form submission error:", err);
+    } finally {
+      setLoading(false);
     }
-
-    // Reset form
-    setForm({
-      customer: "",
-      invoiceDate: "",
-      dueDate: "",
-      item: "",
-      description: "",
-      quantity: 1,
-      price: 0,
-      discount: 0,
-      notes: ""
-    });
-
-    if (onClose) onClose();
   };
+
+  const inputClass = `w-full rounded-lg px-3 py-2 focus:ring-2 outline-none transition-colors ${
+    darkMode 
+      ? "bg-gray-700 text-gray-200 border border-gray-600 focus:ring-blue-500" 
+      : "bg-white text-gray-900 border border-gray-300 focus:ring-blue-500"
+  }`;
+
+  const isLoading = fetching.customers || fetching.items;
 
   return (
     <>
       <ToastContainer />
 
-      {/* Modal Overlay */}
-      <div
-        className={`fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 md:p-8 transition-colors ${darkMode ? 'bg-black/70' : 'bg-black/40'}`}
-        onClick={onClose} // Clicking outside closes modal
-      >
-        <div
-          className={`w-full max-w-4xl relative rounded-xl shadow-xl transition-colors ${darkMode ? 'bg-slate-800 text-slate-200' : 'bg-white text-slate-900'}`}
-          onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside modal
-        >
-          {/* Close Icon */}
+      <div className="w-full">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className={`text-lg font-semibold ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>
+            {invoiceData ? 'Edit Invoice' : 'Create New Invoice'}
+          </h2>
           <button
             type="button"
             onClick={onClose}
-            className={`absolute top-4 right-4 p-2 rounded-full transition-colors ${darkMode ? 'hover:bg-slate-700' : 'hover:bg-gray-100'}`}
+            className={`p-2 rounded-full transition-colors ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
           >
             <X size={20} />
           </button>
+        </div>
 
-          {/* Form */}
-          <form className="p-6 space-y-8" onSubmit={(e) => e.preventDefault()}>
+        {isLoading ? (
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p>Loading form data...</p>
+          </div>
+        ) : (
+          <form className="space-y-8" onSubmit={(e) => e.preventDefault()}>
             {/* Invoice Details */}
             <div>
-              <h2 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-slate-200' : 'text-gray-800'}`}>Invoice Details</h2>
+              <h3 className={`text-md font-medium mb-4 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Invoice Details</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
-                  <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>Customer *</label>
+                  <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Customer *</label>
                   <select
                     name="customer"
                     value={form.customer}
                     onChange={handleChange}
                     required
-                    className={`w-full rounded-lg px-3 py-2 focus:ring-2 outline-none transition-colors ${darkMode ? 'bg-slate-700 text-slate-200 border border-slate-600 focus:ring-red-500' : 'bg-white text-slate-900 border border-gray-300 focus:ring-red-500'}`}
+                    disabled={loading}
+                    className={inputClass}
                   >
                     <option value="">Select Customer</option>
-                    <option>ABC Corporation</option>
-                    <option>Global Solutions</option>
+                    {customers.length > 0 ? (
+                      customers.map(customer => (
+                        <option key={customer.id || customer._id} value={customer.name}>
+                          {customer.company || customer.name}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="" disabled>No customers available</option>
+                    )}
                   </select>
                 </div>
 
                 <div>
-                  <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>Invoice Date *</label>
+                  <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Invoice Date *</label>
                   <input
                     type="date"
-                    name="invoiceDate"
-                    value={form.invoiceDate}
+                    name="invoice_date"
+                    value={form.invoice_date}
                     onChange={handleChange}
                     required
-                    className={`w-full rounded-lg px-3 py-2 focus:ring-2 outline-none transition-colors ${darkMode ? 'bg-slate-700 text-slate-200 border border-slate-600 focus:ring-red-500' : 'bg-white text-slate-900 border border-gray-300 focus:ring-red-500'}`}
+                    disabled={loading}
+                    className={inputClass}
                   />
                 </div>
 
                 <div>
-                  <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>Due Date *</label>
+                  <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Due Date *</label>
                   <input
                     type="date"
-                    name="dueDate"
-                    value={form.dueDate}
+                    name="due_date"
+                    value={form.due_date}
                     onChange={handleChange}
                     required
-                    className={`w-full rounded-lg px-3 py-2 focus:ring-2 outline-none transition-colors ${darkMode ? 'bg-slate-700 text-slate-200 border border-slate-600 focus:ring-red-500' : 'bg-white text-slate-900 border border-gray-300 focus:ring-red-500'}`}
+                    disabled={loading}
+                    className={inputClass}
                   />
                 </div>
               </div>
@@ -131,56 +248,75 @@ export default function InvoiceForm({ onClose }) {
 
             {/* Items */}
             <div>
-              <h2 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-slate-200' : 'text-gray-800'}`}>Items</h2>
+              <h3 className={`text-md font-medium mb-4 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Items</h3>
               <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <div>
-                  <label className={`text-sm mb-1 block ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>Item *</label>
+                  <label className={`text-sm mb-1 block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Item *</label>
                   <select
-                    name="item"
-                    value={form.item}
-                    onChange={handleChange}
+                    value={selectedItemId}
+                    onChange={handleItemChange}
                     required
-                    className={`w-full rounded-lg px-3 py-2 transition-colors ${darkMode ? 'bg-slate-700 text-slate-200 border border-slate-600' : 'bg-white text-slate-900 border border-gray-300'}`}
+                    disabled={loading}
+                    className={inputClass}
                   >
                     <option value="">Select Item</option>
-                    <option>Generator</option>
-                    <option>Industrial Pump</option>
+                    {items.length > 0 ? (
+                      items.map(i => (
+                        <option key={i.id || i._id} value={String(i.id || i._id)}>
+                          {i.product_name} - ₦{(i.selling_price || i.price || 0).toLocaleString()}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="" disabled>No items available</option>
+                    )}
                   </select>
+                  {items.length === 0 && (
+                    <p className="text-xs text-red-500 mt-1">No inventory items found. Please add items in inventory first.</p>
+                  )}
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className={`text-sm mb-1 block ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>Description</label>
+                  <label className={`text-sm mb-1 block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Description</label>
                   <input
                     name="description"
                     value={form.description}
                     onChange={handleChange}
                     placeholder="Item description"
-                    className={`w-full rounded-lg px-3 py-2 transition-colors ${darkMode ? 'bg-slate-700 text-slate-200 border border-slate-600' : 'bg-white text-slate-900 border border-gray-300'}`}
+                    disabled={loading}
+                    className={inputClass}
                   />
                 </div>
 
                 <div>
-                  <label className={`text-sm mb-1 block ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>Qty</label>
+                  <label className={`text-sm mb-1 block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Quantity</label>
                   <input
                     type="number"
                     min="1"
                     name="quantity"
                     value={form.quantity}
                     onChange={handleChange}
-                    className={`w-full rounded-lg px-3 py-2 transition-colors ${darkMode ? 'bg-slate-700 text-slate-200 border border-slate-600' : 'bg-white text-slate-900 border border-gray-300'}`}
+                    disabled={loading}
+                    className={inputClass}
                   />
                 </div>
 
                 <div>
-                  <label className={`text-sm mb-1 block ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>Unit Price</label>
+                  <label className={`text-sm mb-1 block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Unit Price (₦)</label>
                   <input
                     type="number"
                     min="0"
                     name="price"
                     value={form.price}
                     onChange={handleChange}
-                    className={`w-full rounded-lg px-3 py-2 transition-colors ${darkMode ? 'bg-slate-700 text-slate-200 border border-slate-600' : 'bg-white text-slate-900 border border-gray-300'}`}
+                    disabled={loading}
+                    readOnly
+                    className={`${inputClass} ${darkMode ? 'bg-gray-600' : 'bg-gray-100'}`}
                   />
+                  {form.price > 0 && (
+                    <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      Auto-filled from inventory
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -188,39 +324,48 @@ export default function InvoiceForm({ onClose }) {
             {/* Notes & Summary */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className={`text-sm mb-1 block ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>Notes</label>
+                <label className={`text-sm mb-1 block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Notes</label>
                 <textarea
                   name="notes"
                   value={form.notes}
                   onChange={handleChange}
                   placeholder="Additional notes..."
-                  className={`w-full h-32 rounded-lg px-3 py-2 transition-colors ${darkMode ? 'bg-slate-700 text-slate-200 border border-slate-600' : 'bg-white text-slate-900 border border-gray-300'}`}
+                  rows={4}
+                  disabled={loading}
+                  className={`w-full rounded-lg px-3 py-2 transition-colors ${
+                    darkMode 
+                      ? 'bg-gray-700 text-gray-200 border border-gray-600' 
+                      : 'bg-white text-gray-900 border border-gray-300'
+                  }`}
                 />
               </div>
 
-              <div className={`rounded-lg p-5 space-y-3 transition-colors ${darkMode ? 'bg-slate-700 text-slate-200' : 'bg-gray-50 text-gray-900'}`}>
+              <div className={`rounded-lg p-5 space-y-3 transition-colors ${
+                darkMode ? 'bg-gray-700 text-gray-200' : 'bg-gray-50 text-gray-900'
+              }`}>
                 <div className="flex justify-between">
                   <span>Subtotal</span>
                   <span>₦{subtotal.toLocaleString()}</span>
                 </div>
 
-                <div className="flex justify-between">
-                  <span>Tax (7.5%)</span>
-                  <span>₦{tax.toLocaleString()}</span>
-                </div>
-
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <span>Discount</span>
                   <input
                     type="number"
                     name="discount"
                     value={form.discount}
                     onChange={handleChange}
-                    className={`w-32 rounded px-2 py-1 text-right transition-colors ${darkMode ? 'bg-slate-700 text-slate-200 border border-slate-600' : 'bg-white text-slate-900 border border-gray-300'}`}
+                    min="0"
+                    disabled={loading}
+                    className={`w-32 rounded px-2 py-1 text-right ${
+                      darkMode 
+                        ? 'bg-gray-600 text-gray-200 border border-gray-500' 
+                        : 'bg-white text-gray-900 border border-gray-300'
+                    }`}
                   />
                 </div>
 
-                <hr className={`${darkMode ? 'border-slate-600' : 'border-gray-300'}`} />
+                <hr className={`${darkMode ? 'border-gray-600' : 'border-gray-300'}`} />
 
                 <div className="flex justify-between font-bold text-lg">
                   <span>Total</span>
@@ -234,7 +379,12 @@ export default function InvoiceForm({ onClose }) {
               <button
                 type="button"
                 onClick={onClose}
-                className={`px-6 py-2 rounded-lg font-medium transition-colors ${darkMode ? 'bg-slate-600 hover:bg-slate-500 text-slate-200' : 'bg-gray-300 hover:bg-gray-400 text-gray-800'}`}
+                disabled={loading}
+                className={`px-6 py-2 rounded-lg font-medium transition-colors ${
+                  darkMode 
+                    ? 'bg-gray-600 hover:bg-gray-500 text-gray-200' 
+                    : 'bg-gray-300 hover:bg-gray-400 text-gray-800'
+                } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 Cancel
               </button>
@@ -242,21 +392,37 @@ export default function InvoiceForm({ onClose }) {
               <button
                 type="button"
                 onClick={(e) => handleSubmit(e)}
-                className={`px-6 py-2 rounded-lg font-medium transition-colors ${darkMode ? 'bg-red-700 hover:bg-red-600 text-white' : 'bg-red-600 hover:bg-red-700 text-white'}`}
+                disabled={loading || items.length === 0 || customers.length === 0}
+                className="px-6 py-2 rounded-lg font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors disabled:opacity-50 flex items-center gap-2"
               >
-                Save
+                {loading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save size={18} />
+                    Save
+                  </>
+                )}
               </button>
 
               <button
                 type="button"
                 onClick={(e) => handleSubmit(e, true)}
-                className={`px-6 py-2 rounded-lg font-medium border transition-colors ${darkMode ? 'border-red-600 text-red-500 hover:bg-red-600/20' : 'border-red-600 text-red-600 hover:bg-red-50'}`}
+                disabled={loading || items.length === 0 || customers.length === 0}
+                className={`px-6 py-2 rounded-lg font-medium border transition-colors ${
+                  darkMode 
+                    ? 'border-blue-600 text-blue-500 hover:bg-blue-600/20' 
+                    : 'border-blue-600 text-blue-600 hover:bg-blue-50'
+                } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 Save & Print
               </button>
             </div>
           </form>
-        </div>
+        )}
       </div>
     </>
   );

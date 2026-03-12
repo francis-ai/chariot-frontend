@@ -163,7 +163,7 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [] }) => 
             disabled={loading}
           >
             <option value="Pending">Pending</option>
-            <option value="Accepted">Accepted</option>
+            <option value="Approved">Approved</option>
             <option value="Expired">Expired</option>
           </select>
         </div>
