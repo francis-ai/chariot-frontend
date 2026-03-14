@@ -1,28 +1,749 @@
-import React, { useState } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { FileText, Calendar, Menu } from 'lucide-react';
+// import React, { useState, useEffect } from 'react';
+// import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+// import { FileText, Calendar, Menu, Download, Loader } from 'lucide-react';
+// import Sidebar from '../../../src/component/sidebar';
+// import NavBar from '../../../src/component/navigation';
+// import { useTheme } from '../../../src/context/ThemeContext';
+// import API from "../../utils/api";
+// import { toast, ToastContainer } from "react-toastify";
+// import "react-toastify/dist/ReactToastify.css";
+
+// const ReportsAnalytics = () => {
+//   const { darkMode } = useTheme();
+//   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+//   const [loading, setLoading] = useState(false);
+//   const [reportType, setReportType] = useState('purchase_orders');
+//   const [dateFrom, setDateFrom] = useState('');
+//   const [dateTo, setDateTo] = useState('');
+//   const [reportData, setReportData] = useState([]);
+//   const [salesData, setSalesData] = useState([]);
+
+//   const reportTypes = [
+//     { value: 'purchase_orders', label: 'Purchase Orders Report' },
+//     { value: 'inventory', label: 'Inventory Report' },
+//     { value: 'waybill', label: 'Waybill Report' },
+//     { value: 'customers', label: 'Customers Report' },
+//     { value: 'suppliers', label: 'Suppliers Report' },
+//     { value: 'quotations', label: 'Quotations Report' }
+//   ];
+
+//   // Set default dates (last 30 days)
+//   useEffect(() => {
+//     const today = new Date();
+//     const thirtyDaysAgo = new Date();
+//     thirtyDaysAgo.setDate(today.getDate() - 30);
+    
+//     setDateTo(today.toISOString().split('T')[0]);
+//     setDateFrom(thirtyDaysAgo.toISOString().split('T')[0]);
+//   }, []);
+
+//   // Generate sample sales data for chart
+//   useEffect(() => {
+//     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+//     const sampleData = months.map(month => ({
+//       month,
+//       sales: Math.floor(Math.random() * 4000000) + 1000000
+//     }));
+//     setSalesData(sampleData);
+//   }, []);
+
+//   const fetchReport = async () => {
+//     if (!dateFrom || !dateTo) {
+//       toast.error("Please select date range");
+//       return;
+//     }
+
+//     setLoading(true);
+//     try {
+//       const params = new URLSearchParams({
+//         type: reportType,
+//         dateFrom,
+//         dateTo
+//       });
+
+//       const res = await API.get(`/reports?${params}`);
+//       console.log("Report data:", res.data);
+//       setReportData(res.data);
+      
+//       if (res.data.length === 0) {
+//         toast.info("No data found for the selected period");
+//       } else {
+//         toast.success(`Report generated with ${res.data.length} records`);
+//       }
+//     } catch (err) {
+//       console.error("Fetch report error:", err);
+//       toast.error(err.response?.data?.message || "Failed to generate report");
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+
+//   const handleDownload = () => {
+//     if (reportData.length === 0) {
+//       toast.warning("No data to download");
+//       return;
+//     }
+
+//     // Convert to CSV
+//     const headers = Object.keys(reportData[0]).join(',');
+//     const rows = reportData.map(row => 
+//       Object.values(row).map(val => 
+//         typeof val === 'string' ? `"${val}"` : val
+//       ).join(',')
+//     ).join('\n');
+    
+//     const csv = `${headers}\n${rows}`;
+    
+//     // Create download link
+//     const blob = new Blob([csv], { type: 'text/csv' });
+//     const url = window.URL.createObjectURL(blob);
+//     const a = document.createElement('a');
+//     a.href = url;
+//     a.download = `${reportType}_report_${dateFrom}_to_${dateTo}.csv`;
+//     a.click();
+//     window.URL.revokeObjectURL(url);
+    
+//     toast.success("Report downloaded successfully!");
+//   };
+
+//   const formatCurrency = (value) => `₦${(value / 1000000).toFixed(1)}M`;
+
+//   const getTableHeaders = () => {
+//     if (reportData.length === 0) return [];
+//     return Object.keys(reportData[0]);
+//   };
+
+//   const formatDate = (dateString) => {
+//     if (!dateString) return '-';
+//     return new Date(dateString).toLocaleDateString();
+//   };
+
+//   const formatValue = (key, value) => {
+//     if (key.includes('date') || key.includes('_date')) {
+//       return formatDate(value);
+//     }
+//     if (key.includes('amount') || key.includes('total') || key.includes('price')) {
+//       return `₦${Number(value || 0).toLocaleString()}`;
+//     }
+//     return value || '-';
+//   };
+
+//   return (
+//     <div
+//       className={`flex min-h-screen font-sans transition-colors ${
+//         darkMode ? 'bg-slate-900 text-slate-200' : 'bg-[#f8fafc] text-slate-800'
+//       }`}
+//     >
+//       <ToastContainer position="top-right" autoClose={2500} hideProgressBar />
+      
+//       {/* Sidebar */}
+//       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+
+//       {/* Main Content */}
+//       <div className="flex-1 flex flex-col min-w-0">
+//         <NavBar onMenuClick={() => setIsSidebarOpen(true)} />
+
+//         <main className="flex-1 p-4 sm:p-8">
+//           <h1 className={`text-xl md:text-2xl font-bold mb-6 ${darkMode ? 'text-slate-100' : ''}`}>
+//             Reports & Analytics
+//           </h1>
+
+//           {/* Report Filters */}
+//           <div
+//             className={`mb-6 rounded-lg shadow-sm transition-colors ${
+//               darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border border-gray-200'
+//             }`}
+//           >
+//             <div
+//               className={`px-4 py-2 border-b transition-colors ${
+//                 darkMode ? 'border-slate-700 bg-slate-700' : 'border-gray-100 bg-gray-50'
+//               }`}
+//             >
+//               <h2 className={`text-xs font-bold uppercase tracking-wider ${darkMode ? 'text-slate-300' : 'text-gray-600'}`}>
+//                 Report Filters
+//               </h2>
+//             </div>
+//             <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 items-end">
+//               {/* Report Type */}
+//               <div className="space-y-1">
+//                 <label className={`text-[11px] font-semibold uppercase ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+//                   Report Type
+//                 </label>
+//                 <select
+//                   value={reportType}
+//                   onChange={(e) => setReportType(e.target.value)}
+//                   className={`w-full rounded px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-blue-500 transition-colors ${
+//                     darkMode
+//                       ? 'bg-slate-700 border-slate-600 text-slate-200'
+//                       : 'bg-white border border-gray-300 text-slate-800'
+//                   }`}
+//                 >
+//                   {reportTypes.map(type => (
+//                     <option key={type.value} value={type.value}>
+//                       {type.label}
+//                     </option>
+//                   ))}
+//                 </select>
+//               </div>
+
+//               {/* Date From */}
+//               <div className="space-y-1">
+//                 <label className={`text-[11px] font-semibold uppercase ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+//                   Date From
+//                 </label>
+//                 <div className="relative">
+//                   <input
+//                     type="date"
+//                     value={dateFrom}
+//                     onChange={(e) => setDateFrom(e.target.value)}
+//                     className={`w-full rounded px-3 py-1.5 text-sm outline-none transition-colors ${
+//                       darkMode ? 'bg-slate-700 border-slate-600 text-slate-200' : 'bg-white border border-gray-300 text-slate-800'
+//                     }`}
+//                   />
+//                   <Calendar className={`absolute right-2 top-2 ${darkMode ? 'text-slate-300' : 'text-gray-400'}`} size={16} />
+//                 </div>
+//               </div>
+
+//               {/* Date To */}
+//               <div className="space-y-1">
+//                 <label className={`text-[11px] font-semibold uppercase ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+//                   Date To
+//                 </label>
+//                 <div className="relative">
+//                   <input
+//                     type="date"
+//                     value={dateTo}
+//                     onChange={(e) => setDateTo(e.target.value)}
+//                     className={`w-full rounded px-3 py-1.5 text-sm outline-none transition-colors ${
+//                       darkMode ? 'bg-slate-700 border-slate-600 text-slate-200' : 'bg-white border border-gray-300 text-slate-800'
+//                     }`}
+//                   />
+//                   <Calendar className={`absolute right-2 top-2 ${darkMode ? 'text-slate-300' : 'text-gray-400'}`} size={16} />
+//                 </div>
+//               </div>
+
+//               {/* Generate Report Button */}
+//               <button
+//                 onClick={fetchReport}
+//                 disabled={loading}
+//                 className="flex items-center justify-center transition-colors bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded text-sm font-medium w-full sm:w-auto disabled:opacity-50"
+//               >
+//                 {loading ? (
+//                   <Loader size={16} className="mr-2 animate-spin" />
+//                 ) : (
+//                   <FileText size={16} className="mr-2" />
+//                 )}
+//                 {loading ? 'Generating...' : 'Generate Report'}
+//               </button>
+
+//               {/* Download Button */}
+//               <button
+//                 onClick={handleDownload}
+//                 disabled={reportData.length === 0}
+//                 className="flex items-center justify-center transition-colors bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded text-sm font-medium w-full sm:w-auto disabled:opacity-50"
+//               >
+//                 <Download size={16} className="mr-2" />
+//                 Download CSV
+//               </button>
+//             </div>
+//           </div>
+
+//           {/* Charts */}
+//           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+//             {/* Monthly Sales */}
+//             <div
+//               className={`rounded-lg shadow-sm transition-colors ${
+//                 darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border border-gray-200'
+//               }`}
+//             >
+//               <div
+//                 className={`px-4 py-3 border-b transition-colors ${
+//                   darkMode ? 'border-slate-700' : 'border-gray-100'
+//                 }`}
+//               >
+//                 <h2 className={`text-sm font-bold ${darkMode ? 'text-slate-100' : 'text-gray-700'}`}>
+//                   Monthly Sales Report
+//                 </h2>
+//               </div>
+//               <div className="p-4 h-[350px]">
+//                 <div className="flex justify-center mb-2">
+//                   <div className="flex items-center text-[10px] text-gray-500">
+//                     <span className="w-3 h-3 bg-blue-500 mr-1 rounded-sm"></span> Sales
+//                   </div>
+//                 </div>
+//                 <ResponsiveContainer width="100%" height="90%">
+//                   <BarChart data={salesData}>
+//                     <CartesianGrid
+//                       strokeDasharray="3 3"
+//                       vertical={false}
+//                       stroke={darkMode ? '#334155' : '#f0f0f0'}
+//                     />
+//                     <XAxis
+//                       dataKey="month"
+//                       axisLine={false}
+//                       tickLine={false}
+//                       tick={{ fontSize: 10, fill: darkMode ? '#cbd5f5' : '#94a3b8' }}
+//                     />
+//                     <YAxis
+//                       axisLine={false}
+//                       tickLine={false}
+//                       tickFormatter={formatCurrency}
+//                       tick={{ fontSize: 10, fill: darkMode ? '#cbd5f5' : '#94a3b8' }}
+//                     />
+//                     <Tooltip
+//                       cursor={{ fill: darkMode ? '#1e293b' : '#f8fafc' }}
+//                       formatter={(value) => formatCurrency(value)}
+//                       contentStyle={{
+//                         backgroundColor: darkMode ? '#1e293b' : '#ffffff',
+//                         border: 'none',
+//                         borderRadius: '8px',
+//                         color: darkMode ? '#e5e7eb' : '#111827',
+//                       }}
+//                     />
+//                     <Bar dataKey="sales" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={40} />
+//                   </BarChart>
+//                 </ResponsiveContainer>
+//               </div>
+//             </div>
+
+//             {/* Top Selling Products */}
+//             <div
+//               className={`rounded-lg shadow-sm transition-colors ${
+//                 darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border border-gray-200'
+//               }`}
+//             >
+//               <div className={`px-4 py-3 border-b transition-colors ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+//                 <h2 className={`text-sm font-bold ${darkMode ? 'text-slate-100' : 'text-gray-700'}`}>
+//                   Report Summary
+//                 </h2>
+//               </div>
+//               <div className="p-4 h-[350px] overflow-y-auto">
+//                 {reportData.length > 0 ? (
+//                   <div className="space-y-2">
+//                     <p className="text-sm font-semibold">
+//                       Total Records: <span className="text-blue-600">{reportData.length}</span>
+//                     </p>
+//                     <div className="grid grid-cols-2 gap-2 text-xs">
+//                       {Object.entries(reportData[0]).slice(0, 6).map(([key, value]) => (
+//                         <div key={key} className="bg-slate-100 dark:bg-slate-700 p-2 rounded">
+//                           <span className="opacity-60 block">{key}</span>
+//                           <span className="font-medium truncate">
+//                             {formatValue(key, value)}
+//                           </span>
+//                         </div>
+//                       ))}
+//                     </div>
+//                   </div>
+//                 ) : (
+//                   <div className="flex items-center justify-center h-full text-gray-400 italic text-sm">
+//                     Generate a report to see data
+//                   </div>
+//                 )}
+//               </div>
+//             </div>
+//           </div>
+
+//           {/* Detailed Report Table */}
+//           <div
+//             className={`rounded-lg shadow-sm mb-6 transition-colors ${
+//               darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border border-gray-200'
+//             }`}
+//           >
+//             <div className={`px-4 py-3 border-b transition-colors ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
+//               <h2 className={`text-sm font-bold ${darkMode ? 'text-slate-100' : 'text-gray-700'}`}>
+//                 Detailed Report Data - {reportTypes.find(t => t.value === reportType)?.label}
+//               </h2>
+//             </div>
+//             <div className="p-4 overflow-x-auto">
+//               {reportData.length > 0 ? (
+//                 <table className="w-full text-sm">
+//                   <thead>
+//                     <tr className={`border-b ${darkMode ? 'border-slate-700' : 'border-gray-200'}`}>
+//                       {getTableHeaders().map(header => (
+//                         <th key={header} className="px-3 py-2 text-left text-xs font-bold uppercase opacity-60">
+//                           {header.replace(/_/g, ' ')}
+//                         </th>
+//                       ))}
+//                     </tr>
+//                   </thead>
+//                   <tbody>
+//                     {reportData.map((row, idx) => (
+//                       <tr key={idx} className={`hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors`}>
+//                         {Object.entries(row).map(([key, value], cellIdx) => (
+//                           <td key={cellIdx} className="px-3 py-2 border-b border-slate-100 dark:border-slate-700">
+//                             {formatValue(key, value)}
+//                           </td>
+//                         ))}
+//                       </tr>
+//                     ))}
+//                   </tbody>
+//                 </table>
+//               ) : (
+//                 <div className={`text-sm italic flex items-center justify-center ${darkMode ? 'text-slate-300' : 'text-gray-500'} h-16`}>
+//                   {loading ? 'Loading...' : 'No data available. Generate a report to see results.'}
+//                 </div>
+//               )}
+//             </div>
+//           </div>
+//         </main>
+//       </div>
+//     </div>
+//   );
+// };
+
+// export default ReportsAnalytics;
+
+
+
+
+
+import React, { useState, useEffect } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
+import { FileText, Calendar, Menu, Download, Loader, FileSpreadsheet, File as FilePdf } from 'lucide-react';
 import Sidebar from '../../../src/component/sidebar';
 import NavBar from '../../../src/component/navigation';
 import { useTheme } from '../../../src/context/ThemeContext';
+import API from "../../utils/api";
+import { toast, ToastContainer } from "react-toastify";
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import "react-toastify/dist/ReactToastify.css";
 
 const ReportsAnalytics = () => {
   const { darkMode } = useTheme();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [downloading, setDownloading] = useState({ excel: false, pdf: false });
+  const [reportType, setReportType] = useState('purchase_orders');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [reportData, setReportData] = useState([]);
+  const [chartData, setChartData] = useState([]);
+  const [chartType, setChartType] = useState('bar');
 
-  const data = [
-    { month: 'Jan', sales: 1200000 },
-    { month: 'Feb', sales: 1900000 },
-    { month: 'Mar', sales: 1500000 },
-    { month: 'Apr', sales: 2500000 },
-    { month: 'May', sales: 2200000 },
-    { month: 'Jun', sales: 3000000 },
-    { month: 'Jul', sales: 2800000 },
-    { month: 'Aug', sales: 3500000 },
-    { month: 'Sep', sales: 3200000 },
-    { month: 'Oct', sales: 4000000 },
+  const reportTypes = [
+    { value: 'purchase_orders', label: 'Purchase Orders Report', icon: '📦' },
+    { value: 'inventory', label: 'Inventory Report', icon: '📊' },
+    { value: 'waybill', label: 'Waybill Report', icon: '🚚' },
+    { value: 'customers', label: 'Customers Report', icon: '👥' },
+    { value: 'suppliers', label: 'Suppliers Report', icon: '🏢' },
+    { value: 'quotations', label: 'Quotations Report', icon: '📄' }
   ];
 
+  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+
+  // Set default dates (last 30 days)
+  useEffect(() => {
+    const today = new Date();
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(today.getDate() - 30);
+    
+    setDateTo(today.toISOString().split('T')[0]);
+    setDateFrom(thirtyDaysAgo.toISOString().split('T')[0]);
+  }, []);
+
+  // Process data for chart based on report type
+  useEffect(() => {
+    if (reportData.length > 0) {
+      processChartData();
+    }
+  }, [reportData, reportType]);
+
+  const processChartData = () => {
+    let processed = [];
+
+    switch (reportType) {
+      case 'purchase_orders':
+        // Group by status
+        const statusCount = reportData.reduce((acc, item) => {
+          acc[item.status] = (acc[item.status] || 0) + 1;
+          return acc;
+        }, {});
+        processed = Object.entries(statusCount).map(([name, value]) => ({ name, value }));
+        setChartType('pie');
+        break;
+
+      case 'inventory':
+        // Group by category
+        const categoryCount = reportData.reduce((acc, item) => {
+          acc[item.category] = (acc[item.category] || 0) + 1;
+          return acc;
+        }, {});
+        processed = Object.entries(categoryCount).map(([name, value]) => ({ name, value }));
+        setChartType('pie');
+        break;
+
+      case 'waybill':
+        // Group by status
+        const waybillStatus = reportData.reduce((acc, item) => {
+          acc[item.status] = (acc[item.status] || 0) + 1;
+          return acc;
+        }, {});
+        processed = Object.entries(waybillStatus).map(([name, value]) => ({ name, value }));
+        setChartType('pie');
+        break;
+
+      case 'customers':
+        // Show top 10 customers by name (alphabetical)
+        processed = reportData.slice(0, 10).map((item, index) => ({
+          name: item.name || `Customer ${index + 1}`,
+          value: index + 1
+        }));
+        setChartType('bar');
+        break;
+
+      case 'suppliers':
+        // Show suppliers by company
+        processed = reportData.slice(0, 10).map((item, index) => ({
+          name: item.company || item.name || `Supplier ${index + 1}`,
+          value: index + 1
+        }));
+        setChartType('bar');
+        break;
+
+      case 'quotations':
+        // Group by status
+        const quoteStatus = reportData.reduce((acc, item) => {
+          acc[item.status] = (acc[item.status] || 0) + 1;
+          return acc;
+        }, {});
+        processed = Object.entries(quoteStatus).map(([name, value]) => ({ name, value }));
+        setChartType('pie');
+        break;
+
+      default:
+        processed = [];
+    }
+
+    setChartData(processed);
+  };
+
+  const fetchReport = async () => {
+    if (!dateFrom || !dateTo) {
+      toast.error("Please select date range");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        type: reportType,
+        dateFrom,
+        dateTo
+      });
+
+      const res = await API.get(`/reports?${params}`);
+      console.log("Report data:", res.data);
+      setReportData(res.data);
+      
+      if (res.data.length === 0) {
+        toast.info("No data found for the selected period");
+      } else {
+        toast.success(`Report generated with ${res.data.length} records`);
+      }
+    } catch (err) {
+      console.error("Fetch report error:", err);
+      toast.error(err.response?.data?.message || "Failed to generate report");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const downloadExcel = () => {
+    if (reportData.length === 0) {
+      toast.warning("No data to download");
+      return;
+    }
+
+    setDownloading(prev => ({ ...prev, excel: true }));
+
+    try {
+      // Create worksheet
+      const ws = XLSX.utils.json_to_sheet(reportData);
+      
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Report");
+      
+      // Generate filename
+      const filename = `${reportType}_report_${dateFrom}_to_${dateTo}.xlsx`;
+      
+      // Save file
+      XLSX.writeFile(wb, filename);
+      
+      toast.success("Excel file downloaded successfully!");
+    } catch (err) {
+      console.error("Excel download error:", err);
+      toast.error("Failed to download Excel file");
+    } finally {
+      setDownloading(prev => ({ ...prev, excel: false }));
+    }
+  };
+
+  const downloadPDF = () => {
+    if (reportData.length === 0) {
+      toast.warning("No data to download");
+      return;
+    }
+
+    setDownloading(prev => ({ ...prev, pdf: true }));
+
+    try {
+      // Create PDF document
+      const doc = new jsPDF();
+      
+      // Add title
+      const reportLabel = reportTypes.find(t => t.value === reportType)?.label || reportType;
+      doc.setFontSize(18);
+      doc.text(`${reportLabel}`, 14, 22);
+      
+      // Add date range
+      doc.setFontSize(11);
+      doc.text(`Period: ${dateFrom} to ${dateTo}`, 14, 32);
+      doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 38);
+      
+      // Prepare table data
+      const headers = Object.keys(reportData[0]).map(key => ({
+        header: key.replace(/_/g, ' ').toUpperCase(),
+        dataKey: key
+      }));
+      
+      const rows = reportData.map(item => 
+        headers.map(header => {
+          const value = item[header.dataKey];
+          if (header.dataKey.includes('date') && value) {
+            return new Date(value).toLocaleDateString();
+          }
+          if ((header.dataKey.includes('amount') || header.dataKey.includes('total') || header.dataKey.includes('price')) && value) {
+            return `₦${Number(value).toLocaleString()}`;
+          }
+          return value || '-';
+        })
+      );
+      
+      // Add table
+      doc.autoTable({
+        head: [headers.map(h => h.header)],
+        body: rows,
+        startY: 45,
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [59, 130, 246], textColor: 255 }
+      });
+      
+      // Save PDF
+      const filename = `${reportType}_report_${dateFrom}_to_${dateTo}.pdf`;
+      doc.save(filename);
+      
+      toast.success("PDF file downloaded successfully!");
+    } catch (err) {
+      console.error("PDF download error:", err);
+      toast.error("Failed to download PDF file");
+    } finally {
+      setDownloading(prev => ({ ...prev, pdf: false }));
+    }
+  };
+
   const formatCurrency = (value) => `₦${(value / 1000000).toFixed(1)}M`;
+
+  const getTableHeaders = () => {
+    if (reportData.length === 0) return [];
+    return Object.keys(reportData[0]);
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return '-';
+    return new Date(dateString).toLocaleDateString();
+  };
+
+  const formatValue = (key, value) => {
+    if (key.includes('date') || key.includes('_date')) {
+      return formatDate(value);
+    }
+    if (key.includes('amount') || key.includes('total') || key.includes('price')) {
+      return `₦${Number(value || 0).toLocaleString()}`;
+    }
+    return value || '-';
+  };
+
+  const renderChart = () => {
+    if (chartData.length === 0) {
+      return (
+        <div className="flex items-center justify-center h-full text-gray-400 italic text-sm">
+          Generate a report to see chart
+        </div>
+      );
+    }
+
+    switch (chartType) {
+      case 'pie':
+        return (
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={chartData}
+                cx="50%"
+                cy="50%"
+                labelLine={false}
+                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                outerRadius={80}
+                fill="#8884d8"
+                dataKey="value"
+              >
+                {chartData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(value) => [`${value} records`, 'Count']}
+                contentStyle={{
+                  backgroundColor: darkMode ? '#1e293b' : '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: darkMode ? '#e5e7eb' : '#111827',
+                }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        );
+
+      case 'bar':
+      default:
+        return (
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData}>
+              <CartesianGrid
+                strokeDasharray="3 3"
+                vertical={false}
+                stroke={darkMode ? '#334155' : '#f0f0f0'}
+              />
+              <XAxis
+                dataKey="name"
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 10, fill: darkMode ? '#cbd5f5' : '#94a3b8' }}
+              />
+              <YAxis
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 10, fill: darkMode ? '#cbd5f5' : '#94a3b8' }}
+              />
+              <Tooltip
+                cursor={{ fill: darkMode ? '#1e293b' : '#f8fafc' }}
+                formatter={(value) => [`${value} records`, 'Count']}
+                contentStyle={{
+                  backgroundColor: darkMode ? '#1e293b' : '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: darkMode ? '#e5e7eb' : '#111827',
+                }}
+              />
+              <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={40} />
+            </BarChart>
+          </ResponsiveContainer>
+        );
+    }
+  };
 
   return (
     <div
@@ -30,6 +751,8 @@ const ReportsAnalytics = () => {
         darkMode ? 'bg-slate-900 text-slate-200' : 'bg-[#f8fafc] text-slate-800'
       }`}
     >
+      <ToastContainer position="top-right" autoClose={2500} hideProgressBar />
+      
       {/* Sidebar */}
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
@@ -57,20 +780,26 @@ const ReportsAnalytics = () => {
                 Report Filters
               </h2>
             </div>
-            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 items-end">
+            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-4 items-end">
               {/* Report Type */}
-              <div className="space-y-1">
+              <div className="space-y-1 md:col-span-2">
                 <label className={`text-[11px] font-semibold uppercase ${darkMode ? 'text-slate-400' : 'text-gray-500'}`}>
                   Report Type
                 </label>
                 <select
+                  value={reportType}
+                  onChange={(e) => setReportType(e.target.value)}
                   className={`w-full rounded px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-blue-500 transition-colors ${
                     darkMode
                       ? 'bg-slate-700 border-slate-600 text-slate-200'
                       : 'bg-white border border-gray-300 text-slate-800'
                   }`}
                 >
-                  <option>Sales Report</option>
+                  {reportTypes.map(type => (
+                    <option key={type.value} value={type.value}>
+                      {type.icon} {type.label}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -81,14 +810,13 @@ const ReportsAnalytics = () => {
                 </label>
                 <div className="relative">
                   <input
-                    type="text"
-                    value="01/10/2023"
-                    readOnly
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
                     className={`w-full rounded px-3 py-1.5 text-sm outline-none transition-colors ${
                       darkMode ? 'bg-slate-700 border-slate-600 text-slate-200' : 'bg-white border border-gray-300 text-slate-800'
                     }`}
                   />
-                  <Calendar className={`absolute right-2 top-2 ${darkMode ? 'text-slate-300' : 'text-gray-400'}`} size={16} />
                 </div>
               </div>
 
@@ -99,86 +827,81 @@ const ReportsAnalytics = () => {
                 </label>
                 <div className="relative">
                   <input
-                    type="text"
-                    value="31/10/2023"
-                    readOnly
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
                     className={`w-full rounded px-3 py-1.5 text-sm outline-none transition-colors ${
                       darkMode ? 'bg-slate-700 border-slate-600 text-slate-200' : 'bg-white border border-gray-300 text-slate-800'
                     }`}
                   />
-                  <Calendar className={`absolute right-2 top-2 ${darkMode ? 'text-slate-300' : 'text-gray-400'}`} size={16} />
                 </div>
               </div>
 
               {/* Generate Report Button */}
-              <button
-                className="flex items-center justify-center transition-colors bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded text-sm font-medium w-full sm:w-auto"
-              >
-                <FileText size={16} className="mr-2" /> Generate Report
-              </button>
+              <div>
+                <button
+                  onClick={fetchReport}
+                  disabled={loading}
+                  className="w-full flex items-center justify-center transition-colors bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded text-sm font-medium disabled:opacity-50"
+                >
+                  {loading ? (
+                    <Loader size={16} className="mr-2 animate-spin" />
+                  ) : (
+                    <FileText size={16} className="mr-2" />
+                  )}
+                  {loading ? 'Generating...' : 'Generate'}
+                </button>
+              </div>
+
+              {/* Excel Download Button */}
+              <div>
+                <button
+                  onClick={downloadExcel}
+                  disabled={reportData.length === 0 || downloading.excel}
+                  className="w-full flex items-center justify-center transition-colors bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded text-sm font-medium disabled:opacity-50"
+                >
+                  {downloading.excel ? (
+                    <Loader size={16} className="mr-2 animate-spin" />
+                  ) : (
+                    <FileSpreadsheet size={16} className="mr-2" />
+                  )}
+                  Excel
+                </button>
+              </div>
             </div>
           </div>
 
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            {/* Monthly Sales */}
+            {/* Dynamic Chart based on report type */}
             <div
               className={`rounded-lg shadow-sm transition-colors ${
                 darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border border-gray-200'
               }`}
             >
               <div
-                className={`px-4 py-3 border-b transition-colors ${
+                className={`px-4 py-3 border-b transition-colors flex justify-between items-center ${
                   darkMode ? 'border-slate-700' : 'border-gray-100'
                 }`}
               >
                 <h2 className={`text-sm font-bold ${darkMode ? 'text-slate-100' : 'text-gray-700'}`}>
-                  Monthly Sales Report
+                  {reportTypes.find(t => t.value === reportType)?.label} - Distribution
                 </h2>
+                <span className="text-xs opacity-60">
+                  {chartType === 'pie' ? 'Pie Chart' : 'Bar Chart'}
+                </span>
               </div>
               <div className="p-4 h-[350px]">
                 <div className="flex justify-center mb-2">
                   <div className="flex items-center text-[10px] text-gray-500">
-                    <span className="w-3 h-3 bg-blue-500 mr-1 rounded-sm"></span> Sales
+                    <span className="w-3 h-3 bg-blue-500 mr-1 rounded-sm"></span> Records by Category
                   </div>
                 </div>
-                <ResponsiveContainer width="100%" height="90%">
-                  <BarChart data={data}>
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      vertical={false}
-                      stroke={darkMode ? '#334155' : '#f0f0f0'}
-                    />
-                    <XAxis
-                      dataKey="month"
-                      axisLine={false}
-                      tickLine={false}
-                      tick={{ fontSize: 10, fill: darkMode ? '#cbd5f5' : '#94a3b8' }}
-                    />
-                    <YAxis
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={formatCurrency}
-                      tick={{ fontSize: 10, fill: darkMode ? '#cbd5f5' : '#94a3b8' }}
-                      domain={[0, 4500000]}
-                    />
-                    <Tooltip
-                      cursor={{ fill: darkMode ? '#1e293b' : '#f8fafc' }}
-                      formatter={(value) => formatCurrency(value)}
-                      contentStyle={{
-                        backgroundColor: darkMode ? '#1e293b' : '#ffffff',
-                        border: 'none',
-                        borderRadius: '8px',
-                        color: darkMode ? '#e5e7eb' : '#111827',
-                      }}
-                    />
-                    <Bar dataKey="sales" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={40} />
-                  </BarChart>
-                </ResponsiveContainer>
+                {renderChart()}
               </div>
             </div>
 
-            {/* Top Selling Products */}
+            {/* Summary Stats */}
             <div
               className={`rounded-lg shadow-sm transition-colors ${
                 darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border border-gray-200'
@@ -186,11 +909,51 @@ const ReportsAnalytics = () => {
             >
               <div className={`px-4 py-3 border-b transition-colors ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
                 <h2 className={`text-sm font-bold ${darkMode ? 'text-slate-100' : 'text-gray-700'}`}>
-                  Top Selling Products
+                  Report Summary
                 </h2>
               </div>
-              <div className="p-4 h-[350px] flex items-center justify-center text-gray-400 italic text-sm">
-                No data available
+              <div className="p-4 h-[350px] overflow-y-auto">
+                {reportData.length > 0 ? (
+                  <div className="space-y-4">
+                    <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                      <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+                        Total Records: <span className="text-2xl ml-2">{reportData.length}</span>
+                      </p>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      {Object.entries(reportData[0]).slice(0, 8).map(([key, value]) => (
+                        <div key={key} className="bg-slate-100 dark:bg-slate-700 p-3 rounded-lg">
+                          <span className="text-xs opacity-60 block mb-1 uppercase">{key.replace(/_/g, ' ')}</span>
+                          <span className="font-medium text-sm truncate block">
+                            {formatValue(key, value)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {chartData.length > 0 && (
+                      <div className="mt-4">
+                        <h3 className="text-xs font-bold uppercase mb-2 opacity-60">Distribution</h3>
+                        <div className="space-y-2">
+                          {chartData.map((item, idx) => (
+                            <div key={idx} className="flex items-center justify-between">
+                              <div className="flex items-center">
+                                <span className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: COLORS[idx % COLORS.length] }}></span>
+                                <span className="text-sm">{item.name}</span>
+                              </div>
+                              <span className="text-sm font-semibold">{item.value}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-full text-gray-400 italic text-sm">
+                    Generate a report to see summary
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -203,11 +966,38 @@ const ReportsAnalytics = () => {
           >
             <div className={`px-4 py-3 border-b transition-colors ${darkMode ? 'border-slate-700' : 'border-gray-100'}`}>
               <h2 className={`text-sm font-bold ${darkMode ? 'text-slate-100' : 'text-gray-700'}`}>
-                Detailed Report Data
+                Detailed Report Data - {reportTypes.find(t => t.value === reportType)?.label}
               </h2>
             </div>
-            <div className={`p-4 text-sm italic flex items-center justify-center ${darkMode ? 'text-slate-300' : 'text-gray-500'} h-16`}>
-              Table placeholder for detailed data
+            <div className="p-4 overflow-x-auto">
+              {reportData.length > 0 ? (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className={`border-b ${darkMode ? 'border-slate-700' : 'border-gray-200'}`}>
+                      {getTableHeaders().map(header => (
+                        <th key={header} className="px-3 py-2 text-left text-xs font-bold uppercase opacity-60">
+                          {header.replace(/_/g, ' ')}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reportData.map((row, idx) => (
+                      <tr key={idx} className={`hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors`}>
+                        {Object.entries(row).map(([key, value], cellIdx) => (
+                          <td key={cellIdx} className="px-3 py-2 border-b border-slate-100 dark:border-slate-700">
+                            {formatValue(key, value)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className={`text-sm italic flex items-center justify-center ${darkMode ? 'text-slate-300' : 'text-gray-500'} h-16`}>
+                  {loading ? 'Loading...' : 'No data available. Generate a report to see results.'}
+                </div>
+              )}
             </div>
           </div>
         </main>
