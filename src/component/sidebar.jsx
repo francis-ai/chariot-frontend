@@ -86,7 +86,14 @@ export default function Sidebar() {
                     <span className={`w-5 h-5 flex justify-center ${isActive ? "text-white" : "text-red-600"}`}>
                       {item.icon}
                     </span>
-                    <span className="font-medium">{item.label}</span>
+                    <div className="flex flex-col leading-tight">
+                      <span className="font-medium">{item.label}</span>
+                      {item.label === "Users" && (
+                        <span className={`text-[10px] ${isActive ? "text-red-100" : "text-gray-500"}`}>
+                          Only super-admin is allowed
+                        </span>
+                      )}
+                    </div>
                   </Link>
                 </li>
               );

@@ -2,7 +2,7 @@ import React, { useContext } from "react";
 import { Navigate } from "react-router-dom";
 import { AuthContext } from "../context/authContext.jsx";
 
-const ProtectedRoute = ({ children }) => {
+const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   const { user, loading } = useContext(AuthContext);
 
   // While checking if user is logged in, show a loading screen
@@ -10,6 +10,11 @@ const ProtectedRoute = ({ children }) => {
 
   // If no user, redirect to login
   if (!user) return <Navigate to="/login" replace />;
+
+  // If roles are provided, allow only matching roles
+  if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
+    return <Navigate to="/HomeDashboard" replace />;
+  }
 
   // Otherwise, show the page
   return children;

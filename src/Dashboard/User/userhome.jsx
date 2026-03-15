@@ -1,353 +1,589 @@
-import React, { useState } from 'react';
-import { Eye, Edit3, Plus, X } from 'lucide-react';
-import NavBar from '../../component/navigation';
-import Sidebar from '../../component/sidebar';
-import FileNewUser from '../User/AddUserForm'; // <-- Add User page/component
-import { useTheme } from '../../context/ThemeContext';
+import React, { useState, useEffect, useContext } from "react";
+import { Eye, Edit3, Plus, X, Save, Trash2, Shield, UserCog, Mail, Lock } from "lucide-react";
+import NavBar from "../../component/navigation";
+import Sidebar from "../../component/sidebar";
+import { useTheme } from "../../context/ThemeContext";
+import { AuthContext } from "../../context/authContext";
+import API from "../../utils/api";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
-// Modal for Add / View / Edit
-const Modal = ({ title, children, onClose, darkMode }) => (
-  <div
-    className={`fixed inset-0 flex items-center justify-center z-50 p-4 backdrop-blur-sm ${
-      darkMode ? 'bg-slate-900/60' : 'bg-slate-900/30'
-    }`}
-  >
-    <div
-      className={`w-full max-w-md rounded-xl p-6 relative shadow-lg transition-colors ${
-        darkMode ? 'bg-slate-800 text-slate-200' : 'bg-white text-slate-900'
-      }`}
-    >
-      <button
-        onClick={onClose}
-        className={`absolute top-4 right-4 transition-colors ${
-          darkMode ? 'text-slate-400 hover:text-slate-100' : 'text-slate-400 hover:text-slate-900'
-        }`}
-      >
-        <X size={20} />
-      </button>
-      <h2 className="text-xl font-black mb-4">{title}</h2>
-      {children}
-    </div>
-  </div>
-);
-
-const UniversalManagement = ({ type = 'Supplier' }) => {
+const UserManagement = () => {
   const { darkMode } = useTheme();
+  const { user } = useContext(AuthContext);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [modalData, setModalData] = useState(null); // For view/edit modal
-  const [showAddUser, setShowAddUser] = useState(false); // For Add User page/modal
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [viewModal, setViewModal] = useState(null);
+  const [deleteModal, setDeleteModal] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [formData, setFormData] = useState({
+    username: "",
+    email: "",
+    password: "",
+    role: "admin"
+  });
 
-  const viewConfig = {
-    Supplier: {
-      title: 'Supplier Management',
-      btnLabel: 'Add Supplier',
-      headers: [
-        'Supplier ID',
-        'Supplier Name',
-        'Contact Person',
-        'Phone',
-        'Email',
-        'Total Orders',
-        'Total Spent',
-        'Actions',
-      ],
-      data: [
-        {
-          id: 'SUP-001',
-          name: 'Electronics Wholesale Ltd',
-          contact: 'James Smith',
-          phone: '+234 803 111 2222',
-          email: 'james@ewl.com',
-          col1: '15',
-          col2: '₦2,450,000',
-        },
-        {
-          id: 'SUP-002',
-          name: 'Office Supplies Co',
-          contact: 'Mary Johnson',
-          phone: '+234 802 333 4444',
-          email: 'mary@osc.com',
-          col1: '8',
-          col2: '₦890,000',
-        },
-      ],
-    },
-    Customer: {
-      title: 'Customer Management',
-      btnLabel: 'Add Customer',
-      headers: [
-        'Customer ID',
-        'Customer Name',
-        'Contact Person',
-        'Phone',
-        'Email',
-        'Total Invoices',
-        'Total Value',
-        'Actions',
-      ],
-      data: [
-        {
-          id: 'CUST-001',
-          name: 'ABC Corporation',
-          contact: 'David Wilson',
-          phone: '+234 801 234 5678',
-          email: 'david@abccorp.com',
-          col1: '25',
-          col2: '₦2,450,000',
-        },
-      ],
-    },
-    User: {
-      title: 'User Management',
-      btnLabel: 'Add User',
-      headers: [
-        'User ID',
-        'Full Name',
-        'Username',
-        'Email',
-        'Role',
-        'Status',
-        'Last Login',
-        'Actions',
-      ],
-      data: [
-        {
-          id: 'USR-001',
-          name: 'Admin User',
-          username: 'admin',
-          email: 'admin@businesspro.com',
-          role: 'admin',
-          status: 'Active',
-          login: '2023-10-16 09:15',
-        },
-      ],
-    },
-  }[type];
+  // Fetch users on mount
+  useEffect(() => {
+    fetchUsers();
+  }, []);
 
-  const getRoleStyle = (role) =>
-    'px-3 py-0.5 rounded text-[10px] font-bold uppercase tracking-tight bg-cyan-100 text-cyan-600 border border-cyan-200';
-  const getStatusStyle = (status) =>
-    status === 'Active'
-      ? 'px-3 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-100 text-emerald-600 border border-emerald-200'
-      : 'px-3 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-100 text-slate-500 border border-slate-200';
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      const res = await API.get("/users");
+      console.log("Fetched users:", res.data);
+      setUsers(res.data);
+    } catch (err) {
+      console.error("Fetch users error:", err);
+      toast.error(err.response?.data?.message || "Failed to fetch users");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInputChange = (e) => {
+    const { username, value } = e.target;
+    setFormData(prev => ({ ...prev, [username]: value }));
+  };
+
+  const openAddModal = () => {
+    setEditingUser(null);
+    setFormData({
+      username: "",
+      email: "",
+      password: "",
+      role: "admin"
+    });
+    setShowModal(true);
+  };
+
+  const openEditModal = (user) => {
+    setEditingUser(user);
+    setFormData({
+      username: user.username || "",
+      email: user.email || "",
+      password: "", // Don't populate password for security
+      role: user.role || "admin"
+    });
+    setShowModal(true);
+  };
+
+  const handleSaveUser = async () => {
+    // Validation
+    if (!formData.username.trim()) {
+      toast.error("username is required");
+      return;
+    }
+    if (!formData.email.trim()) {
+      toast.error("Email is required");
+      return;
+    }
+    if (!editingUser && !formData.password.trim()) {
+      toast.error("Password is required for new users");
+      return;
+    }
+    if (!formData.role) {
+      toast.error("Role is required");
+      return;
+    }
+
+    try {
+      if (editingUser) {
+        // Update existing user
+        const payload = {
+          username: formData.username,
+          email: formData.email,
+          role: formData.role
+        };
+        // Only include password if it's provided
+        if (formData.password) {
+          payload.password = formData.password;
+        }
+
+        await API.put(`/users/${editingUser.id}`, payload);
+        toast.success("User updated successfully!");
+      } else {
+        // Create new user
+        const payload = {
+          username: formData.username,
+          email: formData.email,
+          password: formData.password,
+          role: formData.role
+        };
+        await API.post("/users", payload);
+        toast.success("User created successfully!");
+      }
+      
+      await fetchUsers();
+      setShowModal(false);
+      setEditingUser(null);
+    } catch (err) {
+      console.error("Save user error:", err);
+      toast.error(err.response?.data?.message || "Failed to save user");
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!deleteModal) return;
+    
+    setDeleting(true);
+    try {
+      await API.delete(`/users/${deleteModal.id}`);
+      setUsers(prev => prev.filter(u => u.id !== deleteModal.id));
+      setDeleteModal(null);
+      toast.success("User deleted successfully!");
+    } catch (err) {
+      console.error("Delete user error:", err);
+      toast.error(err.response?.data?.message || "Failed to delete user");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const getRoleBadgeStyle = (role) => {
+    if (role === 'super-admin') {
+      return darkMode ? 'bg-purple-900 text-purple-300' : 'bg-purple-100 text-purple-700';
+    }
+    return darkMode ? 'bg-blue-900 text-blue-300' : 'bg-blue-100 text-blue-700';
+  };
+
+  const isSuperAdmin = user?.role === 'super-admin';
 
   return (
-    <div className={`flex min-h-screen transition-colors ${darkMode ? 'bg-slate-900' : 'bg-[#f8fafc]'}`}>
+    <div className={`min-h-screen block lg:flex transition-colors ${darkMode ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"}`}>
+      <ToastContainer position="top-right" autoClose={2500} hideProgressBar />
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col">
         <NavBar onMenuClick={() => setIsSidebarOpen(true)} />
 
-        <main className="p-4 mt-20 md:p-8 w-full max-w-[1600px] mx-auto">
+        <main className="p-4 md:p-6 mt-20 max-w-7xl mx-auto w-full">
           {/* Header */}
-          <div className="flex justify-between items-center mb-6">
-            <h1 className={`text-2xl font-black ${darkMode ? 'text-slate-100' : 'text-[#1e293b]'}`}>
-              {viewConfig.title}
-            </h1>
-            <button
-              onClick={() =>
-                type === 'User'
-                  ? setShowAddUser(true)
-                  : setModalData({ type: 'Add', title: `Add New ${type}` })
-              }
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-bold text-sm shadow-sm transition-all"
-            >
-              <Plus size={16} strokeWidth={3} /> {viewConfig.btnLabel}
-            </button>
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold">User Management</h1>
+              <p className={`text-sm mt-1 ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+                Manage system users and their roles
+              </p>
+            </div>
+            {isSuperAdmin && (
+              <button
+                onClick={openAddModal}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg transition"
+              >
+                <Plus size={20} />
+                Add New User
+              </button>
+            )}
           </div>
 
-          {/* Table */}
-          <div
-            className={`rounded-lg shadow-sm border overflow-hidden transition-colors ${
-              darkMode ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-900'
-            }`}
-          >
-            <div
-              className={`p-3 flex flex-col md:flex-row justify-between items-center gap-4 transition-colors ${
-                darkMode ? 'bg-slate-700 text-slate-200' : 'bg-[#334155] text-white'
-              }`}
-            >
-              <div className="flex items-center text-xs gap-2">
-                <span>Show</span>
-                <select
-                  className={`rounded px-2 py-1 outline-none cursor-pointer transition-colors ${
-                    darkMode ? 'bg-slate-600 text-slate-200 border-none' : 'bg-[#1e293b] text-white border-none'
-                  }`}
+          {/* Users Table */}
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p>Loading users...</p>
+            </div>
+          ) : users.length === 0 ? (
+            <div className={`text-center py-12 rounded-2xl ${darkMode ? "bg-gray-800" : "bg-white"}`}>
+              <UserCog size={48} className="mx-auto mb-4 text-gray-400" />
+              <p className="text-gray-400 mb-4">No users found</p>
+              {isSuperAdmin && (
+                <button
+                  onClick={openAddModal}
+                  className="text-blue-600 hover:text-blue-700 font-medium"
                 >
-                  <option>10</option>
-                  <option>25</option>
-                </select>
-                <span>entries</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className={`text-xs ${darkMode ? 'text-slate-300' : 'text-white/70'} hidden sm:block`}>
-                  Search:
-                </span>
-                <input
-                  type="text"
-                  placeholder={`Search ${type.toLowerCase()}s...`}
-                  className={`w-full sm:w-64 rounded px-3 py-1.5 text-sm outline-none transition-colors ${
-                    darkMode ? 'bg-slate-700 text-slate-200 placeholder-slate-400' : 'bg-white text-slate-900 placeholder-slate-400'
-                  }`}
-                />
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left min-w-[1100px]">
-                <thead>
-                  <tr
-                    className={`border-b transition-colors ${
-                      darkMode ? 'border-slate-600 bg-slate-800 text-slate-200' : 'border-slate-100 bg-white text-slate-500'
-                    }`}
-                  >
-                    {viewConfig.headers.map((header) => (
-                      <th
-                        key={header}
-                        className="px-4 py-4 text-[11px] font-black uppercase tracking-wider border-r last:border-0"
-                      >
-                        {header}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {viewConfig.data.map((item, idx) => (
-                    <tr
-                      key={idx}
-                      className={`hover:bg-slate-50/50 transition-colors ${
-                        darkMode ? 'hover:bg-slate-700/50' : 'hover:bg-slate-50/50'
-                      }`}
-                    >
-                      <td className="px-4 py-3 text-sm">{item.id}</td>
-                      <td className="px-4 py-3 text-sm font-bold">{item.name || item.contact}</td>
-                      <td className="px-4 py-3 text-sm">{item.contact || item.username}</td>
-                      <td className="px-4 py-3 text-sm">{item.phone || item.email}</td>
-                      {type === 'User' ? (
-                        <>
-                          <td className="px-4 py-3 text-[13px]">
-                            <span className={getRoleStyle(item.role)}>{item.role}</span>
-                          </td>
-                          <td className="px-4 py-3 text-[13px]">
-                            <span className={getStatusStyle(item.status)}>{item.status}</span>
-                          </td>
-                          <td className="px-4 py-3 text-[13px]">{item.login}</td>
-                        </>
-                      ) : (
-                        <>
-                          <td className="px-4 py-3 text-sm text-blue-600 hover:underline cursor-pointer">{item.email}</td>
-                          <td className="px-4 py-3 text-sm font-bold">{item.col1}</td>
-                          <td className="px-4 py-3 text-sm font-black">{item.col2}</td>
-                        </>
-                      )}
-                      <td className="px-4 py-3">
-                        <div className="flex gap-2">
-                          <button
-                            className="p-1.5 border border-blue-600 text-blue-600 rounded hover:bg-blue-600 hover:text-white transition-all shadow-sm"
-                            onClick={() =>
-                              setModalData({ type: 'View', title: `View ${type}`, item })
-                            }
-                          >
-                            <Eye size={14} strokeWidth={2.5} />
-                          </button>
-                          <button
-                            className="p-1.5 border border-amber-500 text-amber-500 rounded hover:bg-amber-500 hover:text-white transition-all shadow-sm"
-                            onClick={() =>
-                              setModalData({ type: 'Edit', title: `Edit ${type}`, item })
-                            }
-                          >
-                            <Edit3 size={14} strokeWidth={2.5} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div
-              className={`p-4 flex flex-col sm:flex-row justify-between items-center gap-4 transition-colors ${
-                darkMode ? 'bg-slate-700 border-t border-slate-600 text-slate-300' : 'bg-white border-t border-slate-100 text-slate-400'
-              }`}
-            >
-              <span className="text-[12px] font-bold uppercase tracking-tighter">
-                Showing 1 to {viewConfig.data.length} of {viewConfig.data.length} entries
-              </span>
-              <div className="flex items-center gap-1">
-                <button className="px-3 py-1 font-bold text-sm text-slate-400 hover:text-slate-900">Previous</button>
-                <button className="px-3 py-1 bg-blue-600 text-white rounded text-sm font-bold">1</button>
-                <button className="px-3 py-1 font-bold text-sm text-slate-400 hover:text-slate-900">Next</button>
-              </div>
-            </div>
-          </div>
-        </main>
-
-        {/* Add / View / Edit Modal */}
-        {modalData && (
-          <Modal title={modalData.title} onClose={() => setModalData(null)} darkMode={darkMode}>
-            {modalData.type === 'Add' && (
-              <div className="flex flex-col gap-4">
-                <input
-                  type="text"
-                  placeholder={`${type} Name`}
-                  className={`w-full rounded px-3 py-2 transition-colors ${
-                    darkMode ? 'bg-slate-700 text-slate-200 border border-slate-600' : 'bg-white text-slate-900 border border-slate-200'
-                  }`}
-                />
-                <input
-                  type="text"
-                  placeholder="Contact Person"
-                  className={`w-full rounded px-3 py-2 transition-colors ${
-                    darkMode ? 'bg-slate-700 text-slate-200 border border-slate-600' : 'bg-white text-slate-900 border border-slate-200'
-                  }`}
-                />
-                <input
-                  type="text"
-                  placeholder="Phone"
-                  className={`w-full rounded px-3 py-2 transition-colors ${
-                    darkMode ? 'bg-slate-700 text-slate-200 border border-slate-600' : 'bg-white text-slate-900 border border-slate-200'
-                  }`}
-                />
-                <input
-                  type="email"
-                  placeholder="Email"
-                  className={`w-full rounded px-3 py-2 transition-colors ${
-                    darkMode ? 'bg-slate-700 text-slate-200 border border-slate-600' : 'bg-white text-slate-900 border border-slate-200'
-                  }`}
-                />
-                <button className="bg-blue-600 text-white px-4 py-2 rounded font-bold">
-                  Save {type}
+                  Add your first user
                 </button>
+              )}
+            </div>
+          ) : (
+            <div className={`rounded-2xl shadow-xl overflow-hidden ${darkMode ? "bg-gray-800" : "bg-white"}`}>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[800px]">
+                  <thead className={darkMode ? "bg-gray-700" : "bg-gray-50"}>
+                    <tr>
+                      {["ID", "username", "Email", "Role", "Created", "Actions"].map(h => (
+                        <th key={h} className="px-4 py-3 text-xs uppercase font-bold text-left opacity-70">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.map((user) => (
+                      <tr key={user.id} className={`border-t ${darkMode ? "border-gray-700 hover:bg-gray-700/50" : "border-gray-100 hover:bg-gray-50"}`}>
+                        <td className="px-4 py-3 font-mono text-sm text-blue-500">{user.id}</td>
+                        <td className="px-4 py-3 font-medium">{user.username}</td>
+                        <td className="px-4 py-3">{user.email}</td>
+                        <td className="px-4 py-3">
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase ${getRoleBadgeStyle(user.role)}`}>
+                            {user.role === 'super-admin' ? 'Super Admin' : 'Admin'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          {user.created_at ? new Date(user.created_at).toLocaleDateString() : '-'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setViewModal(user)}
+                              className={`p-2 rounded-lg transition ${
+                                darkMode ? "hover:bg-gray-600" : "hover:bg-gray-200"
+                              }`}
+                              title="View"
+                            >
+                              <Eye size={18} />
+                            </button>
+                            {isSuperAdmin && (
+                              <>
+                                <button
+                                  onClick={() => openEditModal(user)}
+                                  className={`p-2 rounded-lg transition ${
+                                    darkMode ? "hover:bg-gray-600" : "hover:bg-gray-200"
+                                  }`}
+                                  title="Edit"
+                                >
+                                  <Edit3 size={18} />
+                                </button>
+                                <button
+                                  onClick={() => setDeleteModal(user)}
+                                  className={`p-2 rounded-lg transition ${
+                                    darkMode ? "hover:bg-gray-600 text-red-400" : "hover:bg-gray-200 text-red-600"
+                                  }`}
+                                  title="Delete"
+                                  disabled={user.role === 'super-admin'} // Prevent deleting super-admin
+                                >
+                                  <Trash2 size={18} />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            )}
-            {(modalData.type === 'View' || modalData.type === 'Edit') && (
-              <div className="flex flex-col gap-4">
-                <p>
-                  <b>ID:</b> {modalData.item.id}
-                </p>
-                <p>
-                  <b>Name:</b> {modalData.item.name || modalData.item.contact}
-                </p>
-                <p>
-                  <b>Email/Phone:</b> {modalData.item.email || modalData.item.phone}
-                </p>
-                {type === 'User' && <p><b>Role:</b> {modalData.item.role}</p>}
-                {modalData.type === 'Edit' && (
-                  <button className="bg-amber-500 text-white px-4 py-2 rounded font-bold">
-                    Save Changes
-                  </button>
-                )}
-              </div>
-            )}
-          </Modal>
-        )}
+            </div>
+          )}
 
-        {/* Add User Page */}
-        {showAddUser && <FileNewUser onClose={() => setShowAddUser(false)} />}
+          {/* Add/Edit User Modal */}
+          {showModal && isSuperAdmin && (
+            <UserModal
+              onClose={() => { setShowModal(false); setEditingUser(null); }}
+              onSave={handleSaveUser}
+              formData={formData}
+              onChange={handleInputChange}
+              editingUser={editingUser}
+              darkMode={darkMode}
+            />
+          )}
+
+          {/* View User Modal */}
+          {viewModal && (
+            <ViewUserModal
+              user={viewModal}
+              onClose={() => setViewModal(null)}
+              darkMode={darkMode}
+            />
+          )}
+
+          {/* Delete Confirmation Modal */}
+          {deleteModal && isSuperAdmin && (
+            <DeleteConfirmationModal
+              onClose={() => setDeleteModal(null)}
+              onConfirm={handleDeleteUser}
+              user={deleteModal}
+              darkMode={darkMode}
+              deleting={deleting}
+            />
+          )}
+        </main>
       </div>
     </div>
   );
 };
 
-export default UniversalManagement;
+/* ================== ADD/EDIT USER MODAL ================== */
+const UserModal = ({ onClose, onSave, formData, onChange, editingUser, darkMode }) => {
+  const [showPassword, setShowPassword] = useState(false);
+
+  const inputClass = `w-full px-4 py-2.5 rounded-lg outline-none transition-colors focus:ring-2 focus:ring-blue-500 ${
+    darkMode 
+      ? "bg-gray-700 text-gray-200 border border-gray-600" 
+      : "bg-white text-gray-900 border border-gray-300"
+  }`;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className={`w-full max-w-md rounded-2xl p-6 relative ${darkMode ? "bg-gray-800 text-white" : "bg-white text-gray-900"}`}>
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+        >
+          <X size={20} />
+        </button>
+
+        <h2 className="text-xl font-bold mb-6">
+          {editingUser ? 'Edit User' : 'Add New User'}
+        </h2>
+
+        <div className="space-y-4">
+          {/* username */}
+          <div>
+            <label className={`text-sm font-medium mb-1 block ${darkMode ? "text-gray-300" : "text-gray-600"}`}>
+              Full username *
+            </label>
+            <input
+              type="text"
+              username="username"
+              value={formData.username}
+              onChange={onChange}
+              placeholder="Enter full username"
+              className={inputClass}
+              required
+            />
+          </div>
+
+          {/* Email */}
+          <div>
+            <label className={`text-sm font-medium mb-1 block ${darkMode ? "text-gray-300" : "text-gray-600"}`}>
+              Email Address *
+            </label>
+            <input
+              type="email"
+              username="email"
+              value={formData.email}
+              onChange={onChange}
+              placeholder="Enter email address"
+              className={inputClass}
+              required
+            />
+          </div>
+
+          {/* Password */}
+          <div>
+            <label className={`text-sm font-medium mb-1 block ${darkMode ? "text-gray-300" : "text-gray-600"}`}>
+              {editingUser ? 'New Password (leave blank to keep current)' : 'Password *'}
+            </label>
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                username="password"
+                value={formData.password}
+                onChange={onChange}
+                placeholder={editingUser ? "Enter new password" : "Enter password"}
+                className={`${inputClass} pr-10`}
+                required={!editingUser}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-3"
+              >
+                <Lock size={16} className={darkMode ? "text-gray-400" : "text-gray-500"} />
+              </button>
+            </div>
+          </div>
+
+          {/* Role */}
+          <div>
+            <label className={`text-sm font-medium mb-1 block ${darkMode ? "text-gray-300" : "text-gray-600"}`}>
+              User Role *
+            </label>
+            <select
+              username="role"
+              value={formData.role}
+              onChange={onChange}
+              className={inputClass}
+              required
+            >
+              <option value="admin">Admin</option>
+              <option value="super-admin">Super Admin</option>
+            </select>
+            <p className={`text-xs mt-1 ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+              Super admins have full system access including user management
+            </p>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex justify-end gap-3 mt-6">
+          <button
+            onClick={onClose}
+            className={`px-4 py-2 rounded-lg font-medium transition ${
+              darkMode ? "bg-gray-700 hover:bg-gray-600" : "bg-gray-200 hover:bg-gray-300"
+            }`}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onSave}
+            className="px-4 py-2 rounded-lg font-medium bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
+          >
+            <Save size={18} />
+            {editingUser ? 'Update User' : 'Create User'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ================== VIEW USER MODAL ================== */
+const ViewUserModal = ({ user, onClose, darkMode }) => {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className={`w-full max-w-md rounded-2xl p-6 relative ${darkMode ? "bg-gray-800 text-white" : "bg-white text-gray-900"}`}>
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+        >
+          <X size={20} />
+        </button>
+
+        <h2 className="text-xl font-bold mb-6">User Details</h2>
+
+        <div className="space-y-4">
+          <div className="grid grid-cols-3 gap-4 py-2 border-b dark:border-gray-700">
+            <span className="font-medium opacity-70">ID</span>
+            <span className="col-span-2 font-mono text-blue-500">{user.id}</span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4 py-2 border-b dark:border-gray-700">
+            <span className="font-medium opacity-70">username</span>
+            <span className="col-span-2">{user.username}</span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4 py-2 border-b dark:border-gray-700">
+            <span className="font-medium opacity-70">Email</span>
+            <span className="col-span-2">{user.email}</span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4 py-2 border-b dark:border-gray-700">
+            <span className="font-medium opacity-70">Role</span>
+            <span className="col-span-2">
+              <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase ${
+                user.role === 'super-admin' 
+                  ? darkMode ? 'bg-purple-900 text-purple-300' : 'bg-purple-100 text-purple-700'
+                  : darkMode ? 'bg-blue-900 text-blue-300' : 'bg-blue-100 text-blue-700'
+              }`}>
+                {user.role === 'super-admin' ? 'Super Admin' : 'Admin'}
+              </span>
+            </span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4 py-2 border-b dark:border-gray-700">
+            <span className="font-medium opacity-70">Created</span>
+            <span className="col-span-2">
+              {user.created_at ? new Date(user.created_at).toLocaleString() : '-'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4 py-2">
+            <span className="font-medium opacity-70">Last Updated</span>
+            <span className="col-span-2">
+              {user.updated_at ? new Date(user.updated_at).toLocaleString() : '-'}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex justify-end mt-6">
+          <button
+            onClick={onClose}
+            className={`px-4 py-2 rounded-lg font-medium transition ${
+              darkMode ? "bg-gray-700 hover:bg-gray-600" : "bg-gray-200 hover:bg-gray-300"
+            }`}
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ================== DELETE CONFIRMATION MODAL ================== */
+const DeleteConfirmationModal = ({ onClose, onConfirm, user, darkMode, deleting }) => {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className={`w-full max-w-md rounded-2xl p-6 relative ${darkMode ? "bg-gray-800 text-white" : "bg-white text-gray-900"}`}>
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+          disabled={deleting}
+        >
+          <X size={20} />
+        </button>
+
+        <div className="text-center mb-6">
+          <div className="flex items-center justify-center mb-4">
+            <div className={`w-20 h-20 rounded-full flex items-center justify-center ${
+              darkMode ? "bg-red-900/20" : "bg-red-100"
+            }`}>
+              <Trash2 size={40} className="text-red-600" />
+            </div>
+          </div>
+          
+          <h2 className="text-xl font-bold mb-2">Delete User</h2>
+          
+          <p className={`${darkMode ? "text-gray-400" : "text-gray-500"} mb-4`}>
+            Are you sure you want to delete this user?
+          </p>
+          
+          <div className={`p-4 rounded-lg text-left mb-4 ${darkMode ? "bg-gray-700" : "bg-gray-50"}`}>
+            <p className="font-bold">{user.username}</p>
+            <p className="text-sm mt-1">{user.email}</p>
+            <p className="text-sm mt-1">
+              Role: <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                user.role === 'super-admin' 
+                  ? darkMode ? 'bg-purple-900 text-purple-300' : 'bg-purple-100 text-purple-700'
+                  : darkMode ? 'bg-blue-900 text-blue-300' : 'bg-blue-100 text-blue-700'
+              }`}>
+                {user.role === 'super-admin' ? 'Super Admin' : 'Admin'}
+              </span>
+            </p>
+          </div>
+          
+          <p className="text-sm text-red-600 font-medium">
+            This action cannot be undone.
+          </p>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            disabled={deleting}
+            className={`flex-1 px-4 py-2 rounded-lg font-medium transition ${
+              darkMode 
+                ? "bg-gray-700 hover:bg-gray-600 text-white" 
+                : "bg-gray-200 hover:bg-gray-300 text-gray-800"
+            } ${deleting ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={deleting || user.role === 'super-admin'}
+            className="flex-1 px-4 py-2 rounded-lg font-medium bg-red-600 hover:bg-red-700 text-white transition disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {deleting ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                Deleting...
+              </>
+            ) : (
+              'Delete'
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default UserManagement;

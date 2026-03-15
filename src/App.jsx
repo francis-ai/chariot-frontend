@@ -110,7 +110,7 @@ const AppWrapper = () => {
             </ProtectedRoute>
           }/>
           <Route path="/user" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={["super-admin"]}>
               <User />
             </ProtectedRoute>
           }/>
