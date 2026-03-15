@@ -46,8 +46,8 @@ const UserManagement = () => {
   };
 
   const handleInputChange = (e) => {
-    const { username, value } = e.target;
-    setFormData(prev => ({ ...prev, [username]: value }));
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const openAddModal = () => {
@@ -123,7 +123,7 @@ const UserManagement = () => {
       setEditingUser(null);
     } catch (err) {
       console.error("Save user error:", err);
-      toast.error(err.response?.data?.message || "Failed to save user");
+      toast.error(err.response?.data?.message || err.response?.data?.error || "Failed to save user");
     }
   };
 
@@ -340,7 +340,7 @@ const UserModal = ({ onClose, onSave, formData, onChange, editingUser, darkMode 
             </label>
             <input
               type="text"
-              username="username"
+              name="username"
               value={formData.username}
               onChange={onChange}
               placeholder="Enter full username"
@@ -356,7 +356,7 @@ const UserModal = ({ onClose, onSave, formData, onChange, editingUser, darkMode 
             </label>
             <input
               type="email"
-              username="email"
+              name="email"
               value={formData.email}
               onChange={onChange}
               placeholder="Enter email address"
@@ -373,7 +373,7 @@ const UserModal = ({ onClose, onSave, formData, onChange, editingUser, darkMode 
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
-                username="password"
+                name="password"
                 value={formData.password}
                 onChange={onChange}
                 placeholder={editingUser ? "Enter new password" : "Enter password"}
@@ -396,7 +396,7 @@ const UserModal = ({ onClose, onSave, formData, onChange, editingUser, darkMode 
               User Role *
             </label>
             <select
-              username="role"
+              name="role"
               value={formData.role}
               onChange={onChange}
               className={inputClass}

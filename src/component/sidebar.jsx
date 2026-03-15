@@ -1,6 +1,6 @@
 import React, { useState, useContext } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { AuthContext } from "../context/authContext.jsx"; // <-- import AuthContext
+import { AuthContext } from "../context/authContext.jsx"; 
 import {
   FaHome,
   FaFileInvoice,
@@ -11,9 +11,8 @@ import {
   FaBuilding,
   FaUsers,
   FaChartBar,
-  FaUserShield,
-  FaCog,
   FaPlus ,
+  FaClipboardList,
   FaSignOutAlt,
   FaFolder,
   FaBars,
@@ -21,10 +20,11 @@ import {
 } from "react-icons/fa";
 
 export default function Sidebar() {
-  const [isOpen, setIsOpen] = useState(false); // Sidebar toggle for mobile
-  const location = useLocation(); // For highlighting active link
-  const { logout } = useContext(AuthContext); // get logout function
+  const [isOpen, setIsOpen] = useState(false); 
+  const location = useLocation(); 
+  const { logout, user } = useContext(AuthContext);
   const navigate = useNavigate();
+  const isSuperAdmin = user?.role === 'super-admin';
 
   const menuItems = [
     { icon: <FaHome />, label: "Dashboard", path: "/HomeDashboard" },
@@ -38,8 +38,7 @@ export default function Sidebar() {
     { icon: <FaFolder  />, label: "Categories", path: "/Categories" },
     { icon: <FaChartBar />, label: "Report", path: "/Report" },
     { icon: <FaPlus  />, label: "Users", path: "/user" },
-    // { icon: <FaUserShield    />, label: "Administrators", path: "/Administrators" },
-    { icon: <FaCog    />, label: "Settings", path: "/Settings" },
+    { icon: <FaClipboardList />, label: "Activity Logs", path: "/activity-logs", superAdminOnly: true },
   
   
     ];
@@ -73,6 +72,8 @@ export default function Sidebar() {
           <ul className="space-y-3 bg-white rounded-lg p-3">
             {menuItems.map((item, idx) => {
               const isActive = location.pathname === item.path;
+              // Hide privileged menu items for non-super-admin users
+              if ((item.label === 'Users' || item.superAdminOnly) && !isSuperAdmin) return null;
               return (
                 <li key={idx}>
                   <Link
@@ -89,6 +90,11 @@ export default function Sidebar() {
                     <div className="flex flex-col leading-tight">
                       <span className="font-medium">{item.label}</span>
                       {item.label === "Users" && (
+                        <span className={`text-[10px] ${isActive ? "text-red-100" : "text-gray-500"}`}>
+                          Only super-admin is allowed
+                        </span>
+                      )}
+                      {item.label === "Activity Logs" && (
                         <span className={`text-[10px] ${isActive ? "text-red-100" : "text-gray-500"}`}>
                           Only super-admin is allowed
                         </span>

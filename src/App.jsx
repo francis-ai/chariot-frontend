@@ -21,6 +21,7 @@ import Suppliershome from "./Dashboard/suppliers/suppliershome";
 import Customer from "./Dashboard/customer/customer";
 import Report from "./Dashboard/Report/ReportsAnalytics";
 import User from "./Dashboard/User/userhome";
+import ActivityLogs from "./Dashboard/ActivityLogs/ActivityLogs";
 import NewInvoice from "./Dashboard/newinvoice";
 import Categories from "./Dashboard/InventoryManagement/inventoryCategory";
 import Receipt from "./Dashboard/receipt";
@@ -112,6 +113,11 @@ const AppWrapper = () => {
           <Route path="/user" element={
             <ProtectedRoute allowedRoles={["super-admin"]}>
               <User />
+            </ProtectedRoute>
+          }/>
+          <Route path="/activity-logs" element={
+            <ProtectedRoute allowedRoles={["super-admin"]}>
+              <ActivityLogs />
             </ProtectedRoute>
           }/>
           <Route path="/chat" element={
