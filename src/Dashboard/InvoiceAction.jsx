@@ -13,6 +13,7 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import API from "../utils/api";
 import InvoiceForm from "./invoice";
+import { downloadInvoicePdf } from "../utils/documentPdf";
 
 const TABS = ["All Invoices", "Paid", "Unpaid", "Pending", "Overdue"];
 
@@ -97,37 +98,37 @@ const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefr
   };
 
   const handleDownload = (invoice) => {
-    const content = `
-INVOICE
-====================
-Number: ${invoice.invoice_number}
-Customer: ${invoice.customer}
-Date: ${invoice.invoice_date}
-Due Date: ${invoice.due_date}
-Item: ${invoice.item}
-Description: ${invoice.description || ''}
-Quantity: ${invoice.quantity}
-Price: ₦${Number(invoice.price).toLocaleString()}
-Discount: ₦${Number(invoice.discount || 0).toLocaleString()}
-Total: ₦${Number(invoice.total).toLocaleString()}
-Status: ${invoice.status}
-Notes: ${invoice.notes || 'N/A'}
-====================
-    `;
-    
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `invoice-${invoice.invoice_number}.txt`;
-    a.click();
-    window.URL.revokeObjectURL(url);
-    toast.success("Invoice downloaded successfully!");
+    downloadInvoicePdf(invoice)
+      .then(() => toast.success("Invoice downloaded successfully!"))
+      .catch(() => toast.error("Failed to download invoice PDF"));
   };
 
   const handleSaveEdit = async (updatedData) => {
-    if (onRefresh) onRefresh();
-    setEditOpen(false);
+    try {
+      const subtotal = Number(updatedData.quantity || 0) * Number(updatedData.price || 0);
+      const total = subtotal - Number(updatedData.discount || 0);
+      const payload = {
+        invoice_number: updatedData.invoice_number || selectedInvoice?.invoice_number || `CLT-${Date.now()}`,
+        customer: updatedData.customer,
+        invoice_date: updatedData.invoice_date,
+        due_date: updatedData.due_date,
+        item: updatedData.item,
+        description: updatedData.description || "",
+        quantity: Number(updatedData.quantity) || 0,
+        price: Number(updatedData.price) || 0,
+        discount: Number(updatedData.discount) || 0,
+        total,
+        signature_name: updatedData.signature_name || "",
+        notes: updatedData.notes || "",
+      };
+
+      await API.put(`/invoices/${selectedInvoice.id}`, payload);
+      toast.success("Invoice updated successfully");
+      if (onRefresh) onRefresh();
+      setEditOpen(false);
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to update invoice");
+    }
   };
 
   const paginatedInvoices = filteredInvoices.slice(

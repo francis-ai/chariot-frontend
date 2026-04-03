@@ -7,6 +7,7 @@ import { useTheme } from "../../context/ThemeContext";
 import API from "../../utils/api";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { downloadQuotationPdf } from "../../utils/documentPdf";
 
 // Modal Component for Viewing/Editing
 const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode, customers = [] }) => {
@@ -42,6 +43,21 @@ const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode
     }
     return '';
   };
+
+  const items = Array.isArray(form.items)
+    ? form.items
+    : (() => {
+        try {
+          return form.items_json ? JSON.parse(form.items_json) : [];
+        } catch (error) {
+          return [];
+        }
+      })();
+
+  const subtotal = Number(form.subtotal || 0) || items.reduce((sum, item) => sum + (Number(item.quantity || item.qty || 0) * Number(item.price || 0)), 0);
+  const vatRate = Number(form.vat_rate || 0);
+  const vatAmount = Number(form.vat_amount || (subtotal * vatRate) / 100);
+  const total = Number(form.amount || subtotal + vatAmount);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -169,9 +185,67 @@ const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode
               />
             ) : (
               <span className={`px-3 py-2 border rounded-lg w-full font-bold ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-100 border-gray-300'}`}>
-                ₦{Number(form.amount || 0).toLocaleString()}
+                ₦{Number(total || 0).toLocaleString()}
               </span>
             )}
+          </div>
+
+          <div className="flex flex-col">
+            <label className="text-sm font-medium mb-1">VAT Rate</label>
+            {editable ? (
+              <input
+                type="number"
+                name="vat_rate"
+                value={form.vat_rate || 0}
+                onChange={handleChange}
+                disabled={saving}
+                className={`px-3 py-2 border rounded-lg outline-none w-full ${
+                  darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-gray-100 border-gray-300 text-gray-800'
+                }`}
+              />
+            ) : (
+              <span className={`px-3 py-2 border rounded-lg w-full ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-100 border-gray-300'}`}>
+                {vatRate}%
+              </span>
+            )}
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="text-sm font-medium mb-1">Terms and Conditions</label>
+            {editable ? (
+              <textarea
+                name="terms"
+                value={form.terms || ''}
+                onChange={handleChange}
+                disabled={saving}
+                rows={4}
+                className={`px-3 py-2 border rounded-lg outline-none w-full ${
+                  darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-gray-100 border-gray-300 text-gray-800'
+                }`}
+              />
+            ) : (
+              <p className={`px-3 py-2 border rounded-lg w-full ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-100 border-gray-300'}`}>
+                {form.terms || 'No terms provided'}
+              </p>
+            )}
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="text-sm font-medium mb-1">Items</label>
+            <div className={`rounded-lg border p-3 ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-100 border-gray-300'}`}>
+              {items.length > 0 ? (
+                <div className="space-y-2">
+                  {items.map((item, index) => (
+                    <div key={`${item.name || item.item || index}`} className="flex flex-col md:flex-row md:justify-between gap-1 text-sm">
+                      <span className="font-medium">{item.name || item.item || `Item ${index + 1}`}</span>
+                      <span>{item.quantity || item.qty || 0} x ₦{Number(item.price || 0).toLocaleString()} = ₦{Number((item.quantity || item.qty || 0) * (item.price || 0)).toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm opacity-70">No items attached</p>
+              )}
+            </div>
           </div>
 
           {form.notes && (
@@ -287,6 +361,7 @@ const QuotationManagement = () => {
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const tabs = ['All Quotations', 'Pending', 'Accepted', 'Expired'];
 
@@ -328,9 +403,22 @@ const QuotationManagement = () => {
         quotation_date: q.quotation_date ? q.quotation_date.split('T')[0] : "",
         valid_until: q.valid_until ? q.valid_until.split('T')[0] : "",
         amount: q.amount || 0,
+        subtotal: q.subtotal || 0,
+        vat_rate: q.vat_rate || 0,
+        vat_amount: q.vat_amount || 0,
+        items_json: q.items_json || "",
+        items: (() => {
+          try {
+            return q.items_json ? JSON.parse(q.items_json) : [];
+          } catch (error) {
+            return [];
+          }
+        })(),
         formatted_amount: `₦${Number(q.amount || 0).toLocaleString()}`,
         status: q.status || "Pending",
         notes: q.notes || "",
+        terms: q.terms || "",
+        signature_name: q.signature_name || "",
       }));
       
       setQuotations(mappedQuotations);
@@ -358,15 +446,32 @@ const QuotationManagement = () => {
       
       // Generate quotation number if not exists
       const quotation_number = quotationData.quotation_number || `QUT-${Date.now()}`;
+      const items = Array.isArray(quotationData.items) ? quotationData.items : (() => {
+        try {
+          return quotationData.items_json ? JSON.parse(quotationData.items_json) : [];
+        } catch (error) {
+          return [];
+        }
+      })();
+      const subtotal = Number(quotationData.subtotal || items.reduce((sum, item) => sum + (Number(item.quantity || item.qty || 0) * Number(item.price || 0)), 0));
+      const vatRate = Number(quotationData.vat_rate || 0);
+      const vatAmount = Number(quotationData.vat_amount || (subtotal * vatRate) / 100);
+      const amount = Number(quotationData.amount || subtotal + vatAmount);
       
       const payload = {
         quotation_number: quotation_number,
         customer: quotationData.customer,
         quotation_date: quotationData.quotation_date,
         valid_until: quotationData.valid_until,
-        amount: parseFloat(quotationData.amount) || 0,
+        subtotal,
+        vat_rate: vatRate,
+        vat_amount: vatAmount,
+        amount,
         status: quotationData.status,
-        notes: quotationData.notes || ""
+        notes: quotationData.notes || "",
+        terms: quotationData.terms || "",
+        signature_name: quotationData.signature_name || "",
+        items_json: JSON.stringify(items),
       };
 
       console.log("Saving quotation with payload:", payload);
@@ -411,30 +516,9 @@ const QuotationManagement = () => {
   };
 
   const handleDownload = (quotation) => {
-    // Create a text representation of the quotation
-    const content = `
-QUOTATION
-====================
-Number: ${quotation.quotation_number || quotation.id}
-Customer: ${quotation.customer}
-Date: ${quotation.quotation_date}
-Valid Until: ${quotation.valid_until}
-Amount: ₦${Number(quotation.amount).toLocaleString()}
-Status: ${quotation.status}
-Notes: ${quotation.notes || 'N/A'}
-====================
-    `;
-    
-    // Create and download file
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `quotation-${quotation.quotation_number || quotation.id}.txt`;
-    a.click();
-    window.URL.revokeObjectURL(url);
-    
-    toast.success("Quotation downloaded successfully!");
+    downloadQuotationPdf(quotation)
+      .then(() => toast.success("Quotation downloaded successfully!"))
+      .catch(() => toast.error("Failed to download quotation PDF"));
   };
 
   const getStatusStyles = (status) => {
@@ -458,9 +542,14 @@ Notes: ${quotation.notes || 'N/A'}
     }
   };
 
-  const filteredQuotations = quotations.filter(q => 
-    activeTab === 'All Quotations' || q.status === activeTab
-  );
+  const filteredQuotations = quotations.filter(q => {
+    const matchesTab = activeTab === 'All Quotations' || q.status === activeTab;
+    const searchValue = searchTerm.trim().toLowerCase();
+    const matchesSearch = !searchValue || [q.customer, q.quotation_number, q.notes]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(searchValue));
+    return matchesTab && matchesSearch;
+  });
 
   return (
     <div className={`flex min-h-screen flex-col md:flex-row transition-colors ${
@@ -484,6 +573,18 @@ Notes: ${quotation.notes || 'N/A'}
               {newQuotation ? 'Back to Dashboard' : 'Create Quotation'}
             </button>
           </div>
+
+            <div className="mb-4 flex justify-start md:justify-end">
+              <div className="w-full md:w-96">
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search quotation by number or customer"
+                  className={`w-full px-4 py-2 rounded-lg border outline-none ${darkMode ? 'bg-gray-800 border-gray-700 text-gray-100' : 'bg-white border-gray-300 text-gray-800'}`}
+                />
+              </div>
+            </div>
 
           {newQuotation ? (
             <CreateQuotation 

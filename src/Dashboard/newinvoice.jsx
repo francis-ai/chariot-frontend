@@ -6,7 +6,7 @@ const Invoice = () => {
   };
 
   const invoiceData = {
-    invoiceNumber: "INVCLT22022876",
+    invoiceNumber: "CLT-22022876",
     date: "1/14/2026",
     purchaserOrder: "4500012788",
     items: [
@@ -196,7 +196,7 @@ const Invoice = () => {
             <p>Page 1 of 1</p>
           </div>
           <div className="text-center text-[10px] text-gray-400 italic mt-1">
-            Quotation*
+            Invoice*
           </div>
         </div>
       </div>

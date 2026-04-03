@@ -1,9 +1,12 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Building2,
   Globe,
   Shield,
   Database,
+  FolderKanban,
+  Users,
 } from "lucide-react";
 import NavBar from "../component/navigation";
 import { useTheme } from "../context/ThemeContext";
@@ -13,6 +16,7 @@ import "react-toastify/dist/ReactToastify.css";
 export default function SettingsTabs() {
   const { darkMode } = useTheme();
   const [activeTab, setActiveTab] = useState("company");
+  const navigate = useNavigate();
 
   // Toast function
   const showToast = (message) => {
@@ -62,6 +66,20 @@ export default function SettingsTabs() {
               onClick={() => setActiveTab("security")}
               darkMode={darkMode}
             />
+            <TabButton
+              icon={<FolderKanban size={18} />}
+              label="Categories"
+              active={activeTab === "categories"}
+              onClick={() => setActiveTab("categories")}
+              darkMode={darkMode}
+            />
+            <TabButton
+              icon={<Users size={18} />}
+              label="Access"
+              active={activeTab === "access"}
+              onClick={() => setActiveTab("access")}
+              darkMode={darkMode}
+            />
           </div>
 
           {/* Backup Button */}
@@ -79,6 +97,8 @@ export default function SettingsTabs() {
           {activeTab === "company" && <CompanyInfo showToast={showToast} inputBg={inputBg} />}
           {activeTab === "regional" && <RegionalSettings showToast={showToast} inputBg={inputBg} />}
           {activeTab === "security" && <SecuritySettings showToast={showToast} inputBg={inputBg} darkMode={darkMode} />}
+          {activeTab === "categories" && <CategoryAccess navigate={navigate} darkMode={darkMode} />}
+          {activeTab === "access" && <AccessControl showToast={showToast} darkMode={darkMode} />}
         </div>
       </div>
     </div>
@@ -232,5 +252,59 @@ const Toggle = ({ title, description, darkMode }) => (
       <div className="w-11 h-6 rounded-full transition-colors peer bg-gray-300 peer-checked:bg-blue-600"></div>
       <div className="absolute left-1 top-1 w-4 h-4 rounded-full bg-white transition-transform peer-checked:translate-x-5"></div>
     </label>
+  </div>
+);
+
+const CategoryAccess = ({ navigate, darkMode }) => (
+  <div className="space-y-6">
+    <h2 className="text-lg font-semibold">Inventory Categories</h2>
+    <p className={darkMode ? "text-gray-300" : "text-gray-600"}>
+      Manage product categories in a dedicated screen.
+    </p>
+    <div className={`rounded-xl p-5 border ${darkMode ? "border-gray-700 bg-gray-900" : "border-gray-200 bg-gray-50"}`}>
+      <p className="font-medium mb-2">Category management</p>
+      <p className="text-sm text-gray-500 mb-4">
+        Use the existing category manager to add, edit, and remove inventory categories.
+      </p>
+      <button
+        onClick={() => navigate("/Categories")}
+        className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg font-semibold transition-colors"
+      >
+        Open Category Manager
+      </button>
+    </div>
+  </div>
+);
+
+const AccessControl = ({ showToast, darkMode }) => (
+  <div className="space-y-6">
+    <h2 className="text-lg font-semibold">Access Control</h2>
+    <p className={darkMode ? "text-gray-300" : "text-gray-600"}>
+      Role-based access is already active. Super-admin controls user and log access; admin users handle day-to-day operations.
+    </p>
+    <div className={`grid grid-cols-1 md:grid-cols-2 gap-4`}>
+      <RoleCard title="Super Admin" items={["User management", "Activity logs", "Full system access"]} darkMode={darkMode} />
+      <RoleCard title="Admin" items={["Invoices", "Quotations", "Inventory", "Customers", "Reports"]} darkMode={darkMode} />
+    </div>
+    <button
+      onClick={() => showToast("Access control overview saved")}
+      className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg font-semibold transition-colors"
+    >
+      Save Access Overview
+    </button>
+  </div>
+);
+
+const RoleCard = ({ title, items, darkMode }) => (
+  <div className={`rounded-xl p-5 border ${darkMode ? "border-gray-700 bg-gray-900" : "border-gray-200 bg-gray-50"}`}>
+    <h3 className="font-semibold mb-3">{title}</h3>
+    <ul className="space-y-2 text-sm text-gray-500">
+      {items.map((item) => (
+        <li key={item} className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-blue-600" />
+          {item}
+        </li>
+      ))}
+    </ul>
   </div>
 );

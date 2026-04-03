@@ -7,6 +7,7 @@ import API from "../utils/api";
 export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) {
   const [form, setForm] = useState({
     customer: "",
+    signature_name: "",
     invoice_date: new Date().toISOString().split('T')[0],
     due_date: "",
     item: "",
@@ -21,12 +22,14 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState({ customers: true, items: true });
   const [selectedItemId, setSelectedItemId] = useState("");
+  const [customerSearch, setCustomerSearch] = useState("");
 
   // Load invoice data if editing
   useEffect(() => {
     if (invoiceData) {
       setForm({
         customer: invoiceData.customer || "",
+        signature_name: invoiceData.signature_name || "",
         invoice_date: invoiceData.invoice_date || new Date().toISOString().split('T')[0],
         due_date: invoiceData.due_date || "",
         item: invoiceData.item || "",
@@ -165,6 +168,13 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
   }`;
 
   const isLoading = fetching.customers || fetching.items;
+  const filteredCustomers = customers.filter((customer) => {
+    const searchValue = customerSearch.trim().toLowerCase();
+    if (!searchValue) return true;
+    return [customer.name, customer.company, customer.email]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(searchValue));
+  });
 
   return (
     <>
@@ -197,6 +207,14 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Customer *</label>
+                  <input
+                    type="text"
+                    value={customerSearch}
+                    onChange={(e) => setCustomerSearch(e.target.value)}
+                    placeholder="Search customer by name or company"
+                    disabled={loading}
+                    className={`${inputClass} mb-2`}
+                  />
                   <select
                     name="customer"
                     value={form.customer}
@@ -206,8 +224,8 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
                     className={inputClass}
                   >
                     <option value="">Select Customer</option>
-                    {customers.length > 0 ? (
-                      customers.map(customer => (
+                    {filteredCustomers.length > 0 ? (
+                      filteredCustomers.map(customer => (
                         <option key={customer.id || customer._id} value={customer.name}>
                           {customer.company || customer.name}
                         </option>
@@ -317,6 +335,24 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
                       Auto-filled from inventory
                     </p>
                   )}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h3 className={`text-md font-medium mb-4 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Approval</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className={`text-sm mb-1 block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Authorized Signature Name</label>
+                  <input
+                    type="text"
+                    name="signature_name"
+                    value={form.signature_name}
+                    onChange={handleChange}
+                    placeholder="Enter signatory name"
+                    disabled={loading}
+                    className={inputClass}
+                  />
                 </div>
               </div>
             </div>

@@ -36,6 +36,7 @@ export default function InvoiceManagement() {
         id: inv.id || inv._id,
         invoice_number: inv.invoice_number,
         customer: inv.customer || "",
+        signature_name: inv.signature_name || "",
         invoice_date: inv.invoice_date ? inv.invoice_date.split('T')[0] : "",
         due_date: inv.due_date ? inv.due_date.split('T')[0] : "",
         item: inv.item || "",
@@ -97,8 +98,9 @@ export default function InvoiceManagement() {
       const total = subtotal - (invoiceData.discount || 0);
       
       const payload = {
-        invoice_number: invoiceData.invoice_number || `INV-${Date.now()}`,
+        invoice_number: invoiceData.invoice_number || `CLT-${Date.now()}`,
         customer: invoiceData.customer,
+        signature_name: invoiceData.signature_name || "",
         invoice_date: invoiceData.invoice_date,
         due_date: invoiceData.due_date,
         item: invoiceData.item,

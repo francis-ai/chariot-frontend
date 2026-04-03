@@ -6,7 +6,7 @@ const Invoice = () => {
   };
 
   const invoiceData = {
-    invoiceNumber: "INVCLT22022876",
+    invoiceNumber: "CLT-22022876",
     date: "1/14/2026",
     purchaserOrder: "4500012788",
 
