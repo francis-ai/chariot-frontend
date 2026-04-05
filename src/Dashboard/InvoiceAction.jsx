@@ -363,8 +363,8 @@ const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefr
 
       {/* Edit Modal */}
       {editOpen && selectedInvoice && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto p-4">
-          <div className={`w-full max-w-4xl rounded-xl p-6 ${
+        <div className="fixed inset-0 bg-black/50 flex items-start sm:items-center justify-center z-50 overflow-y-auto p-4">
+          <div className={`w-full max-w-4xl rounded-xl p-6 max-h-[90vh] overflow-y-auto ${
             darkMode ? "bg-slate-800" : "bg-white"
           }`}>
             <InvoiceForm

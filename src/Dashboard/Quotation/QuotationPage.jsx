@@ -60,8 +60,8 @@ const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode
   const total = Number(form.amount || subtotal + vatAmount);
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className={`w-full max-w-2xl relative p-6 rounded-xl shadow-xl ${darkMode ? 'bg-gray-800 text-gray-200' : 'bg-white text-gray-800'}`}>
+    <div className="fixed inset-0 bg-black/50 flex items-start sm:items-center justify-center p-4 overflow-y-auto z-50">
+      <div className={`w-full max-w-2xl relative p-6 rounded-xl shadow-xl max-h-[90vh] overflow-y-auto ${darkMode ? 'bg-gray-800 text-gray-200' : 'bg-white text-gray-800'}`}>
         <button
           onClick={onClose}
           disabled={saving}

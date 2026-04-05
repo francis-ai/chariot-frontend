@@ -22,6 +22,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState({ customers: true, items: true });
   const [selectedItemId, setSelectedItemId] = useState("");
+  const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [customerSearch, setCustomerSearch] = useState("");
 
   // Load invoice data if editing
@@ -41,6 +42,19 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
       });
     }
   }, [invoiceData]);
+
+  useEffect(() => {
+    if (!customers.length) return;
+
+    const matchedCustomer = customers.find((customer) => {
+      const displayName = customer.name || customer.company || "";
+      return displayName === form.customer || customer.company === form.customer;
+    });
+
+    if (matchedCustomer) {
+      setSelectedCustomerId(String(matchedCustomer.id || matchedCustomer._id));
+    }
+  }, [customers, form.customer]);
 
   // Find the item ID for the select dropdown when items are loaded
   useEffect(() => {
@@ -114,6 +128,27 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
         description: ""
       }));
     }
+  };
+
+  const handleCustomerChange = (e) => {
+    const selectedId = e.target.value;
+    setSelectedCustomerId(selectedId);
+
+    const selectedCustomer = customers.find(
+      (customer) => String(customer.id || customer._id) === String(selectedId)
+    );
+
+    if (!selectedCustomer) {
+      setForm((prev) => ({ ...prev, customer: "" }));
+      return;
+    }
+
+    const displayName = selectedCustomer.name || selectedCustomer.company || "";
+    setForm((prev) => ({
+      ...prev,
+      customer: displayName,
+      signature_name: displayName,
+    }));
   };
 
   // Calculations
@@ -217,8 +252,8 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
                   />
                   <select
                     name="customer"
-                    value={form.customer}
-                    onChange={handleChange}
+                    value={selectedCustomerId}
+                    onChange={handleCustomerChange}
                     required
                     disabled={loading}
                     className={inputClass}
@@ -226,8 +261,8 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
                     <option value="">Select Customer</option>
                     {filteredCustomers.length > 0 ? (
                       filteredCustomers.map(customer => (
-                        <option key={customer.id || customer._id} value={customer.name}>
-                          {customer.company || customer.name}
+                        <option key={customer.id || customer._id} value={String(customer.id || customer._id)}>
+                          {customer.name} - {customer.company}
                         </option>
                       ))
                     ) : (

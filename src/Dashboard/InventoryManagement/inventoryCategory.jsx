@@ -26,8 +26,8 @@ const CategoryPopup = ({ category, onClose, onSave, editable }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className={`w-full max-w-md p-6 rounded-2xl ${darkMode ? "bg-slate-800 text-white" : "bg-white text-gray-900"}`}>
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/50 overflow-y-auto p-4">
+      <div className={`w-full max-w-md p-6 rounded-2xl max-h-[90vh] overflow-y-auto ${darkMode ? "bg-slate-800 text-white" : "bg-white text-gray-900"}`}>
         <h2 className="text-xl font-bold mb-4">
           {editable ? (category.id ? "Edit Category" : "Add Category") : "View Category"}
         </h2>
@@ -90,7 +90,7 @@ export default function InventoryCategories() {
       
       // Map the API response - only need id and name
       const mappedCategories = res.data.map(cat => ({
-        id: cat.id || cat._id,
+        id: cat.id || cat.category_id || cat._id,
         name: cat.name || "",
       }));
       

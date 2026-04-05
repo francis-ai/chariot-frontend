@@ -46,7 +46,7 @@ const EnterpriseDashboard = () => {
       
       // Map API response to component format
       const mappedOrders = res.data.map(po => ({
-        id: po.id || po._id,
+        id: po.id || po.po_id || po._id,
         po_number: po.po_number,
         supplier_id: po.supplier_id,
         supplier_name: po.supplier_name || "",
@@ -426,6 +426,7 @@ const ViewModal = ({ title, onClose, data, darkMode }) => {
 /* ===================== FORM MODAL ===================== */
 const FormModal = ({ title, onClose, data, create, onSave, darkMode }) => {
   const [form, setForm] = useState(data ? {
+    id: data.id,
     po_number: data.po_number,
     supplier_id: data.supplier_id || "",
     order_date: data.order_date || new Date().toISOString().split('T')[0],
@@ -496,8 +497,8 @@ const FormModal = ({ title, onClose, data, create, onSave, darkMode }) => {
   } focus:outline-none focus:ring-2 focus:ring-blue-500`;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className={`w-full max-w-md rounded-lg p-6 relative ${darkMode ? "bg-gray-800 text-gray-200" : "bg-white text-gray-800"}`}>
+    <div className="fixed inset-0 bg-black/50 flex items-start sm:items-center justify-center z-50 overflow-y-auto p-4">
+      <div className={`w-full max-w-md rounded-lg p-6 relative max-h-[90vh] overflow-y-auto ${darkMode ? "bg-gray-800 text-gray-200" : "bg-white text-gray-800"}`}>
         <button 
           onClick={onClose} 
           className="absolute top-4 right-4 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
