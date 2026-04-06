@@ -8,6 +8,35 @@ import API from "../../utils/api";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
+const ROLE_OPTIONS = [
+  { value: "super-admin", label: "Super Admin" },
+  { value: "admin", label: "Admin" },
+  { value: "inventory-staff", label: "Inventory Staff" },
+  { value: "front-desk", label: "Front Desk" },
+];
+
+const normalizeRoleValue = (role) => {
+  return role
+    ?.trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
+};
+
+const formatRoleLabel = (role) => {
+  const matchedRole = ROLE_OPTIONS.find((option) => option.value === role);
+  if (matchedRole) return matchedRole.label;
+
+  if (!role) return "Unknown";
+
+  return role
+    .split("-")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+};
+
 const UserManagement = () => {
   const { darkMode } = useTheme();
   const { user } = useContext(AuthContext);
@@ -91,13 +120,19 @@ const UserManagement = () => {
       return;
     }
 
+    const normalizedRole = normalizeRoleValue(formData.role);
+    if (!normalizedRole) {
+      toast.error("Please enter a valid role");
+      return;
+    }
+
     try {
       if (editingUser) {
         // Update existing user
         const payload = {
           username: formData.username,
           email: formData.email,
-          role: formData.role
+          role: normalizedRole
         };
         // Only include password if it's provided
         if (formData.password) {
@@ -112,7 +147,7 @@ const UserManagement = () => {
           username: formData.username,
           email: formData.email,
           password: formData.password,
-          role: formData.role
+          role: normalizedRole
         };
         await API.post("/users", payload);
         toast.success("User created successfully!");
@@ -148,7 +183,16 @@ const UserManagement = () => {
     if (role === 'super-admin') {
       return darkMode ? 'bg-purple-900 text-purple-300' : 'bg-purple-100 text-purple-700';
     }
-    return darkMode ? 'bg-blue-900 text-blue-300' : 'bg-blue-100 text-blue-700';
+    if (role === 'admin') {
+      return darkMode ? 'bg-blue-900 text-blue-300' : 'bg-blue-100 text-blue-700';
+    }
+    if (role === 'inventory-staff') {
+      return darkMode ? 'bg-emerald-900 text-emerald-300' : 'bg-emerald-100 text-emerald-700';
+    }
+    if (role === 'front-desk') {
+      return darkMode ? 'bg-amber-900 text-amber-300' : 'bg-amber-100 text-amber-700';
+    }
+    return darkMode ? 'bg-gray-700 text-gray-200' : 'bg-gray-200 text-gray-700';
   };
 
   const isSuperAdmin = user?.role === 'super-admin';
@@ -220,8 +264,8 @@ const UserManagement = () => {
                         <td className="px-4 py-3 font-medium">{user.username}</td>
                         <td className="px-4 py-3">{user.email}</td>
                         <td className="px-4 py-3">
-                          <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase ${getRoleBadgeStyle(user.role)}`}>
-                            {user.role === 'super-admin' ? 'Super Admin' : 'Admin'}
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getRoleBadgeStyle(user.role)}`}>
+                            {formatRoleLabel(user.role)}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-sm">
@@ -395,18 +439,25 @@ const UserModal = ({ onClose, onSave, formData, onChange, editingUser, darkMode 
             <label className={`text-sm font-medium mb-1 block ${darkMode ? "text-gray-300" : "text-gray-600"}`}>
               User Role *
             </label>
-            <select
+            <input
+              type="text"
+              list="role-options"
               name="role"
               value={formData.role}
               onChange={onChange}
+              placeholder="Select or type a role"
               className={inputClass}
               required
-            >
-              <option value="admin">Admin</option>
-              <option value="super-admin">Super Admin</option>
-            </select>
+            />
+            <datalist id="role-options">
+              {ROLE_OPTIONS.map((roleOption) => (
+                <option key={roleOption.value} value={roleOption.value}>
+                  {roleOption.label}
+                </option>
+              ))}
+            </datalist>
             <p className={`text-xs mt-1 ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
-              Super admins have full system access including user management
+              Suggested roles: super-admin, admin, inventory-staff, front-desk. You can type a custom role too.
             </p>
           </div>
         </div>
@@ -467,12 +518,8 @@ const ViewUserModal = ({ user, onClose, darkMode }) => {
           <div className="grid grid-cols-3 gap-4 py-2 border-b dark:border-gray-700">
             <span className="font-medium opacity-70">Role</span>
             <span className="col-span-2">
-              <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase ${
-                user.role === 'super-admin' 
-                  ? darkMode ? 'bg-purple-900 text-purple-300' : 'bg-purple-100 text-purple-700'
-                  : darkMode ? 'bg-blue-900 text-blue-300' : 'bg-blue-100 text-blue-700'
-              }`}>
-                {user.role === 'super-admin' ? 'Super Admin' : 'Admin'}
+              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getRoleBadgeStyle(user.role, darkMode)}`}>
+                {formatRoleLabel(user.role)}
               </span>
             </span>
           </div>
@@ -540,11 +587,9 @@ const DeleteConfirmationModal = ({ onClose, onConfirm, user, darkMode, deleting 
             <p className="text-sm mt-1">{user.email}</p>
             <p className="text-sm mt-1">
               Role: <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                user.role === 'super-admin' 
-                  ? darkMode ? 'bg-purple-900 text-purple-300' : 'bg-purple-100 text-purple-700'
-                  : darkMode ? 'bg-blue-900 text-blue-300' : 'bg-blue-100 text-blue-700'
+                getRoleBadgeStyle(user.role, darkMode)
               }`}>
-                {user.role === 'super-admin' ? 'Super Admin' : 'Admin'}
+                {formatRoleLabel(user.role)}
               </span>
             </p>
           </div>
@@ -587,3 +632,19 @@ const DeleteConfirmationModal = ({ onClose, onConfirm, user, darkMode, deleting 
 };
 
 export default UserManagement;
+
+function getRoleBadgeStyle(role, darkMode) {
+  if (role === "super-admin") {
+    return darkMode ? "bg-purple-900 text-purple-300" : "bg-purple-100 text-purple-700";
+  }
+  if (role === "admin") {
+    return darkMode ? "bg-blue-900 text-blue-300" : "bg-blue-100 text-blue-700";
+  }
+  if (role === "inventory-staff") {
+    return darkMode ? "bg-emerald-900 text-emerald-300" : "bg-emerald-100 text-emerald-700";
+  }
+  if (role === "front-desk") {
+    return darkMode ? "bg-amber-900 text-amber-300" : "bg-amber-100 text-amber-700";
+  }
+  return darkMode ? "bg-gray-700 text-gray-200" : "bg-gray-200 text-gray-700";
+}

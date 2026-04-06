@@ -7,6 +7,16 @@ import { useNavigate } from "react-router-dom";
 import API from "../utils/api";
 import { toast } from "react-toastify";
 
+const formatRoleLabel = (role) => {
+  if (!role) return "User";
+
+  return role
+    .split("-")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+};
+
 export default function NavBar() {
   const { user } = useContext(AuthContext);
   const [open, setOpen] = useState(false);
@@ -231,7 +241,7 @@ export default function NavBar() {
                 {user?.email || 'admin@company.com'}
               </p>
               <p className="mt-1 text-xs inline-block bg-red-100 dark:bg-red-600 text-red-600 dark:text-red-100 px-2 py-1 rounded-full">
-                {user?.role === 'super-admin' ? 'Super Admin' : 'Administrator'}
+                {formatRoleLabel(user?.role)}
               </p>
             </div>
 
