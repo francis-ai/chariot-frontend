@@ -79,28 +79,33 @@ export default function NavBar() {
   const handleResultClick = (result) => {
     setShowResults(false);
     setSearchQuery('');
+    const basePath = user?.role === "super-admin" ? "/admin" : "";
     
     // Navigate based on result type
     switch (result.type) {
       case 'customer':
-        navigate(`/customers?view=${result.id}`);
+        navigate(`${basePath}/Customer?view=${result.id}`);
         toast.info(`Viewing customer: ${result.name}`);
         break;
       case 'product':
-        navigate(`/inventory?view=${result.id}`);
+        navigate(`${basePath}/Inventory?view=${result.id}`);
         toast.info(`Viewing product: ${result.name}`);
         break;
       case 'supplier':
-        navigate(`/suppliers?view=${result.id}`);
+        navigate(`${basePath}/Suppliershome?view=${result.id}`);
         toast.info(`Viewing supplier: ${result.name}`);
         break;
       case 'purchaseOrder':
-        navigate(`/purchase-orders?view=${result.id}`);
+        navigate(`${basePath}/ordermanagement?view=${result.id}`);
         toast.info(`Viewing purchase order: ${result.po_number}`);
         break;
       case 'quotations':
-        navigate(`/quotations?view=${result.id}`);
+        navigate(`${basePath}/QuotationPage?view=${result.id}`);
         toast.info(`Viewing quotation: ${result.quotation_number}`);
+        break;
+      case 'invoice':
+        navigate(`${basePath}/invoiceManagement?view=${result.id}`);
+        toast.info(`Viewing invoice: ${result.invoice_number}`);
         break;
       default:
         toast.info(`Found: ${result.name || result.customer || 'Item'}`);
@@ -260,7 +265,7 @@ export default function NavBar() {
                   // Handle logout
                   localStorage.removeItem('token');
                   localStorage.removeItem('user');
-                  window.location.href = '/login';
+                  window.location.href = user?.role === "super-admin" ? '/admin/login' : '/login';
                 }}
                 className="w-full bg-red-600 text-white rounded-lg py-2 text-sm hover:bg-red-700 transition"
               >

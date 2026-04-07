@@ -1,12 +1,14 @@
 import React, { useState, useContext } from "react";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/authContext.jsx";
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useContext(AuthContext); // Use context login
+  const isAdminLogin = location.pathname.toLowerCase().startsWith("/admin");
 
   const [formData, setFormData] = useState({
     email: "",
@@ -34,6 +36,11 @@ export default function Login() {
     try {
       const res = await login(formData.email, formData.password); // <-- context login
 
+      if (isAdminLogin && res.user?.role !== "super-admin") {
+        toast.error("Only super admin can use admin login");
+        return;
+      }
+
       toast.success(res.message || `Welcome back, ${res.user.username}!`);
 
       setFormData({
@@ -41,7 +48,11 @@ export default function Login() {
         password: "",
       });
 
-      navigate("/HomeDashboard"); // redirect after login
+      if (res.user?.role === "super-admin") {
+        navigate("/admin/HomeDashboard");
+      } else {
+        navigate("/staff/dashboard");
+      }
     } catch (err) {
       console.error(err);
       toast.error(err.message || "Login failed!");
@@ -104,7 +115,7 @@ export default function Login() {
           <div className="text-right">
             <button
               type="button"
-              onClick={() => navigate("/forgot-password")}
+              onClick={() => navigate(isAdminLogin ? "/admin/forgot-password" : "/forgot-password")}
               className="text-sm text-red-600 hover:underline"
             >
               Forgot password?

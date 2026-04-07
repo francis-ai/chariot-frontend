@@ -10,6 +10,7 @@ import "react-toastify/dist/ReactToastify.css";
 /* ===================== DASHBOARD ===================== */
 const EnterpriseDashboard = () => {
   const { darkMode } = useTheme();
+  const PAGE_SIZE = 10;
 
   const [activeTab, setActiveTab] = useState("All Purchase Orders");
   const [purchaseOrders, setPurchaseOrders] = useState([]);
@@ -19,6 +20,8 @@ const EnterpriseDashboard = () => {
   const [createModal, setCreateModal] = useState(false);
   const [deleteModal, setDeleteModal] = useState(null); // For delete confirmation
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
   const [stats, setStats] = useState([
     { label: "Total POs", value: "0" },
     { label: "Pending Approval", value: "0" },
@@ -55,6 +58,7 @@ const EnterpriseDashboard = () => {
         total_amount: Number(po.total_amount || 0),
         formatted_amount: `₦${Number(po.total_amount || 0).toLocaleString()}`,
         status: po.status || "Pending",
+        created_by_name: po.created_by_name || "",
         created_at: po.created_at,
         updated_at: po.updated_at
       }));
@@ -100,12 +104,35 @@ const EnterpriseDashboard = () => {
   };
 
   const filterData = () => {
-    if (activeTab === "All Purchase Orders") {
-      setFilteredData(purchaseOrders);
-    } else {
-      setFilteredData(purchaseOrders.filter(po => po.status === activeTab));
+    let scopedRows = activeTab === "All Purchase Orders"
+      ? purchaseOrders
+      : purchaseOrders.filter((po) => po.status === activeTab);
+
+    const query = searchTerm.trim().toLowerCase();
+    if (query) {
+      scopedRows = scopedRows.filter((po) =>
+        [po.po_number, po.supplier_name, po.status]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(query))
+      );
     }
+
+    setFilteredData(scopedRows);
   };
+
+  useEffect(() => {
+    filterData();
+  }, [searchTerm]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchTerm, filteredData.length]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / PAGE_SIZE));
+  const paginatedData = filteredData.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
 
   /* ===================== CREATE ===================== */
   const handleCreate = async (poData) => {
@@ -246,6 +273,16 @@ const EnterpriseDashboard = () => {
             ))}
           </div>
 
+          <div className="w-full sm:w-96">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search PO number, supplier or status"
+              className={`w-full px-4 py-2 rounded-lg border outline-none ${darkMode ? "bg-gray-800 border-gray-700 text-gray-100" : "bg-white border-gray-300 text-gray-800"}`}
+            />
+          </div>
+
           {/* LOADING STATE */}
           {loading && (
             <div className="text-center py-12">
@@ -283,7 +320,7 @@ const EnterpriseDashboard = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredData.map(row => (
+                  {paginatedData.map(row => (
                     <tr key={row.id} className={darkMode ? "hover:bg-gray-800" : "hover:bg-gray-100"}>
                       <td className="px-2 py-2 text-blue-500 font-medium">{row.po_number}</td>
                       <td className="px-2 py-2">{row.supplier_name}</td>
@@ -324,6 +361,28 @@ const EnterpriseDashboard = () => {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {!loading && filteredData.length > 0 && (
+            <div className="flex flex-col md:flex-row justify-between items-center gap-2 mt-3 text-xs transition-colors">
+              <span className="italic">{`Showing ${(currentPage - 1) * PAGE_SIZE + 1} to ${Math.min(currentPage * PAGE_SIZE, filteredData.length)} of ${filteredData.length} entries`}</span>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 border rounded hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-4 py-1.5 bg-gray-800 text-white rounded hover:bg-gray-700 disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
             </div>
           )}
 
@@ -416,6 +475,10 @@ const ViewModal = ({ title, onClose, data, darkMode }) => {
               <label className="text-xs uppercase opacity-60">Status</label>
               <p className="font-semibold">{data.status}</p>
             </div>
+            <div>
+              <label className="text-xs uppercase opacity-60">Added By</label>
+              <p className="font-semibold">{data.created_by_name || "System"}</p>
+            </div>
           </div>
         </div>
       </div>
@@ -445,13 +508,23 @@ const FormModal = ({ title, onClose, data, create, onSave, darkMode }) => {
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [fetchingSuppliers, setFetchingSuppliers] = useState(true);
+  const [showSupplierModal, setShowSupplierModal] = useState(false);
+  const [newSupplier, setNewSupplier] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    company: "",
+    address: "",
+    city: "",
+    country: "",
+  });
 
   // Fetch suppliers for dropdown
   useEffect(() => {
     const fetchSuppliers = async () => {
       try {
         setFetchingSuppliers(true);
-        const res = await API.get("/suppliers");
+        const res = await API.get("/suppliers/catalog");
         console.log("Fetched suppliers:", res.data);
         setSuppliers(res.data);
       } catch (err) {
@@ -492,6 +565,36 @@ const FormModal = ({ title, onClose, data, create, onSave, darkMode }) => {
     }
   };
 
+  const handleCreateSupplier = async () => {
+    if (!newSupplier.name) {
+      toast.error("Supplier name is required");
+      return;
+    }
+
+    try {
+      await API.post("/suppliers", newSupplier);
+      const res = await API.get("/suppliers/catalog");
+      const supplierList = res.data || [];
+      setSuppliers(supplierList);
+
+      const created = supplierList.find(
+        (supplier) =>
+          supplier.email === newSupplier.email ||
+          (supplier.name === newSupplier.name && supplier.company === newSupplier.company)
+      );
+
+      if (created) {
+        setForm((prev) => ({ ...prev, supplier_id: String(created.id || created._id) }));
+      }
+
+      setShowSupplierModal(false);
+      setNewSupplier({ name: "", email: "", phone: "", company: "", address: "", city: "", country: "" });
+      toast.success("Supplier added successfully");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to create supplier");
+    }
+  };
+
   const inputStyle = `px-3 py-2 rounded w-full ${
     darkMode ? "bg-gray-700 text-white" : "bg-gray-100"
   } focus:outline-none focus:ring-2 focus:ring-blue-500`;
@@ -524,7 +627,16 @@ const FormModal = ({ title, onClose, data, create, onSave, darkMode }) => {
           )}
 
           <div>
-            <label className="text-sm font-medium mb-1 block">Supplier *</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-sm font-medium block">Supplier *</label>
+              <button
+                type="button"
+                onClick={() => setShowSupplierModal(true)}
+                className="text-xs px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
+              >
+                New Supplier
+              </button>
+            </div>
             <select
               name="supplier_id"
               value={form.supplier_id}
@@ -608,6 +720,34 @@ const FormModal = ({ title, onClose, data, create, onSave, darkMode }) => {
             <Save size={18} /> {create ? 'Create Purchase Order' : 'Save Changes'}
           </button>
         </div>
+
+        {showSupplierModal ? (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className={`w-full max-w-2xl rounded-xl p-6 ${darkMode ? "bg-gray-800 text-gray-200" : "bg-white text-gray-800"}`}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Create Supplier</h3>
+                <button type="button" onClick={() => setShowSupplierModal(false)} className="p-2 rounded hover:bg-gray-200/30">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <input className={inputStyle} placeholder="Name *" value={newSupplier.name} onChange={(e) => setNewSupplier((prev) => ({ ...prev, name: e.target.value }))} />
+                <input className={inputStyle} placeholder="Company" value={newSupplier.company} onChange={(e) => setNewSupplier((prev) => ({ ...prev, company: e.target.value }))} />
+                <input className={inputStyle} placeholder="Email" value={newSupplier.email} onChange={(e) => setNewSupplier((prev) => ({ ...prev, email: e.target.value }))} />
+                <input className={inputStyle} placeholder="Phone" value={newSupplier.phone} onChange={(e) => setNewSupplier((prev) => ({ ...prev, phone: e.target.value }))} />
+                <input className={inputStyle} placeholder="City" value={newSupplier.city} onChange={(e) => setNewSupplier((prev) => ({ ...prev, city: e.target.value }))} />
+                <input className={inputStyle} placeholder="Country" value={newSupplier.country} onChange={(e) => setNewSupplier((prev) => ({ ...prev, country: e.target.value }))} />
+                <textarea className={`md:col-span-2 ${inputStyle}`} placeholder="Address" value={newSupplier.address} onChange={(e) => setNewSupplier((prev) => ({ ...prev, address: e.target.value }))} />
+              </div>
+
+              <div className="mt-4 flex justify-end gap-2">
+                <button type="button" onClick={() => setShowSupplierModal(false)} className={`px-4 py-2 rounded ${darkMode ? "bg-gray-600" : "bg-gray-200"}`}>Cancel</button>
+                <button type="button" onClick={handleCreateSupplier} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">Save Supplier</button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

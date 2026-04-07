@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { toast, ToastContainer } from "react-toastify";
-import { Save, X } from "lucide-react";
+import { Plus, Save, X } from "lucide-react";
 import "react-toastify/dist/ReactToastify.css";
+import API from "../../utils/api";
 
-const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [] }) => {
+const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inventoryItems = [], onCustomerCreated }) => {
   const [formData, setFormData] = useState({
     customer: "",
     quotation_date: new Date().toISOString().split('T')[0],
@@ -24,6 +25,14 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [] }) => 
   });
   const [loading, setLoading] = useState(false);
   const [customerSearch, setCustomerSearch] = useState("");
+  const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({
+    name: "",
+    company: "",
+    phone: "",
+    email: "",
+    status: "Active",
+  });
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -106,9 +115,55 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [] }) => 
       .some((value) => String(value).toLowerCase().includes(searchValue));
   });
 
+  const formatCustomerLabel = (customer) => {
+    return [customer.company, customer.name].filter(Boolean).join(" - ") || customer.company || customer.name || "";
+  };
+
+  const handleCreateCustomer = async () => {
+    if (!newCustomer.name || !newCustomer.company) {
+      toast.error("Customer name and company are required");
+      return;
+    }
+
+    try {
+      await API.post("/customers", newCustomer);
+      const refreshed = onCustomerCreated ? await onCustomerCreated() : [];
+      const customerList = Array.isArray(refreshed) ? refreshed : [];
+
+      const created = customerList.find(
+        (customer) =>
+          customer.email === newCustomer.email ||
+          (customer.name === newCustomer.name && customer.company === newCustomer.company)
+      );
+
+      if (created) {
+        setFormData((prev) => ({
+          ...prev,
+          customer: formatCustomerLabel(created),
+          signature_name: created.name || created.company || "",
+        }));
+      }
+
+      setNewCustomer({ name: "", company: "", phone: "", email: "", status: "Active" });
+      setShowCustomerModal(false);
+      toast.success("Customer added successfully");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to add customer");
+    }
+  };
+
   const subtotal = formData.items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.price) || 0), 0);
   const vatAmount = subtotal * (Number(formData.vat_rate) || 0) / 100;
   const total = subtotal + vatAmount;
+
+  const itemOptions = useMemo(() => {
+    return inventoryItems.map((inv) => ({
+      id: inv.id,
+      label: inv.product_name || inv.name || `Item ${inv.id}`,
+      price: Number(inv.selling_price || inv.price || 0),
+      description: inv.description || "",
+    }));
+  }, [inventoryItems]);
 
   const updateItem = (index, field, value) => {
     setFormData((prev) => {
@@ -143,9 +198,18 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [] }) => 
       <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Customer Select */}
         <div>
-          <label className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-300" : "text-gray-600"}`}>
-            Customer *
-          </label>
+          <div className="flex items-center justify-between mb-1">
+            <label className={`block text-sm font-medium ${darkMode ? "text-gray-300" : "text-gray-600"}`}>
+              Customer *
+            </label>
+            <button
+              type="button"
+              onClick={() => setShowCustomerModal(true)}
+              className="text-xs inline-flex items-center gap-1 px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
+            >
+              <Plus size={12} /> Create customer
+            </button>
+          </div>
           <input
             type="text"
             value={customerSearch}
@@ -164,8 +228,8 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [] }) => 
           >
             <option value="">Select Customer</option>
             {filteredCustomers.map(customer => (
-              <option key={customer.id} value={customer.company}>
-                {customer.company}
+              <option key={customer.id || customer._id} value={formatCustomerLabel(customer)}>
+                {formatCustomerLabel(customer)}
               </option>
             ))}
           </select>
@@ -217,6 +281,9 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [] }) => 
           >
             <option value="Pending">Pending</option>
             <option value="Approved">Approved</option>
+            <option value="Accepted">Accepted</option>
+            <option value="Paid">Paid</option>
+            <option value="Unpaid">Unpaid</option>
             <option value="Expired">Expired</option>
           </select>
         </div>
@@ -286,14 +353,27 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [] }) => 
               <div key={index} className={`grid grid-cols-1 md:grid-cols-12 gap-3 p-4 rounded-xl border ${darkMode ? "border-gray-700 bg-gray-800" : "border-gray-200 bg-gray-50"}`}>
                 <div className="md:col-span-3">
                   <label className={`block text-xs font-medium mb-1 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>Item name</label>
-                  <input
-                    type="text"
+                  <select
                     value={item.name}
-                    onChange={(e) => updateItem(index, "name", e.target.value)}
+                    onChange={(e) => {
+                      const selectedName = e.target.value;
+                      const selected = itemOptions.find((opt) => opt.label === selectedName);
+                      updateItem(index, "name", selectedName);
+                      if (selected) {
+                        if (!item.description) updateItem(index, "description", selected.description);
+                        if (!Number(item.price)) updateItem(index, "price", selected.price);
+                      }
+                    }}
                     className={inputClass}
-                    placeholder="Item name"
                     disabled={loading}
-                  />
+                  >
+                    <option value="">Select Item</option>
+                    {itemOptions.map((option) => (
+                      <option key={option.id} value={option.label}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="md:col-span-4">
                   <label className={`block text-xs font-medium mb-1 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>Description</label>
@@ -408,6 +488,62 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [] }) => 
           </button>
         </div>
       </form>
+
+      {showCustomerModal && (
+        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4">
+          <div className={`w-full max-w-md rounded-xl p-6 shadow-xl ${darkMode ? "bg-gray-800 text-gray-200" : "bg-white text-gray-800"}`}>
+            <h3 className="text-lg font-semibold mb-4">Create Customer</h3>
+
+            <div className="space-y-3">
+              <input
+                type="text"
+                placeholder="Customer name"
+                value={newCustomer.name}
+                onChange={(e) => setNewCustomer((prev) => ({ ...prev, name: e.target.value }))}
+                className={inputClass}
+              />
+              <input
+                type="text"
+                placeholder="Company"
+                value={newCustomer.company}
+                onChange={(e) => setNewCustomer((prev) => ({ ...prev, company: e.target.value }))}
+                className={inputClass}
+              />
+              <input
+                type="text"
+                placeholder="Phone"
+                value={newCustomer.phone}
+                onChange={(e) => setNewCustomer((prev) => ({ ...prev, phone: e.target.value }))}
+                className={inputClass}
+              />
+              <input
+                type="email"
+                placeholder="Email"
+                value={newCustomer.email}
+                onChange={(e) => setNewCustomer((prev) => ({ ...prev, email: e.target.value }))}
+                className={inputClass}
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 mt-5">
+              <button
+                type="button"
+                onClick={() => setShowCustomerModal(false)}
+                className={`px-4 py-2 rounded-lg ${darkMode ? "bg-gray-700 hover:bg-gray-600" : "bg-gray-200 hover:bg-gray-300"}`}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateCustomer}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -89,8 +89,20 @@ export const downloadInvoicePdf = async (invoice) => {
   doc.text(`Subtotal: ${money(invoice.quantity * invoice.price)}`, 14, finalY + 12);
   doc.text(`Discount: ${money(invoice.discount || 0)}`, 14, finalY + 18);
   doc.text(`Total: ${money(invoice.total)}`, 14, finalY + 24);
+  doc.text(`Status: ${invoice.status || "Unpaid"}`, 14, finalY + 30);
   doc.setFont("helvetica", "normal");
-  doc.text(`Signature: ${invoice.signature_name || "________________"}`, 14, finalY + 40);
+
+  let signatureY = finalY + 40;
+  if (invoice.signature_image) {
+    try {
+      doc.addImage(invoice.signature_image, "PNG", 14, signatureY - 10, 40, 16);
+      signatureY += 12;
+    } catch (error) {
+      // Keep PDF generation resilient if image format cannot be parsed.
+    }
+  }
+
+  doc.text(`Signature: ${invoice.signature_name || "________________"}`, 14, signatureY);
 
   doc.save(`invoice-${invoice.invoice_number || invoice.id}.pdf`);
 };

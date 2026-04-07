@@ -94,6 +94,9 @@ const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode
               >
                 <option value="Pending">Pending</option>
                 <option value="Approved">Approved</option>
+                <option value="Accepted">Accepted</option>
+                <option value="Paid">Paid</option>
+                <option value="Unpaid">Unpaid</option>
                 <option value="Rejected">Rejected</option>
                 <option value="Expired">Expired</option>
               </select>
@@ -118,8 +121,8 @@ const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode
               >
                 <option value="">Select Customer</option>
                 {customers.map(customer => (
-                  <option key={customer.id || customer._id} value={customer.company}>
-                    {customer.company}
+                  <option key={customer.id || customer._id} value={[customer.company, customer.name].filter(Boolean).join(" - ")}>
+                    {[customer.company, customer.name].filter(Boolean).join(" - ")}
                   </option>
                 ))}
               </select>
@@ -208,6 +211,13 @@ const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode
                 {vatRate}%
               </span>
             )}
+          </div>
+
+          <div className="flex flex-col">
+            <label className="text-sm font-medium mb-1">Added By</label>
+            <span className={`px-3 py-2 border rounded-lg w-full ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-100 border-gray-300'}`}>
+              {form.created_by_name || "System"}
+            </span>
           </div>
 
           <div className="md:col-span-2">
@@ -351,6 +361,7 @@ const DeleteConfirmationModal = ({ onClose, onConfirm, data, darkMode, deleting 
 // Main Quotation Management Component
 const QuotationManagement = () => {
   const { darkMode } = useTheme();
+  const PAGE_SIZE = 10;
   const [newQuotation, setNewQuotation] = useState(false);
   const [activeTab, setActiveTab] = useState('All Quotations');
   const [modalData, setModalData] = useState(null);
@@ -358,33 +369,37 @@ const QuotationManagement = () => {
   const [deleteModal, setDeleteModal] = useState(null);
   const [quotations, setQuotations] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const [inventoryItems, setInventoryItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
 
-  const tabs = ['All Quotations', 'Pending', 'Accepted', 'Expired'];
+  const tabs = ['All Quotations', 'Pending', 'Accepted', 'Paid', 'Unpaid', 'Expired'];
 
   // Fetch customers on mount
   const fetchCustomers = async () => {
     try {
-      const res = await API.get("/customers");
+      const res = await API.get("/customers/catalog");
       console.log("Fetched customers:", res.data);
       
       // Map customers to a consistent format - CHANGE name TO company
       const mappedCustomers = res.data.map(customer => ({
         id: customer.id || customer._id,
-        company: customer.company || customer.name || "", // <-- CHANGE HERE: use company instead of name
-        name: customer.name || "", // keep name as fallback
+        company: customer.company || "",
+        name: customer.name || "",
         email: customer.email || "",
         phone: customer.phone || "",
       }));
       
       setCustomers(mappedCustomers);
+      return mappedCustomers;
     } catch (err) {
       console.error("Fetch customers error:", err);
       toast.error("Failed to fetch customers");
       setCustomers([]);
+      return [];
     }
   };
 
@@ -419,6 +434,7 @@ const QuotationManagement = () => {
         notes: q.notes || "",
         terms: q.terms || "",
         signature_name: q.signature_name || "",
+        created_by_name: q.created_by_name || "",
       }));
       
       setQuotations(mappedQuotations);
@@ -431,10 +447,22 @@ const QuotationManagement = () => {
     }
   };
 
+  const fetchInventoryCatalog = async () => {
+    try {
+      const res = await API.get("/inventory/catalog");
+      setInventoryItems(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error("Fetch inventory catalog error:", err);
+      toast.error("Failed to fetch inventory items");
+      setInventoryItems([]);
+    }
+  };
+
   // Initial data fetch
   useEffect(() => {
     const loadData = async () => {
       await fetchCustomers();
+      await fetchInventoryCatalog();
       await fetchQuotations();
     };
     loadData();
@@ -527,6 +555,14 @@ const QuotationManagement = () => {
         return darkMode
           ? 'bg-emerald-700 text-emerald-100 border-emerald-600'
           : 'bg-emerald-50 text-emerald-700 border-emerald-100';
+      case 'Paid':
+        return darkMode
+          ? 'bg-green-700 text-green-100 border-green-600'
+          : 'bg-green-50 text-green-700 border-green-100';
+      case 'Unpaid':
+        return darkMode
+          ? 'bg-orange-700 text-orange-100 border-orange-600'
+          : 'bg-orange-50 text-orange-700 border-orange-100';
       case 'Pending':
         return darkMode
           ? 'bg-amber-700 text-amber-100 border-amber-600'
@@ -550,6 +586,16 @@ const QuotationManagement = () => {
       .some((value) => String(value).toLowerCase().includes(searchValue));
     return matchesTab && matchesSearch;
   });
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchTerm, quotations.length]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredQuotations.length / PAGE_SIZE));
+  const paginatedQuotations = filteredQuotations.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
 
   return (
     <div className={`flex min-h-screen flex-col md:flex-row transition-colors ${
@@ -592,6 +638,8 @@ const QuotationManagement = () => {
               onSave={handleSaveQuotation}
               darkMode={darkMode}
               customers={customers}
+              inventoryItems={inventoryItems}
+              onCustomerCreated={fetchCustomers}
             />
           ) : (
             <>
@@ -649,7 +697,7 @@ const QuotationManagement = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredQuotations.map((q) => (
+                      {paginatedQuotations.map((q) => (
                         <tr key={q.id} className={`hover:transition-colors ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'}`}>
                           <td className="px-4 py-2 font-semibold text-blue-600 truncate">{q.quotation_number}</td>
                           <td className="px-4 py-2 truncate">{q.customer}</td>
@@ -703,10 +751,22 @@ const QuotationManagement = () => {
               {/* Pagination */}
               {!loading && filteredQuotations.length > 0 && (
                 <div className="flex flex-col md:flex-row justify-between items-center gap-2 mt-3 text-xs transition-colors">
-                  <span className="italic">{`Showing 1 to ${filteredQuotations.length} of ${filteredQuotations.length} entries`}</span>
+                  <span className="italic">{`Showing ${(currentPage - 1) * PAGE_SIZE + 1} to ${Math.min(currentPage * PAGE_SIZE, filteredQuotations.length)} of ${filteredQuotations.length} entries`}</span>
                   <div className="flex gap-1">
-                    <button className="px-3 py-1.5 border rounded hover:bg-gray-50">Previous</button>
-                    <button className="px-4 py-1.5 bg-gray-800 text-white rounded hover:bg-gray-700">Next</button>
+                    <button
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="px-3 py-1.5 border rounded hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="px-4 py-1.5 bg-gray-800 text-white rounded hover:bg-gray-700 disabled:opacity-50"
+                    >
+                      Next
+                    </button>
                   </div>
                 </div>
               )}

@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { toast, ToastContainer } from "react-toastify";
-import { X, Save } from "lucide-react";
+import { X, Save, Plus } from "lucide-react";
 import "react-toastify/dist/ReactToastify.css";
 import API from "../utils/api";
 
 export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) {
   const [form, setForm] = useState({
     customer: "",
+    status: "Unpaid",
     signature_name: "",
+    signature_image: "",
     invoice_date: new Date().toISOString().split('T')[0],
     due_date: "",
     item: "",
@@ -24,13 +26,23 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
   const [selectedItemId, setSelectedItemId] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [customerSearch, setCustomerSearch] = useState("");
+  const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({
+    name: "",
+    company: "",
+    phone: "",
+    email: "",
+    status: "Active",
+  });
 
   // Load invoice data if editing
   useEffect(() => {
     if (invoiceData) {
       setForm({
         customer: invoiceData.customer || "",
+        status: invoiceData.status || "Unpaid",
         signature_name: invoiceData.signature_name || "",
+        signature_image: invoiceData.signature_image || "",
         invoice_date: invoiceData.invoice_date || new Date().toISOString().split('T')[0],
         due_date: invoiceData.due_date || "",
         item: invoiceData.item || "",
@@ -47,7 +59,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
     if (!customers.length) return;
 
     const matchedCustomer = customers.find((customer) => {
-      const displayName = customer.name || customer.company || "";
+      const displayName = [customer.company, customer.name].filter(Boolean).join(" - ") || customer.company || customer.name || "";
       return displayName === form.customer || customer.company === form.customer;
     });
 
@@ -71,7 +83,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
     const fetchCustomers = async () => {
       try {
         setFetching(prev => ({ ...prev, customers: true }));
-        const res = await API.get("/customers");
+        const res = await API.get("/customers/catalog");
         console.log("Fetched customers:", res.data);
         setCustomers(res.data || []);
       } catch (err) {
@@ -90,7 +102,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
     const fetchItems = async () => {
       try {
         setFetching(prev => ({ ...prev, items: true }));
-        const res = await API.get("/inventory");
+        const res = await API.get("/inventory/catalog");
         console.log("Fetched inventory items:", res.data);
         setItems(res.data || []);
       } catch (err) {
@@ -143,11 +155,11 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
       return;
     }
 
-    const displayName = selectedCustomer.name || selectedCustomer.company || "";
+    const displayName = [selectedCustomer.company, selectedCustomer.name].filter(Boolean).join(" - ") || selectedCustomer.company || selectedCustomer.name || "";
     setForm((prev) => ({
       ...prev,
       customer: displayName,
-      signature_name: displayName,
+      signature_name: selectedCustomer.name || selectedCustomer.company || "",
     }));
   };
 
@@ -158,6 +170,58 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSignatureUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload a valid image file");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setForm((prev) => ({ ...prev, signature_image: String(reader.result || "") }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCreateCustomer = async () => {
+    if (!newCustomer.name || !newCustomer.company) {
+      toast.error("Customer name and company are required");
+      return;
+    }
+
+    try {
+      await API.post("/customers", newCustomer);
+      const res = await API.get("/customers/catalog");
+      const updatedCustomers = res.data || [];
+      setCustomers(updatedCustomers);
+
+      const created = updatedCustomers.find(
+        (customer) =>
+          customer.email === newCustomer.email ||
+          (customer.name === newCustomer.name && customer.company === newCustomer.company)
+      );
+
+      if (created) {
+        const createdId = String(created.id || created._id);
+        setSelectedCustomerId(createdId);
+        setForm((prev) => ({
+          ...prev,
+          customer: [created.company, created.name].filter(Boolean).join(" - ") || created.company || created.name || "",
+          signature_name: created.name || created.company || "",
+        }));
+      }
+
+      setNewCustomer({ name: "", company: "", phone: "", email: "", status: "Active" });
+      setShowCustomerModal(false);
+      toast.success("Customer added successfully");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to add customer");
+    }
   };
 
   const handleSubmit = async (e, print = false) => {
@@ -241,7 +305,16 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
               <h3 className={`text-md font-medium mb-4 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Invoice Details</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
-                  <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Customer *</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Customer *</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowCustomerModal(true)}
+                      className="text-xs inline-flex items-center gap-1 px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
+                    >
+                      <Plus size={12} /> Create customer
+                    </button>
+                  </div>
                   <input
                     type="text"
                     value={customerSearch}
@@ -262,7 +335,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
                     {filteredCustomers.length > 0 ? (
                       filteredCustomers.map(customer => (
                         <option key={customer.id || customer._id} value={String(customer.id || customer._id)}>
-                          {customer.name} - {customer.company}
+                          {[customer.company, customer.name].filter(Boolean).join(" - ")}
                         </option>
                       ))
                     ) : (
@@ -376,7 +449,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
 
             <div>
               <h3 className={`text-md font-medium mb-4 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Approval</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <label className={`text-sm mb-1 block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Authorized Signature Name</label>
                   <input
@@ -388,6 +461,40 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
                     disabled={loading}
                     className={inputClass}
                   />
+                </div>
+
+                <div>
+                  <label className={`text-sm mb-1 block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Invoice Status</label>
+                  <select
+                    name="status"
+                    value={form.status}
+                    onChange={handleChange}
+                    disabled={loading}
+                    className={inputClass}
+                  >
+                    <option value="Unpaid">Unpaid</option>
+                    <option value="Paid">Paid</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Overdue">Overdue</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className={`text-sm mb-1 block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Signature Image (Optional)</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleSignatureUpload}
+                    disabled={loading}
+                    className={inputClass}
+                  />
+                  {form.signature_image ? (
+                    <img
+                      src={form.signature_image}
+                      alt="Signature preview"
+                      className="mt-2 h-12 w-auto rounded border border-gray-400"
+                    />
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -495,6 +602,31 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
           </form>
         )}
       </div>
+
+      {showCustomerModal ? (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className={`w-full max-w-lg rounded-xl p-6 ${darkMode ? "bg-gray-800 text-gray-200" : "bg-white text-gray-800"}`}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Create Customer</h3>
+              <button type="button" onClick={() => setShowCustomerModal(false)} className="p-2 rounded hover:bg-gray-200/30">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <input className={inputClass} placeholder="Name *" value={newCustomer.name} onChange={(e) => setNewCustomer((prev) => ({ ...prev, name: e.target.value }))} />
+              <input className={inputClass} placeholder="Company *" value={newCustomer.company} onChange={(e) => setNewCustomer((prev) => ({ ...prev, company: e.target.value }))} />
+              <input className={inputClass} placeholder="Phone" value={newCustomer.phone} onChange={(e) => setNewCustomer((prev) => ({ ...prev, phone: e.target.value }))} />
+              <input className={inputClass} placeholder="Email" value={newCustomer.email} onChange={(e) => setNewCustomer((prev) => ({ ...prev, email: e.target.value }))} />
+            </div>
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" onClick={() => setShowCustomerModal(false)} className={`px-4 py-2 rounded ${darkMode ? "bg-gray-600" : "bg-gray-200"}`}>Cancel</button>
+              <button type="button" onClick={handleCreateCustomer} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">Save Customer</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

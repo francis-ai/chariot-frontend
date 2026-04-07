@@ -36,7 +36,10 @@ export default function InvoiceManagement() {
         id: inv.id || inv._id,
         invoice_number: inv.invoice_number,
         customer: inv.customer || "",
+        created_by: inv.created_by,
+        created_by_name: inv.created_by_name || "",
         signature_name: inv.signature_name || "",
+        signature_image: inv.signature_image || "",
         invoice_date: inv.invoice_date ? inv.invoice_date.split('T')[0] : "",
         due_date: inv.due_date ? inv.due_date.split('T')[0] : "",
         item: inv.item || "",
@@ -47,7 +50,7 @@ export default function InvoiceManagement() {
         total: parseFloat(inv.total) || 0,  // Ensure this is a number
         formatted_total: `₦${(parseFloat(inv.total) || 0).toLocaleString()}`,
         notes: inv.notes || "",
-        status: getInvoiceStatus(inv.due_date, inv.total)
+        status: inv.status || getInvoiceStatus(inv.due_date, inv.total)
       }));
       
       setInvoices(mappedInvoices);
@@ -109,6 +112,8 @@ export default function InvoiceManagement() {
         price: parseFloat(invoiceData.price) || 0,
         discount: parseFloat(invoiceData.discount) || 0,
         total: total,
+        status: invoiceData.status || "Unpaid",
+        signature_image: invoiceData.signature_image || "",
         notes: invoiceData.notes || ""
       };
 

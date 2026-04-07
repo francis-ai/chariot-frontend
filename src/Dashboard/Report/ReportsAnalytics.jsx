@@ -13,6 +13,7 @@ import "react-toastify/dist/ReactToastify.css";
 
 const ReportsAnalytics = () => {
   const { darkMode } = useTheme();
+  const PAGE_SIZE = 10;
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState({ excel: false, pdf: false });
@@ -22,6 +23,7 @@ const ReportsAnalytics = () => {
   const [reportData, setReportData] = useState([]);
   const [chartData, setChartData] = useState([]);
   const [chartType, setChartType] = useState('bar');
+  const [currentPage, setCurrentPage] = useState(1);
 
   const reportTypes = [
     { value: 'invoice', label: 'Sales Report'},
@@ -51,6 +53,10 @@ const ReportsAnalytics = () => {
       processChartData();
     }
   }, [reportData, reportType]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [reportData.length, reportType]);
 
   const processChartData = () => {
     let processed = [];
@@ -391,6 +397,9 @@ const ReportsAnalytics = () => {
     }
   };
 
+  const totalPages = Math.max(1, Math.ceil(reportData.length / PAGE_SIZE));
+  const paginatedReportData = reportData.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
   const calculateSummary = () => {
     if (reportData.length === 0) return null;
 
@@ -723,7 +732,7 @@ const ReportsAnalytics = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {reportData.map((row, idx) => (
+                    {paginatedReportData.map((row, idx) => (
                       <tr key={idx} className={`hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors`}>
                         {Object.entries(row).map(([key, value], cellIdx) => (
                           <td key={cellIdx} className="px-3 py-2 border-b border-slate-100 dark:border-slate-700">
@@ -740,6 +749,15 @@ const ReportsAnalytics = () => {
                 </div>
               )}
             </div>
+            {reportData.length > 0 && (
+              <div className="flex flex-col md:flex-row justify-between items-center gap-2 px-4 pb-4 text-xs transition-colors">
+                <span className="italic">{`Showing ${(currentPage - 1) * PAGE_SIZE + 1} to ${Math.min(currentPage * PAGE_SIZE, reportData.length)} of ${reportData.length} entries`}</span>
+                <div className="flex gap-1">
+                  <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-1.5 border rounded disabled:opacity-50">Previous</button>
+                  <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-4 py-1.5 bg-gray-800 text-white rounded disabled:opacity-50">Next</button>
+                </div>
+              </div>
+            )}
           </div>
         </main>
       </div>

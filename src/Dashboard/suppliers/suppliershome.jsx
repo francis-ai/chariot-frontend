@@ -10,6 +10,7 @@ import "react-toastify/dist/ReactToastify.css";
 
 const SupplierManagement = () => {
   const { darkMode } = useTheme();
+  const PAGE_SIZE = 10;
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [viewModal, setViewModal] = useState(null);
@@ -18,8 +19,10 @@ const SupplierManagement = () => {
   const [formData, setFormData] = useState({});
   const [isAddPage, setIsAddPage] = useState(false);
   const [suppliers, setSuppliers] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Fetch suppliers on component mount
   useEffect(() => {
@@ -42,6 +45,7 @@ const SupplierManagement = () => {
         address: supplier.address || "",
         city: supplier.city || "",
         country: supplier.country || "",
+        created_by_name: supplier.created_by_name || "",
         // These might come from joined tables or calculations
         orders: supplier.total_orders || 0,
         spent: supplier.total_spent ? `₦${Number(supplier.total_spent).toLocaleString()}` : "₦0",
@@ -184,6 +188,24 @@ const SupplierManagement = () => {
   }
 
   /* ---------- MAIN ---------- */
+  const filteredSuppliers = suppliers.filter((supplier) => {
+    const query = searchTerm.trim().toLowerCase();
+    if (!query) return true;
+    return [supplier.name, supplier.company, supplier.email, supplier.phone, supplier.city, supplier.country]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(query));
+  });
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, suppliers.length]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredSuppliers.length / PAGE_SIZE));
+  const paginatedSuppliers = filteredSuppliers.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
+
   return (
     <div className={`block lg:flex min-h-screen ${darkMode ? "bg-slate-900 text-white" : "bg-slate-50 text-slate-900"}`}>
       <ToastContainer position="top-right" autoClose={2500} hideProgressBar />
@@ -204,6 +226,16 @@ const SupplierManagement = () => {
             >
               <Plus size={18} /> Add Supplier
             </button>
+          </div>
+
+          <div className="mb-4 w-full sm:w-96">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search suppliers by name, company, email or phone"
+              className={`w-full px-4 py-2 rounded-lg border outline-none ${darkMode ? "bg-slate-800 border-slate-700 text-slate-100" : "bg-white border-slate-300 text-slate-800"}`}
+            />
           </div>
 
           {/* Loading State */}
@@ -228,7 +260,7 @@ const SupplierManagement = () => {
           )}
 
           {/* TABLE */}
-          {!loading && suppliers.length > 0 && (
+          {!loading && filteredSuppliers.length > 0 && (
             <div className={`rounded-2xl shadow-xl overflow-hidden ${darkMode ? "bg-slate-800" : "bg-white"}`}>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[1000px]">
@@ -242,7 +274,7 @@ const SupplierManagement = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {suppliers.map((s) => (
+                    {paginatedSuppliers.map((s) => (
                       <tr key={s.id} className={`hover:bg-opacity-50 ${darkMode ? "hover:bg-slate-700" : "hover:bg-slate-50"}`}>
                         <td className="px-4 py-3 font-bold text-blue-500 text-sm">{s.id}</td>
                         <td className="px-4 py-3 font-medium">{s.name}</td>
@@ -286,6 +318,28 @@ const SupplierManagement = () => {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {!loading && filteredSuppliers.length > 0 && (
+            <div className="flex flex-col md:flex-row justify-between items-center gap-2 mt-3 text-xs transition-colors">
+              <span className="italic">{`Showing ${(currentPage - 1) * PAGE_SIZE + 1} to ${Math.min(currentPage * PAGE_SIZE, filteredSuppliers.length)} of ${filteredSuppliers.length} entries`}</span>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 border rounded hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-4 py-1.5 bg-gray-800 text-white rounded hover:bg-gray-700 disabled:opacity-50"
+                >
+                  Next
+                </button>
               </div>
             </div>
           )}
@@ -338,6 +392,10 @@ const SupplierManagement = () => {
                 <div>
                   <label className="text-[11px] uppercase font-bold opacity-60 mb-1 block">Country</label>
                   <p className="font-semibold">{viewModal.country || '-'}</p>
+                </div>
+                <div>
+                  <label className="text-[11px] uppercase font-bold opacity-60 mb-1 block">Added By</label>
+                  <p className="font-semibold">{viewModal.created_by_name || 'System'}</p>
                 </div>
               </div>
             </div>

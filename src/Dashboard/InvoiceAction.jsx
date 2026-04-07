@@ -118,7 +118,9 @@ const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefr
         price: Number(updatedData.price) || 0,
         discount: Number(updatedData.discount) || 0,
         total,
+        status: updatedData.status || "Unpaid",
         signature_name: updatedData.signature_name || "",
+        signature_image: updatedData.signature_image || "",
         notes: updatedData.notes || "",
       };
 
@@ -349,11 +351,24 @@ const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefr
                   <label className="text-xs uppercase opacity-60">Total</label>
                   <p className="font-bold">₦{Number(selectedInvoice.total).toLocaleString()}</p>
                 </div>
+                <div>
+                  <label className="text-xs uppercase opacity-60">Added By</label>
+                  <p>
+                    {selectedInvoice.created_by_name ||
+                      (selectedInvoice.created_by ? `User #${selectedInvoice.created_by}` : "Not recorded")}
+                  </p>
+                </div>
               </div>
               {selectedInvoice.notes && (
                 <div>
                   <label className="text-xs uppercase opacity-60">Notes</label>
-                  <p className="text-sm bg-gray-50 p-2 rounded">{selectedInvoice.notes}</p>
+                  <p
+                    className={`text-sm p-2 rounded ${
+                      darkMode ? "bg-slate-700 text-slate-100" : "bg-slate-100 text-slate-800"
+                    }`}
+                  >
+                    {selectedInvoice.notes}
+                  </p>
                 </div>
               )}
             </div>

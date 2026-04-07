@@ -10,6 +10,7 @@ import "react-toastify/dist/ReactToastify.css";
 
 const WaybillManagement = () => {
   const { darkMode } = useTheme();
+  const PAGE_SIZE = 10;
   const [activeTab, setActiveTab] = useState('All Waybills');
   const [searchTerm, setSearchTerm] = useState('');
   const [showWaybillModal, setShowWaybillModal] = useState(false);
@@ -17,9 +18,11 @@ const WaybillManagement = () => {
   const [showViewModal, setShowViewModal] = useState(false);
   const [deleteModal, setDeleteModal] = useState(null);
   const [waybills, setWaybills] = useState([]);
+  const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const statusMap = {
     'Delivered': darkMode ? 'bg-emerald-700 text-emerald-100 border-emerald-600' : 'bg-emerald-100 text-emerald-700 border-emerald-200',
@@ -30,7 +33,28 @@ const WaybillManagement = () => {
   // Fetch waybills on component mount
   useEffect(() => {
     fetchWaybills();
+    fetchCustomers();
   }, []);
+
+  const fetchCustomers = async () => {
+    try {
+      const res = await API.get("/customers/catalog");
+      const mappedCustomers = (Array.isArray(res.data) ? res.data : []).map((customer) => ({
+        id: customer.id || customer._id,
+        company: customer.company || "",
+        name: customer.name || "",
+        email: customer.email || "",
+        phone: customer.phone || "",
+      }));
+      setCustomers(mappedCustomers);
+      return mappedCustomers;
+    } catch (err) {
+      console.error("Fetch customers error:", err);
+      toast.error("Failed to fetch customers");
+      setCustomers([]);
+      return [];
+    }
+  };
 
   const fetchWaybills = async () => {
     try {
@@ -50,6 +74,7 @@ const WaybillManagement = () => {
         waybill_date: wb.waybill_date ? wb.waybill_date.split('T')[0] : "",
         status: wb.status || "Pending",
         notes: wb.notes || "",
+        created_by_name: wb.created_by_name || "",
       }));
       
       setWaybills(mappedWaybills);
@@ -71,6 +96,16 @@ const WaybillManagement = () => {
       );
     return matchesTab && matchesSearch;
   });
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchTerm, waybills.length]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredWaybills.length / PAGE_SIZE));
+  const paginatedWaybills = filteredWaybills.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
 
   const handleView = (waybill) => {
     setSelectedWaybill(waybill);
@@ -237,7 +272,7 @@ const WaybillManagement = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {filteredWaybills.map(item => (
+                  {paginatedWaybills.map(item => (
                     <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-gray-700 transition-colors group">
                       <td className="px-4 py-3 font-bold text-blue-600 truncate">{item.waybill_number || item.id}</td>
                       <td className="px-4 py-3 font-semibold truncate">{item.customer}</td>
@@ -282,6 +317,28 @@ const WaybillManagement = () => {
               </table>
             </div>
           )}
+
+          {!loading && filteredWaybills.length > 0 && (
+            <div className="flex flex-col md:flex-row justify-between items-center gap-2 mt-3 text-xs transition-colors">
+              <span className="italic">{`Showing ${(currentPage - 1) * PAGE_SIZE + 1} to ${Math.min(currentPage * PAGE_SIZE, filteredWaybills.length)} of ${filteredWaybills.length} entries`}</span>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 border rounded hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-4 py-1.5 bg-gray-800 text-white rounded hover:bg-gray-700 disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Create/Edit Waybill Modal */}
@@ -303,6 +360,8 @@ const WaybillManagement = () => {
                 onCancel={() => { setShowWaybillModal(false); setSelectedWaybill(null); }}
                 onSave={handleSaveWaybill}
                 submitting={submitting}
+                customers={customers}
+                onCustomerCreated={fetchCustomers}
               />
             </div>
           </div>
@@ -397,6 +456,11 @@ const ViewWaybillModal = ({ waybill, onClose, darkMode }) => {
               <label className="text-xs uppercase opacity-60 font-bold">Vehicle</label>
               <p>{waybill.vehicle}</p>
             </div>
+          </div>
+
+          <div>
+            <label className="text-xs uppercase opacity-60 font-bold">Added By</label>
+            <p>{waybill.created_by_name || "System"}</p>
           </div>
 
           {waybill.notes && (

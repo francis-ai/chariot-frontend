@@ -20,6 +20,7 @@ import { useTheme } from "../../context/ThemeContext";
 
 const InventoryDashboard = () => {
   const { darkMode } = useTheme();
+  const PAGE_SIZE = 10;
 
   // ----------------- State -----------------
   const [inventoryData, setInventoryData] = useState([]);
@@ -35,6 +36,7 @@ const InventoryDashboard = () => {
   const [editItem, setEditItem] = useState(null);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // ----------------- Fetch Data -----------------
   const fetchInventory = async () => {
@@ -84,6 +86,10 @@ const InventoryDashboard = () => {
     fetchInventory();
     fetchCategories();
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [inventoryData.length]);
 
   // Helper function to determine status
   const getStatus = (stock, min) => {
@@ -218,6 +224,12 @@ const InventoryDashboard = () => {
     return `${base} bg-rose-100 text-rose-700`;
   };
 
+  const totalPages = Math.max(1, Math.ceil(inventoryData.length / PAGE_SIZE));
+  const paginatedInventory = inventoryData.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
+
   // Show loading state
   if (loading) {
     return (
@@ -296,7 +308,7 @@ const InventoryDashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {inventoryData.map((item) => (
+                    {paginatedInventory.map((item) => (
                       <tr key={item.id || item.sku} className="border-t hover:bg-blue-500/5">
                         <td className="px-6 py-4 text-blue-500 font-bold">{item.sku}</td>
                         <td className="px-6 py-4 font-bold">{item.name}</td>
@@ -331,6 +343,28 @@ const InventoryDashboard = () => {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {inventoryData.length > 0 && (
+            <div className="flex flex-col md:flex-row justify-between items-center gap-2 mt-3 text-xs transition-colors">
+              <span className="italic">{`Showing ${(currentPage - 1) * PAGE_SIZE + 1} to ${Math.min(currentPage * PAGE_SIZE, inventoryData.length)} of ${inventoryData.length} entries`}</span>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 border rounded hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-4 py-1.5 bg-gray-800 text-white rounded hover:bg-gray-700 disabled:opacity-50"
+                >
+                  Next
+                </button>
               </div>
             </div>
           )}

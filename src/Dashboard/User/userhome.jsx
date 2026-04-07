@@ -39,6 +39,7 @@ const formatRoleLabel = (role) => {
 
 const UserManagement = () => {
   const { darkMode } = useTheme();
+  const PAGE_SIZE = 10;
   const { user } = useContext(AuthContext);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [users, setUsers] = useState([]);
@@ -48,6 +49,7 @@ const UserManagement = () => {
   const [viewModal, setViewModal] = useState(null);
   const [deleteModal, setDeleteModal] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const [formData, setFormData] = useState({
     username: "",
     email: "",
@@ -59,6 +61,13 @@ const UserManagement = () => {
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [users.length]);
+
+  const totalPages = Math.max(1, Math.ceil(users.length / PAGE_SIZE));
+  const paginatedUsers = users.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const fetchUsers = async () => {
     try {
@@ -258,7 +267,7 @@ const UserManagement = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {users.map((user) => (
+                    {paginatedUsers.map((user) => (
                       <tr key={user.id} className={`border-t ${darkMode ? "border-gray-700 hover:bg-gray-700/50" : "border-gray-100 hover:bg-gray-50"}`}>
                         <td className="px-4 py-3 font-mono text-sm text-blue-500">{user.id}</td>
                         <td className="px-4 py-3 font-medium">{user.username}</td>
@@ -311,6 +320,28 @@ const UserManagement = () => {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {!loading && users.length > 0 && (
+            <div className="flex flex-col md:flex-row justify-between items-center gap-2 mt-3 text-xs transition-colors">
+              <span className="italic">{`Showing ${(currentPage - 1) * PAGE_SIZE + 1} to ${Math.min(currentPage * PAGE_SIZE, users.length)} of ${users.length} entries`}</span>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 border rounded hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-4 py-1.5 bg-gray-800 text-white rounded hover:bg-gray-700 disabled:opacity-50"
+                >
+                  Next
+                </button>
               </div>
             </div>
           )}
