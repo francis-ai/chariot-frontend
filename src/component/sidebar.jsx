@@ -1,4 +1,4 @@
-import React, { useState, useContext } from "react";
+import React, { useEffect, useState, useContext } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/authContext.jsx"; 
 import {
@@ -16,16 +16,38 @@ import {
   FaSignOutAlt,
   FaFolder,
   FaBars,
-  FaTimes
+  FaTimes,
 } from "react-icons/fa";
+import API from "../utils/api";
 
 export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(false); 
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const location = useLocation(); 
   const { logout, user } = useContext(AuthContext);
   const navigate = useNavigate();
   const isSuperAdmin = user?.role === 'super-admin';
   const basePath = isSuperAdmin ? "/admin" : "";
+
+  const fetchChatUnreadCount = async () => {
+    if (!user?.id) return;
+
+    try {
+      const res = await API.get("/chat/conversations");
+      const totalUnread = Array.isArray(res.data)
+        ? res.data.reduce((sum, item) => sum + Number(item.unread_count || 0), 0)
+        : 0;
+      setChatUnreadCount(totalUnread);
+    } catch (error) {
+      setChatUnreadCount(0);
+    }
+  };
+
+  useEffect(() => {
+    fetchChatUnreadCount();
+    const timer = setInterval(fetchChatUnreadCount, 8000);
+    return () => clearInterval(timer);
+  }, [user?.id]);
 
   const menuItems = [
     { icon: <FaHome />, label: "Dashboard", path: isSuperAdmin ? `${basePath}/HomeDashboard` : "/staff/dashboard" },
@@ -90,7 +112,14 @@ export default function Sidebar() {
                     >
                       <span className="w-5 h-5 flex justify-center text-red-600">{item.icon}</span>
                       <div className="flex flex-col leading-tight">
-                        <span className="font-medium">{item.label}</span>
+                        <span className="font-medium flex items-center gap-2">
+                          {item.label}
+                          {item.label === "Chat" && chatUnreadCount > 0 && (
+                            <span className="inline-flex min-w-5 h-5 px-1.5 items-center justify-center rounded-full bg-red-600 text-white text-[10px] font-bold">
+                              {chatUnreadCount > 99 ? "99+" : chatUnreadCount}
+                            </span>
+                          )}
+                        </span>
                       </div>
                     </a>
                   ) : (
@@ -106,7 +135,14 @@ export default function Sidebar() {
                         {item.icon}
                       </span>
                       <div className="flex flex-col leading-tight">
-                        <span className="font-medium">{item.label}</span>
+                        <span className="font-medium flex items-center gap-2">
+                          {item.label}
+                          {item.label === "Chat" && chatUnreadCount > 0 && (
+                            <span className="inline-flex min-w-5 h-5 px-1.5 items-center justify-center rounded-full bg-red-600 text-white text-[10px] font-bold">
+                              {chatUnreadCount > 99 ? "99+" : chatUnreadCount}
+                            </span>
+                          )}
+                        </span>
                         {item.label === "Users" && (
                           <span className={`text-[10px] ${isActive ? "text-red-100" : "text-gray-500"}`}>
                             Only super-admin is allowed
