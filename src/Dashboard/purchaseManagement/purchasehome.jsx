@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
-import { Eye, Edit3, Plus, X } from 'lucide-react';
+import { Eye, Edit3, Plus, X, Download } from 'lucide-react';
 import Addsupplier from './Addpurchase';
 import NavBar from '../../component/navigation';
 import Sidebar from '../../component/sidebar';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { downloadPurchaseOrderPdf } from '../../utils/documentPdf';
 
 const ERPDashboard = () => {
   const [activeTab, setActiveTab] = useState('All');
@@ -40,12 +43,30 @@ const ERPDashboard = () => {
     setEditModal(null);
   };
 
+  const handleDownload = (row) => {
+    downloadPurchaseOrderPdf({
+      po_number: row.id,
+      supplier_name: row.entity,
+      order_date: row.date,
+      delivery_date: row.secondaryDate,
+      total_amount: row.amount,
+      status: row.status,
+      vat_rate: row.vat_rate || 0,
+      vat_amount: row.vat_amount || 0,
+      tax_rate: row.tax_rate || 0,
+      tax_amount: row.tax_amount || 0,
+    })
+      .then(() => toast.success('Purchase order downloaded successfully!'))
+      .catch(() => toast.error('Failed to download purchase order PDF'));
+  };
+
   const tabs = ['All', 'Pending', 'Approved', 'Received'];
 
   const filteredData = tableData.filter(row => activeTab === 'All' || row.status === activeTab);
 
   return (
     <div className="flex min-h-screen font-sans text-slate-900 bg-slate-50">
+      <ToastContainer position="top-right" autoClose={2500} hideProgressBar />
 
       {/* Sidebar */}
       <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
@@ -124,6 +145,7 @@ const ERPDashboard = () => {
                     <td className="px-3 py-2">
                       <div className="flex items-center space-x-2">
                         <button onClick={() => setViewModal(row)} className="p-2 text-blue-500 hover:bg-blue-100 rounded-lg"><Eye size={16}/></button>
+                        <button onClick={() => handleDownload(row)} className="p-2 text-emerald-500 hover:bg-emerald-100 rounded-lg"><Download size={16}/></button>
                         <button onClick={() => setEditModal(row)} className="p-2 text-amber-500 hover:bg-amber-100 rounded-lg"><Edit3 size={16}/></button>
                       </div>
                     </td>
@@ -147,6 +169,7 @@ const ERPDashboard = () => {
                   </div>
                   <div className="flex flex-col gap-2">
                     <button onClick={() => setViewModal(row)} className="p-3 bg-blue-50 text-blue-600 rounded-xl"><Eye size={18}/></button>
+                    <button onClick={() => handleDownload(row)} className="p-3 bg-emerald-50 text-emerald-600 rounded-xl"><Download size={18}/></button>
                     <button onClick={() => setEditModal(row)} className="p-3 bg-amber-50 text-amber-600 rounded-xl"><Edit3 size={18}/></button>
                   </div>
                 </div>
@@ -163,6 +186,9 @@ const ERPDashboard = () => {
               <p><strong>Expected:</strong> {viewModal.secondaryDate}</p>
               <p><strong>Amount:</strong> {viewModal.amount}</p>
               <p><strong>Status:</strong> {viewModal.status}</p>
+              <button onClick={() => handleDownload(viewModal)} className="mt-3 inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg font-semibold">
+                <Download size={16} /> Download PDF
+              </button>
             </div>
           </Modal>}
 

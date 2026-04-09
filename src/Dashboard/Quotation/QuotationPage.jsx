@@ -376,6 +376,12 @@ const QuotationManagement = () => {
   const [submitting, setSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [stats, setStats] = useState([
+    { label: "Total Quotations", value: "0" },
+    { label: "Pending Quotations", value: "0" },
+    { label: "Total Value", value: "₦0" },
+    { label: "Avg. Value", value: "₦0" },
+  ]);
   const [searchParams] = useSearchParams();
   const focusQuotationId = searchParams.get("view");
 
@@ -441,6 +447,7 @@ const QuotationManagement = () => {
       }));
       
       setQuotations(mappedQuotations);
+      calculateStats(mappedQuotations);
     } catch (err) {
       console.error("Fetch quotations error:", err);
       toast.error(err.response?.data?.message || "Failed to fetch quotations");
@@ -448,6 +455,20 @@ const QuotationManagement = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const calculateStats = (quoteList) => {
+    const totalQuotes = quoteList.length;
+    const pendingCount = quoteList.filter(q => q.status === "Pending").length;
+    const totalValue = quoteList.reduce((sum, q) => sum + (q.amount || 0), 0);
+    const avgValue = totalQuotes > 0 ? totalValue / totalQuotes : 0;
+
+    setStats([
+      { label: "Total Quotations", value: totalQuotes.toString() },
+      { label: "Pending Quotations", value: pendingCount.toString() },
+      { label: "Total Value", value: `₦${totalValue.toLocaleString()}` },
+      { label: "Avg. Value", value: `₦${avgValue.toLocaleString()}` },
+    ]);
   };
 
   const fetchInventoryCatalog = async () => {
@@ -635,6 +656,23 @@ const QuotationManagement = () => {
               {newQuotation ? 'Back to Dashboard' : 'Create Quotation'}
             </button>
           </div>
+
+          {/* Stats Cards */}
+          {!newQuotation && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
+              {stats.map(stat => (
+                <div
+                  key={stat.label}
+                  className={`p-4 rounded-xl ${
+                    darkMode ? "bg-gray-800" : "bg-white"
+                  }`}
+                >
+                  <p className="text-2xl font-black">{stat.value}</p>
+                  <p className="text-xs uppercase opacity-60">{stat.label}</p>
+                </div>
+              ))}
+            </div>
+          )}
 
             <div className="mb-4 flex justify-start md:justify-end">
               <div className="w-full md:w-96">

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'; 
 import { useSearchParams } from 'react-router-dom';
-import { Truck, Search, Plus, Eye, X, Edit3, Trash2 } from 'lucide-react';
+import { Truck, Search, Plus, Eye, X, Edit3, Trash2, Download } from 'lucide-react';
 import WaybillForm from "./Waybillform";
 import Sidebar from '../../component/sidebar';
 import NavBar from '../../component/navigation';
@@ -8,6 +8,13 @@ import { useTheme } from "../../context/ThemeContext";
 import API from "../../utils/api";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { downloadWaybillPdf } from "../../utils/documentPdf";
+
+const extractProducts = (productList) =>
+  String(productList || "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
 
 const WaybillManagement = () => {
   const { darkMode } = useTheme();
@@ -203,6 +210,12 @@ const WaybillManagement = () => {
     }
   };
 
+  const handleDownload = (waybill) => {
+    downloadWaybillPdf(waybill)
+      .then(() => toast.success("Waybill downloaded successfully!"))
+      .catch(() => toast.error("Failed to download waybill PDF"));
+  };
+
   return (
     <div className={`flex flex-col md:flex-row min-h-screen transition-colors ${darkMode ? 'bg-gray-900 text-gray-200' : 'bg-[#f8fafc] text-gray-900'}`}>
       <ToastContainer position="top-right" autoClose={2500} hideProgressBar />
@@ -319,6 +332,13 @@ const WaybillManagement = () => {
                             <Eye size={18} />
                           </button>
                           <button
+                            className="p-2 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 text-emerald-600 rounded-lg transition-all"
+                            title="Download"
+                            onClick={() => handleDownload(item)}
+                          >
+                            <Download size={18} />
+                          </button>
+                          <button
                             className="p-2 hover:bg-amber-50 dark:hover:bg-amber-900/20 text-amber-600 rounded-lg transition-all"
                             title="Edit"
                             onClick={() => handleEdit(item)}
@@ -396,6 +416,7 @@ const WaybillManagement = () => {
             waybill={selectedWaybill}
             onClose={() => { setShowViewModal(false); setSelectedWaybill(null); }}
             darkMode={darkMode}
+            onDownload={() => handleDownload(selectedWaybill)}
           />
         )}
 
@@ -416,7 +437,9 @@ const WaybillManagement = () => {
 };
 
 /* ===================== VIEW MODAL ===================== */
-const ViewWaybillModal = ({ waybill, onClose, darkMode }) => {
+const ViewWaybillModal = ({ waybill, onClose, darkMode, onDownload }) => {
+  const productEntries = extractProducts(waybill.product_list);
+
   const statusColors = {
     'Pending': 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
     'In Transit': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
@@ -431,6 +454,14 @@ const ViewWaybillModal = ({ waybill, onClose, darkMode }) => {
           className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition"
         >
           <X size={20} />
+        </button>
+
+        <button
+          onClick={onDownload}
+          className="absolute top-4 right-16 p-2 rounded-full hover:bg-emerald-100 dark:hover:bg-emerald-900/30 text-emerald-600 transition"
+          title="Download waybill"
+        >
+          <Download size={18} />
         </button>
 
         <h2 className="text-xl font-bold mb-6">Waybill Details</h2>
@@ -481,7 +512,15 @@ const ViewWaybillModal = ({ waybill, onClose, darkMode }) => {
             </div>
               <div className="col-span-2">
                 <label className="text-xs uppercase opacity-60 font-bold">Products Conveyed</label>
-                <p>{waybill.product_list || '-'}</p>
+                {productEntries.length > 0 ? (
+                  <ul className="mt-1 space-y-1 text-sm">
+                    {productEntries.map((product, index) => (
+                      <li key={`${product}-${index}`}>- {product}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>-</p>
+                )}
               </div>
           </div>
 

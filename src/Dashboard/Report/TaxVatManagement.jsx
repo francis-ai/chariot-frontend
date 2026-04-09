@@ -8,7 +8,16 @@ import jsPDF from "jspdf";
 import "jspdf-autotable";
 import "react-toastify/dist/ReactToastify.css";
 
-const currency = (value) => `₦${Number(value || 0).toLocaleString()}`;
+const NAIRA = "\u20A6";
+
+const currency = (value) => {
+  const numericValue = Number(value || 0);
+  const safeValue = Number.isFinite(numericValue) ? numericValue : 0;
+  const fixed = safeValue.toFixed(2);
+  const [integerPart, decimalPart] = fixed.split(".");
+  const groupedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return `${NAIRA}${decimalPart === "00" ? groupedInteger : `${groupedInteger}.${decimalPart}`}`;
+};
 
 export default function TaxVatManagement() {
   const { darkMode } = useTheme();
@@ -18,6 +27,7 @@ export default function TaxVatManagement() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [downloading, setDownloading] = useState({ csv: false, pdf: false });
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const today = new Date();
@@ -120,7 +130,7 @@ export default function TaxVatManagement() {
       const body = reportRows.map((row) => [
         row.period ? new Date(row.period).toISOString().split("T")[0] : "-",
         String(row.source || "-").toUpperCase(),
-        `₦${Number(row.amount || 0).toLocaleString()}`,
+        currency(row.amount),
       ]);
 
       doc.autoTable({
@@ -159,72 +169,98 @@ export default function TaxVatManagement() {
   return (
     <div className={`min-h-screen flex overflow-x-hidden ${darkMode ? "bg-gray-900 text-gray-100" : "bg-gray-100 text-gray-800"}`}>
       <ToastContainer position="top-right" autoClose={2500} hideProgressBar />
-      <Sidebar />
-      <div className="flex-1 flex flex-col">
-        <NavBar />
-
-        <main className="p-4 md:p-6 mt-20 space-y-6 max-w-full">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      <Sidebar mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
+      <div className="flex-1 flex flex-col min-w-0">
+        <NavBar onMenuClick={() => setMobileMenuOpen(!mobileMenuOpen)} />
+        
+        <main className="flex-1 p-3 sm:p-4 md:p-6 mt-16 sm:mt-20 space-y-4 sm:space-y-6 max-w-full overflow-x-hidden">
+          {/* Header Section */}
+          <div className="flex flex-col space-y-3">
             <div>
-              <h1 className="text-2xl font-bold">Tax / VAT Management</h1>
-              <p className="text-sm opacity-70">Monitor tax generated from invoices and quotations by period.</p>
+              <h1 className="text-xl sm:text-2xl font-bold break-words">Tax / VAT Management</h1>
+              <p className="text-xs sm:text-sm opacity-70 mt-1">Monitor tax generated from invoices and quotations by period.</p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className={`px-3 py-2 rounded-lg border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-300"}`}
-              />
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className={`px-3 py-2 rounded-lg border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-300"}`}
-              />
-              <button
-                onClick={fetchTaxSummary}
-                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
-              >
-                Refresh
-              </button>
-              <button
-                onClick={downloadCsv}
-                disabled={downloading.csv}
-                className="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
-              >
-                {downloading.csv ? "Downloading CSV..." : "Download CSV"}
-              </button>
-              <button
-                onClick={downloadPdf}
-                disabled={downloading.pdf}
-                className="px-4 py-2 rounded-lg bg-slate-700 text-white hover:bg-slate-800 disabled:opacity-60"
-              >
-                {downloading.pdf ? "Downloading PDF..." : "Download PDF"}
-              </button>
+            
+            {/* Mobile-friendly Controls */}
+            <div className="flex flex-col space-y-3">
+              {/* Date Range - Stacked on mobile */}
+              <div className="flex flex-col sm:flex-row gap-2">
+                <div className="flex-1">
+                  <label className="text-xs opacity-70 mb-1 block sm:hidden">From Date</label>
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className={`w-full px-3 py-2 rounded-lg border text-sm ${
+                      darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-300"
+                    }`}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs opacity-70 mb-1 block sm:hidden">To Date</label>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className={`w-full px-3 py-2 rounded-lg border text-sm ${
+                      darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-300"
+                    }`}
+                  />
+                </div>
+              </div>
+              
+              {/* Action Buttons - Responsive grid */}
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={fetchTaxSummary}
+                  className="px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm font-medium transition-colors"
+                >
+                  Refresh
+                </button>
+                <button
+                  onClick={downloadCsv}
+                  disabled={downloading.csv}
+                  className="px-3 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 text-sm font-medium transition-colors"
+                >
+                  {downloading.csv ? "CSV..." : "CSV"}
+                </button>
+                <button
+                  onClick={downloadPdf}
+                  disabled={downloading.pdf}
+                  className="px-3 py-2 rounded-lg bg-slate-700 text-white hover:bg-slate-800 disabled:opacity-60 text-sm font-medium transition-colors"
+                >
+                  {downloading.pdf ? "PDF..." : "PDF"}
+                </button>
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Stats Cards - Responsive grid */}
+          <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <StatCard darkMode={darkMode} label="Tax Daily" value={currency(summary.daily)} />
             <StatCard darkMode={darkMode} label="Tax Weekly" value={currency(summary.weekly)} />
             <StatCard darkMode={darkMode} label="Tax Monthly" value={currency(summary.monthly)} />
             <StatCard darkMode={darkMode} label="Tax Yearly" value={currency(summary.yearly)} />
           </div>
 
-          <section className={`rounded-xl border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"}`}>
-            <h2 className="px-4 py-3 font-semibold border-b border-gray-200/20">Breakdown by Source</h2>
+          {/* Breakdown Section - Mobile optimized */}
+          <section className={`rounded-xl border overflow-hidden ${
+            darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
+          }`}>
+            <h2 className="px-3 sm:px-4 py-3 font-semibold text-sm sm:text-base border-b border-gray-200/20">
+              Breakdown by Source
+            </h2>
             {loading ? (
-              <p className="px-4 py-6">Loading breakdown...</p>
+              <div className="px-3 sm:px-4 py-6 text-center text-sm">Loading breakdown...</div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[700px] text-sm">
+                <table className="w-full text-xs sm:text-sm">
                   <thead className={darkMode ? "bg-gray-700" : "bg-gray-50"}>
                     <tr>
-                      <th className="px-3 py-2 text-left uppercase text-xs font-bold">Period</th>
-                      <th className="px-3 py-2 text-left uppercase text-xs font-bold">Invoice Tax</th>
-                      <th className="px-3 py-2 text-left uppercase text-xs font-bold">Quotation VAT</th>
-                      <th className="px-3 py-2 text-left uppercase text-xs font-bold">Total</th>
+                      <th className="px-2 sm:px-3 py-2 text-left uppercase text-xs font-bold">Period</th>
+                      <th className="px-2 sm:px-3 py-2 text-left uppercase text-xs font-bold">Invoice</th>
+                      <th className="px-2 sm:px-3 py-2 text-left uppercase text-xs font-bold">Quotation</th>
+                      <th className="px-2 sm:px-3 py-2 text-left uppercase text-xs font-bold">Total</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -232,10 +268,10 @@ export default function TaxVatManagement() {
                       const total = Number(values.invoice || 0) + Number(values.quotation || 0);
                       return (
                         <tr key={period} className="border-t border-gray-200/20">
-                          <td className="px-3 py-2 font-semibold capitalize">{period}</td>
-                          <td className="px-3 py-2">{currency(values.invoice)}</td>
-                          <td className="px-3 py-2">{currency(values.quotation)}</td>
-                          <td className="px-3 py-2 font-semibold">{currency(total)}</td>
+                          <td className="px-2 sm:px-3 py-2 font-semibold capitalize text-xs sm:text-sm">{period}</td>
+                          <td className="px-2 sm:px-3 py-2 text-xs sm:text-sm break-words">{currency(values.invoice)}</td>
+                          <td className="px-2 sm:px-3 py-2 text-xs sm:text-sm break-words">{currency(values.quotation)}</td>
+                          <td className="px-2 sm:px-3 py-2 font-semibold text-xs sm:text-sm break-words">{currency(total)}</td>
                         </tr>
                       );
                     })}
@@ -245,32 +281,50 @@ export default function TaxVatManagement() {
             )}
           </section>
 
-          <section className={`rounded-xl border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"}`}>
-            <h2 className="px-4 py-3 font-semibold border-b border-gray-200/20">Government Report Dataset</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[680px] text-sm">
-                <thead className={darkMode ? "bg-gray-700" : "bg-gray-50"}>
-                  <tr>
-                    <th className="px-3 py-2 text-left uppercase text-xs font-bold">Period</th>
-                    <th className="px-3 py-2 text-left uppercase text-xs font-bold">Source</th>
-                    <th className="px-3 py-2 text-left uppercase text-xs font-bold">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {reportRows.map((row, index) => (
-                    <tr key={`${row.period}-${row.source}-${index}`} className="border-t border-gray-200/20">
-                      <td className="px-3 py-2">{row.period ? new Date(row.period).toISOString().split("T")[0] : "-"}</td>
-                      <td className="px-3 py-2 capitalize">{row.source || "-"}</td>
-                      <td className="px-3 py-2">{currency(row.amount)}</td>
-                    </tr>
-                  ))}
-                  {!reportRows.length && (
+          {/* Report Section - Mobile optimized with horizontal scroll hint */}
+          <section className={`rounded-xl border overflow-hidden ${
+            darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
+          }`}>
+            <h2 className="px-3 sm:px-4 py-3 font-semibold text-sm sm:text-base border-b border-gray-200/20">
+              Government Report Dataset
+            </h2>
+            <div className="relative">
+              {/* Scroll hint for mobile */}
+              <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-gray-800/20 to-transparent pointer-events-none sm:hidden"></div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[500px] text-xs sm:text-sm">
+                  <thead className={darkMode ? "bg-gray-700" : "bg-gray-50"}>
                     <tr>
-                      <td className="px-3 py-4 opacity-70" colSpan={3}>No report rows for selected date range.</td>
+                      <th className="px-2 sm:px-3 py-2 text-left uppercase text-xs font-bold">Period</th>
+                      <th className="px-2 sm:px-3 py-2 text-left uppercase text-xs font-bold">Source</th>
+                      <th className="px-2 sm:px-3 py-2 text-left uppercase text-xs font-bold">Amount</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {reportRows.map((row, index) => (
+                      <tr key={`${row.period}-${row.source}-${index}`} className="border-t border-gray-200/20">
+                        <td className="px-2 sm:px-3 py-2 whitespace-nowrap text-xs sm:text-sm">
+                          {row.period ? new Date(row.period).toISOString().split("T")[0] : "-"}
+                        </td>
+                        <td className="px-2 sm:px-3 py-2 capitalize text-xs sm:text-sm">{row.source || "-"}</td>
+                        <td className="px-2 sm:px-3 py-2 text-xs sm:text-sm break-words">{currency(row.amount)}</td>
+                      </tr>
+                    ))}
+                    {!reportRows.length && (
+                      <tr>
+                        <td className="px-2 sm:px-3 py-4 text-center opacity-70 text-sm" colSpan={3}>
+                          No report rows for selected date range.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {reportRows.length > 0 && (
+                <div className="sm:hidden text-center text-xs opacity-60 py-2 border-t border-gray-200/20">
+                  ← Scroll horizontally →
+                </div>
+              )}
             </div>
           </section>
         </main>
@@ -281,9 +335,11 @@ export default function TaxVatManagement() {
 
 function StatCard({ darkMode, label, value }) {
   return (
-    <div className={`rounded-xl p-4 ${darkMode ? "bg-gray-800" : "bg-white"}`}>
-      <p className="text-xs uppercase opacity-60 mb-1">{label}</p>
-      <p className="text-2xl font-bold">{value}</p>
+    <div className={`rounded-xl p-3 sm:p-4 transition-all ${
+      darkMode ? "bg-gray-800 hover:bg-gray-750" : "bg-white hover:shadow-md"
+    }`}>
+      <p className="text-[10px] sm:text-xs uppercase opacity-60 mb-1 tracking-wider">{label}</p>
+      <p className="text-lg sm:text-xl md:text-2xl font-bold break-words">{value}</p>
     </div>
   );
 }

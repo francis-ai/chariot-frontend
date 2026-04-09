@@ -15,6 +15,12 @@ export default function DedicationPage() {
   const [loading, setLoading] = useState(true);
   const [invoicePage, setInvoicePage] = useState(1);
   const [quotationPage, setQuotationPage] = useState(1);
+  const [stats, setStats] = useState([
+    { label: "Total Invoices", value: "0" },
+    { label: "Total Quotations", value: "0" },
+    { label: "Total Paid", value: "₦0" },
+    { label: "Total Unpaid", value: "₦0" },
+  ]);
 
   const fetchData = async () => {
     try {
@@ -26,9 +32,38 @@ export default function DedicationPage() {
 
       setInvoices(invoiceRes.data || []);
       setQuotations(quotationRes.data || []);
+      calculateStats(invoiceRes.data || [], quotationRes.data || []);
     } finally {
       setLoading(false);
     }
+  };
+
+  const calculateStats = (invoiceList, quotationList) => {
+    const totalInvoices = invoiceList.length;
+    const totalQuotations = quotationList.length;
+    
+    const paidInvoices = invoiceList.filter(i => String(i.status || "").toLowerCase() === "paid");
+    const unpaidInvoices = invoiceList.filter(i => String(i.status || "").toLowerCase() === "unpaid");
+    
+    const paidQuotations = quotationList.filter(q => String(q.status || "").toLowerCase() === "paid");
+    const unpaidQuotations = quotationList.filter(q => String(q.status || "").toLowerCase() === "unpaid");
+    
+    const totalPaid = [
+      ...paidInvoices.map(i => i.total || 0),
+      ...paidQuotations.map(q => q.amount || 0)
+    ].reduce((sum, val) => sum + Number(val), 0);
+    
+    const totalUnpaid = [
+      ...unpaidInvoices.map(i => i.total || 0),
+      ...unpaidQuotations.map(q => q.amount || 0)
+    ].reduce((sum, val) => sum + Number(val), 0);
+
+    setStats([
+      { label: "Total Invoices", value: totalInvoices.toString() },
+      { label: "Total Quotations", value: totalQuotations.toString() },
+      { label: "Total Paid", value: `₦${totalPaid.toLocaleString()}` },
+      { label: "Total Unpaid", value: `₦${totalUnpaid.toLocaleString()}` },
+    ]);
   };
 
   useEffect(() => {
@@ -72,6 +107,21 @@ export default function DedicationPage() {
         <main className="p-3 sm:p-4 md:p-6 mt-20 min-w-0">
           <h1 className="text-2xl font-bold mb-4">Dedication Page</h1>
           <p className="text-sm opacity-70 mb-6">Paid and unpaid records for invoices and quotations.</p>
+
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
+            {stats.map(stat => (
+              <div
+                key={stat.label}
+                className={`p-4 rounded-xl ${
+                  darkMode ? "bg-gray-800" : "bg-white"
+                }`}
+              >
+                <p className="text-2xl font-black">{stat.value}</p>
+                <p className="text-xs uppercase opacity-60">{stat.label}</p>
+              </div>
+            ))}
+          </div>
 
           <div className="flex flex-wrap gap-2 mb-4">
             {["Invoices", "Quotations"].map((tab) => (
