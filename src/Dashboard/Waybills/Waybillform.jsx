@@ -304,11 +304,11 @@ const WaybillForm = ({ onCancel, onSave, waybillData, submitting, customers = []
             name="quotation_ids"
             value={form.quotation_ids}
             onChange={handleChange}
-            placeholder="e.g. 12, 15"
+            placeholder="e.g. 12, 15 or CLTQUO-00001234"
             className={inputClass}
             disabled={loading || submitting}
           />
-          <p className="text-xs mt-1 opacity-70">Products will be auto-fetched from these quotation records.</p>
+          <p className="text-xs mt-1 opacity-70">Use quotation database IDs or quotation numbers. Products will be auto-fetched from these records.</p>
         </div>
 
         <div className="md:col-span-2">
@@ -318,11 +318,11 @@ const WaybillForm = ({ onCancel, onSave, waybillData, submitting, customers = []
             name="invoice_ids"
             value={form.invoice_ids}
             onChange={handleChange}
-            placeholder="e.g. 7, 18"
+            placeholder="e.g. 7, 18 or CLTINV-00001234"
             className={inputClass}
             disabled={loading || submitting}
           />
-          <p className="text-xs mt-1 opacity-70">Products will also be fetched from these invoice records.</p>
+          <p className="text-xs mt-1 opacity-70">Use invoice database IDs or invoice numbers. Products will also be fetched from these records.</p>
         </div>
 
         <div className="md:col-span-2">

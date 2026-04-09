@@ -26,7 +26,7 @@ export default function TaxVatManagement() {
   const [reportRows, setReportRows] = useState([]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [downloading, setDownloading] = useState({ csv: false, pdf: false });
+  const [downloading, setDownloading] = useState({ pdf: false });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -80,37 +80,6 @@ export default function TaxVatManagement() {
     if (!dateFrom || !dateTo) return;
     fetchTaxReport();
   }, [dateFrom, dateTo]);
-
-  const downloadCsv = () => {
-    if (!reportRows.length) {
-      toast.warning("No Tax/VAT report data available for download");
-      return;
-    }
-
-    try {
-      setDownloading((prev) => ({ ...prev, csv: true }));
-      const headers = ["Period", "Source", "Amount"];
-      const lines = reportRows.map((row) => {
-        const period = row.period ? new Date(row.period).toISOString().split("T")[0] : "-";
-        const source = String(row.source || "-");
-        const amount = Number(row.amount || 0);
-        return `${period},${source},${amount}`;
-      });
-      const csvContent = [headers.join(","), ...lines].join("\n");
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", `tax_vat_report_${dateFrom}_to_${dateTo}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      toast.success("Tax/VAT CSV downloaded");
-    } finally {
-      setDownloading((prev) => ({ ...prev, csv: false }));
-    }
-  };
 
   const downloadPdf = () => {
     if (!reportRows.length) {
@@ -210,19 +179,12 @@ export default function TaxVatManagement() {
               </div>
               
               {/* Action Buttons - Responsive grid */}
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={fetchTaxSummary}
                   className="px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm font-medium transition-colors"
                 >
                   Refresh
-                </button>
-                <button
-                  onClick={downloadCsv}
-                  disabled={downloading.csv}
-                  className="px-3 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 text-sm font-medium transition-colors"
-                >
-                  {downloading.csv ? "CSV..." : "CSV"}
                 </button>
                 <button
                   onClick={downloadPdf}
@@ -253,30 +215,45 @@ export default function TaxVatManagement() {
             {loading ? (
               <div className="px-3 sm:px-4 py-6 text-center text-sm">Loading breakdown...</div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs sm:text-sm">
-                  <thead className={darkMode ? "bg-gray-700" : "bg-gray-50"}>
-                    <tr>
-                      <th className="px-2 sm:px-3 py-2 text-left uppercase text-xs font-bold">Period</th>
-                      <th className="px-2 sm:px-3 py-2 text-left uppercase text-xs font-bold">Invoice</th>
-                      <th className="px-2 sm:px-3 py-2 text-left uppercase text-xs font-bold">Quotation</th>
-                      <th className="px-2 sm:px-3 py-2 text-left uppercase text-xs font-bold">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(groupedBreakdown).map(([period, values]) => {
-                      const total = Number(values.invoice || 0) + Number(values.quotation || 0);
-                      return (
-                        <tr key={period} className="border-t border-gray-200/20">
-                          <td className="px-2 sm:px-3 py-2 font-semibold capitalize text-xs sm:text-sm">{period}</td>
-                          <td className="px-2 sm:px-3 py-2 text-xs sm:text-sm break-words">{currency(values.invoice)}</td>
-                          <td className="px-2 sm:px-3 py-2 text-xs sm:text-sm break-words">{currency(values.quotation)}</td>
-                          <td className="px-2 sm:px-3 py-2 font-semibold text-xs sm:text-sm break-words">{currency(total)}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+              <div>
+                <div className="sm:hidden divide-y divide-gray-200/20">
+                  {Object.entries(groupedBreakdown).map(([period, values]) => {
+                    const total = Number(values.invoice || 0) + Number(values.quotation || 0);
+                    return (
+                      <div key={period} className="p-3 space-y-1">
+                        <p className="text-xs font-semibold uppercase tracking-wide opacity-70">{period}</p>
+                        <p className="text-sm">Invoice: <span className="font-semibold">{currency(values.invoice)}</span></p>
+                        <p className="text-sm">Quotation: <span className="font-semibold">{currency(values.quotation)}</span></p>
+                        <p className="text-sm">Total: <span className="font-semibold">{currency(total)}</span></p>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="hidden sm:block overflow-x-auto">
+                  <table className="w-full text-xs sm:text-sm">
+                    <thead className={darkMode ? "bg-gray-700" : "bg-gray-50"}>
+                      <tr>
+                        <th className="px-2 sm:px-3 py-2 text-left uppercase text-xs font-bold">Period</th>
+                        <th className="px-2 sm:px-3 py-2 text-left uppercase text-xs font-bold">Invoice</th>
+                        <th className="px-2 sm:px-3 py-2 text-left uppercase text-xs font-bold">Quotation</th>
+                        <th className="px-2 sm:px-3 py-2 text-left uppercase text-xs font-bold">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(groupedBreakdown).map(([period, values]) => {
+                        const total = Number(values.invoice || 0) + Number(values.quotation || 0);
+                        return (
+                          <tr key={period} className="border-t border-gray-200/20">
+                            <td className="px-2 sm:px-3 py-2 font-semibold capitalize text-xs sm:text-sm">{period}</td>
+                            <td className="px-2 sm:px-3 py-2 text-xs sm:text-sm break-words">{currency(values.invoice)}</td>
+                            <td className="px-2 sm:px-3 py-2 text-xs sm:text-sm break-words">{currency(values.quotation)}</td>
+                            <td className="px-2 sm:px-3 py-2 font-semibold text-xs sm:text-sm break-words">{currency(total)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </section>
@@ -288,11 +265,23 @@ export default function TaxVatManagement() {
             <h2 className="px-3 sm:px-4 py-3 font-semibold text-sm sm:text-base border-b border-gray-200/20">
               Government Report Dataset
             </h2>
-            <div className="relative">
-              {/* Scroll hint for mobile */}
-              <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-gray-800/20 to-transparent pointer-events-none sm:hidden"></div>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[500px] text-xs sm:text-sm">
+            <div>
+              <div className="sm:hidden divide-y divide-gray-200/20">
+                {reportRows.map((row, index) => (
+                  <div key={`${row.period}-${row.source}-${index}`} className="p-3 space-y-1">
+                    <p className="text-xs uppercase tracking-wide opacity-70">
+                      {row.period ? new Date(row.period).toISOString().split("T")[0] : "-"}
+                    </p>
+                    <p className="text-sm capitalize">Source: <span className="font-semibold">{row.source || "-"}</span></p>
+                    <p className="text-sm">Amount: <span className="font-semibold">{currency(row.amount)}</span></p>
+                  </div>
+                ))}
+                {!reportRows.length && (
+                  <div className="px-3 py-4 text-center opacity-70 text-sm">No report rows for selected date range.</div>
+                )}
+              </div>
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="w-full text-xs sm:text-sm">
                   <thead className={darkMode ? "bg-gray-700" : "bg-gray-50"}>
                     <tr>
                       <th className="px-2 sm:px-3 py-2 text-left uppercase text-xs font-bold">Period</th>
@@ -320,11 +309,6 @@ export default function TaxVatManagement() {
                   </tbody>
                 </table>
               </div>
-              {reportRows.length > 0 && (
-                <div className="sm:hidden text-center text-xs opacity-60 py-2 border-t border-gray-200/20">
-                  ← Scroll horizontally →
-                </div>
-              )}
             </div>
           </section>
         </main>

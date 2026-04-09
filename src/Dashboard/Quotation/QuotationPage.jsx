@@ -457,10 +457,41 @@ const QuotationManagement = () => {
     }
   };
 
+  // const calculateStats = (quoteList) => {
+  //   const totalQuotes = quoteList.length;
+  //   const pendingCount = quoteList.filter(q => q.status === "Pending").length;
+  //   const totalValue = quoteList.reduce((sum, q) => sum + (q.amount || 0), 0);
+  //   const avgValue = totalQuotes > 0 ? totalValue / totalQuotes : 0;
+
+  //   setStats([
+  //     { label: "Total Quotations", value: totalQuotes.toString() },
+  //     { label: "Pending Quotations", value: pendingCount.toString() },
+  //     { label: "Total Value", value: `₦${totalValue.toLocaleString()}` },
+  //     { label: "Avg. Value", value: `₦${avgValue.toLocaleString()}` },
+  //   ]);
+  // };
+
   const calculateStats = (quoteList) => {
     const totalQuotes = quoteList.length;
-    const pendingCount = quoteList.filter(q => q.status === "Pending").length;
-    const totalValue = quoteList.reduce((sum, q) => sum + (q.amount || 0), 0);
+
+    const pendingCount = quoteList.filter(
+      (q) => (q.status || "").toLowerCase() === "pending"
+    ).length;
+
+    // 🔥 Clean and convert amount safely
+    const totalValue = quoteList.reduce((sum, q) => {
+      let amount = q.amount;
+
+      // Handle string amounts like "₦48,300"
+      if (typeof amount === "string") {
+        amount = amount.replace(/[₦,]/g, ""); // remove currency + commas
+      }
+
+      amount = Number(amount);
+
+      return sum + (isNaN(amount) ? 0 : amount);
+    }, 0);
+
     const avgValue = totalQuotes > 0 ? totalValue / totalQuotes : 0;
 
     setStats([

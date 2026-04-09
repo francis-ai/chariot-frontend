@@ -257,13 +257,13 @@ export const downloadWaybillPdf = async (waybill) => {
     },
   });
 
-  const finalY = doc.lastAutoTable?.finalY || 100;
-  doc.setFont("helvetica", "bold");
-  doc.text(`Subtotal: ${money(tax.subtotal)}`, 14, finalY + 12);
-  doc.text(`Tax (${tax.taxRate.toFixed(2)}%): ${money(tax.taxAmount)}`, 14, finalY + 18);
-  doc.text(`VAT (${tax.vatRate.toFixed(2)}%): ${money(tax.vatAmount)}`, 14, finalY + 24);
-  doc.text(`Total: ${money(total)}`, 14, finalY + 30);
-  doc.setFont("helvetica", "normal");
+  // const finalY = doc.lastAutoTable?.finalY || 100;
+  // doc.setFont("helvetica", "bold");
+  // doc.text(`Subtotal: ${money(tax.subtotal)}`, 14, finalY + 12);
+  // doc.text(`Tax (${tax.taxRate.toFixed(2)}%): ${money(tax.taxAmount)}`, 14, finalY + 18);
+  // doc.text(`VAT (${tax.vatRate.toFixed(2)}%): ${money(tax.vatAmount)}`, 14, finalY + 24);
+  // doc.text(`Total: ${money(total)}`, 14, finalY + 30);
+  // doc.setFont("helvetica", "normal");
 
   if (waybill.notes) {
     const wrapped = doc.splitTextToSize(`Notes: ${waybill.notes}`, 180);
