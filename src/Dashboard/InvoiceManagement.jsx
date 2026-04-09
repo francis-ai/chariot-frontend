@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { FaPlus, FaPrint } from "react-icons/fa";
 import Sidebar from "../component/sidebar";
 import NavBar from "../component/navigation";
@@ -12,12 +13,19 @@ import "react-toastify/dist/ReactToastify.css";
 export default function InvoiceManagement() {
   const [showInvoice, setShowInvoice] = useState(false);
   const { darkMode } = useTheme();
+  const [searchParams] = useSearchParams();
+  const focusInvoiceId = searchParams.get("view");
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     total: 0,
+    paid: 0,
+    unpaid: 0,
+    pending: 0,
     totalAmount: 0,
-    pending: 0
+    paidAmount: 0,
+    unpaidAmount: 0,
+    pendingAmount: 0,
   });
 
   // Fetch invoices on mount
@@ -47,6 +55,8 @@ export default function InvoiceManagement() {
         quantity: parseInt(inv.quantity) || 0,
         price: parseFloat(inv.price) || 0,
         discount: parseFloat(inv.discount) || 0,
+        tax_rate: parseFloat(inv.vat_rate ?? inv.tax_rate) || 0,
+        tax_amount: parseFloat(inv.vat_amount ?? inv.tax_amount) || 0,
         total: parseFloat(inv.total) || 0,  // Ensure this is a number
         formatted_total: `₦${(parseFloat(inv.total) || 0).toLocaleString()}`,
         notes: inv.notes || "",
@@ -85,23 +95,43 @@ export default function InvoiceManagement() {
       return sum + amount;
     }, 0);
     
+    const paidInvoices = invoices.filter(inv => String(inv.status || "").toLowerCase() === "paid");
+    const unpaidInvoices = invoices.filter(inv => String(inv.status || "").toLowerCase() === "unpaid");
+    const pendingInvoices = invoices.filter(inv => String(inv.status || "").toLowerCase() === "pending");
     const pending = invoices.filter(inv => inv.status === "Pending" || inv.status === "Unpaid").length;
+    const paid = paidInvoices.length;
+    const unpaid = unpaidInvoices.length;
+    const pendingOnly = pendingInvoices.length;
+
+    const paidAmount = paidInvoices.reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0);
+    const unpaidAmount = unpaidInvoices.reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0);
+    const pendingAmount = pendingInvoices.reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0);
     
     setStats({
       total,
+      paid,
+      unpaid,
+      pending: pendingOnly || pending,
       totalAmount,
-      pending
+      paidAmount,
+      unpaidAmount,
+      pendingAmount,
     });
   };
 
   const handleSaveInvoice = async (invoiceData) => {
     try {
       // Calculate total
-      const subtotal = invoiceData.quantity * invoiceData.price;
-      const total = subtotal - (invoiceData.discount || 0);
+      const subtotal = Number(invoiceData.quantity || 0) * Number(invoiceData.price || 0);
+      const discount = Number(invoiceData.discount || 0);
+      const taxableBase = Math.max(0, subtotal - discount);
+      const taxRate = Number(invoiceData.tax_rate || invoiceData.vat_rate || 0);
+      const explicitTaxAmount = Number(invoiceData.tax_amount || invoiceData.vat_amount);
+      const taxAmount = Number.isFinite(explicitTaxAmount) ? explicitTaxAmount : (taxableBase * taxRate) / 100;
+      const total = taxableBase + taxAmount;
       
       const payload = {
-        invoice_number: invoiceData.invoice_number || `CLT-${Date.now()}`,
+        invoice_number: invoiceData.invoice_number || `CLTINV-${Date.now()}`,
         customer: invoiceData.customer,
         signature_name: invoiceData.signature_name || "",
         invoice_date: invoiceData.invoice_date,
@@ -110,7 +140,11 @@ export default function InvoiceManagement() {
         description: invoiceData.description || "",
         quantity: parseInt(invoiceData.quantity) || 0,
         price: parseFloat(invoiceData.price) || 0,
-        discount: parseFloat(invoiceData.discount) || 0,
+        discount,
+        tax_rate: taxRate,
+        tax_amount: taxAmount,
+        vat_rate: taxRate,
+        vat_amount: taxAmount,
         total: total,
         status: invoiceData.status || "Unpaid",
         signature_image: invoiceData.signature_image || "",
@@ -192,22 +226,36 @@ export default function InvoiceManagement() {
 
             {/* Stats */}
             {!loading && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
                 <div className={`rounded-lg p-5 transition-colors ${darkMode ? "bg-gray-700 text-gray-100" : "bg-gray-50 text-gray-800"}`}>
                   <p className={`text-sm mb-1 ${darkMode ? "text-gray-300" : "text-gray-500"}`}>Total Invoices</p>
                   <h2 className="text-3xl font-bold">{stats.total}</h2>
+                  <p className="text-xs mt-2 opacity-80">₦{Number(stats.totalAmount || 0).toLocaleString()}</p>
                 </div>
 
                 <div className={`rounded-lg p-5 transition-colors ${darkMode ? "bg-gray-700 text-gray-100" : "bg-gray-50 text-gray-800"}`}>
+                  <p className={`text-sm mb-1 ${darkMode ? "text-gray-300" : "text-gray-500"}`}>Paid</p>
+                  <h2 className="text-3xl font-bold text-green-600 dark:text-green-400">{stats.paid}</h2>
+                  <p className="text-xs mt-2 opacity-80">₦{Number(stats.paidAmount || 0).toLocaleString()}</p>
+                </div>
+
+                <div className={`rounded-lg p-5 transition-colors ${darkMode ? "bg-gray-700 text-gray-100" : "bg-gray-50 text-gray-800"}`}>
+                  <p className={`text-sm mb-1 ${darkMode ? "text-gray-300" : "text-gray-500"}`}>Unpaid</p>
+                  <h2 className="text-3xl font-bold text-orange-600 dark:text-orange-400">{stats.unpaid}</h2>
+                  <p className="text-xs mt-2 opacity-80">₦{Number(stats.unpaidAmount || 0).toLocaleString()}</p>
+                </div>
+
+                <div className={`rounded-lg p-5 transition-colors ${darkMode ? "bg-gray-700 text-gray-100" : "bg-gray-50 text-gray-800"}`}>
+                  <p className={`text-sm mb-1 ${darkMode ? "text-gray-300" : "text-gray-500"}`}>Pending</p>
+                  <h2 className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">{stats.pending}</h2>
+                  <p className="text-xs mt-2 opacity-80">₦{Number(stats.pendingAmount || 0).toLocaleString()}</p>
+                </div>
+
+                <div className={`rounded-lg p-5 transition-colors sm:col-span-2 xl:col-span-4 ${darkMode ? "bg-gray-700 text-gray-100" : "bg-gray-50 text-gray-800"}`}>
                   <p className={`text-sm mb-1 ${darkMode ? "text-gray-300" : "text-gray-500"}`}>Total Amount</p>
                   <h2 className="text-3xl font-bold">
                     {stats.totalAmount ? `₦${stats.totalAmount.toLocaleString()}` : '₦0'}
                   </h2>
-                </div>
-
-                <div className={`rounded-lg p-5 transition-colors ${darkMode ? "bg-gray-700 text-gray-100" : "bg-gray-50 text-gray-800"}`}>
-                  <p className={`text-sm mb-1 ${darkMode ? "text-gray-300" : "text-gray-500"}`}>Pending Invoices</p>
-                  <h2 className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">{stats.pending}</h2>
                 </div>
               </div>
             )}
@@ -233,6 +281,7 @@ export default function InvoiceManagement() {
               loading={loading}
               onRefresh={fetchInvoices}
               darkMode={darkMode}
+              focusId={focusInvoiceId}
             />
           </div>
         </main>

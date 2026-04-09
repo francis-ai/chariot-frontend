@@ -64,16 +64,16 @@ export default function DedicationPage() {
   };
 
   return (
-    <div className={`min-h-screen flex ${darkMode ? "bg-gray-900 text-gray-100" : "bg-gray-100 text-gray-800"}`}>
+    <div className={`min-h-screen flex overflow-x-hidden ${darkMode ? "bg-gray-900 text-gray-100" : "bg-gray-100 text-gray-800"}`}>
       <Sidebar />
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         <NavBar />
 
-        <main className="p-6 mt-20">
+        <main className="p-3 sm:p-4 md:p-6 mt-20 min-w-0">
           <h1 className="text-2xl font-bold mb-4">Dedication Page</h1>
           <p className="text-sm opacity-70 mb-6">Paid and unpaid records for invoices and quotations.</p>
 
-          <div className="flex gap-2 mb-4">
+          <div className="flex flex-wrap gap-2 mb-4">
             {["Invoices", "Quotations"].map((tab) => (
               <button
                 key={tab}
@@ -90,8 +90,8 @@ export default function DedicationPage() {
           {loading ? (
             <p>Loading...</p>
           ) : activeTab === "Invoices" ? (
-            <div className={`rounded-xl overflow-x-auto ${darkMode ? "bg-gray-800" : "bg-white"}`}>
-              <table className="w-full min-w-[700px]">
+            <div className={`rounded-xl overflow-x-auto w-full ${darkMode ? "bg-gray-800" : "bg-white"}`}>
+              <table className="w-full min-w-[640px]">
                 <thead className={darkMode ? "bg-gray-700" : "bg-gray-50"}>
                   <tr>
                     <th className="p-3 text-left text-xs uppercase">Invoice #</th>
@@ -122,8 +122,8 @@ export default function DedicationPage() {
               </div>
             </div>
           ) : (
-            <div className={`rounded-xl overflow-x-auto ${darkMode ? "bg-gray-800" : "bg-white"}`}>
-              <table className="w-full min-w-[700px]">
+            <div className={`rounded-xl overflow-x-auto w-full ${darkMode ? "bg-gray-800" : "bg-white"}`}>
+              <table className="w-full min-w-[640px]">
                 <thead className={darkMode ? "bg-gray-700" : "bg-gray-50"}>
                   <tr>
                     <th className="p-3 text-left text-xs uppercase">Quotation #</th>

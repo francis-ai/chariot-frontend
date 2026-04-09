@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Eye,
   Edit3,
@@ -35,8 +36,9 @@ const InventoryDashboard = () => {
   const [deleteItem, setDeleteItem] = useState(null);
   const [editItem, setEditItem] = useState(null);
 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchParams] = useSearchParams();
+  const focusInventoryId = searchParams.get("view");
 
   // ----------------- Fetch Data -----------------
   const fetchInventory = async () => {
@@ -56,6 +58,9 @@ const InventoryDashboard = () => {
         price: item.selling_price || 0,
         purchase_price: item.purchase_price || 0,
         status: getStatus(item.current_stock || 0, item.min_stock || 10),
+        created_by_name: item.created_by_name || "",
+        updated_by_name: item.updated_by_name || "",
+        last_moved_by_name: item.last_moved_by_name || "",
         // Keep original data if needed
         ...item
       }));
@@ -230,6 +235,19 @@ const InventoryDashboard = () => {
     currentPage * PAGE_SIZE
   );
 
+  const scopedInventory = focusInventoryId
+    ? inventoryData.filter((item) => String(item.id) === String(focusInventoryId))
+    : paginatedInventory;
+
+  useEffect(() => {
+    if (!focusInventoryId || !inventoryData.length) return;
+    const matched = inventoryData.find((item) => String(item.id) === String(focusInventoryId));
+    if (matched) {
+      setViewItem(matched);
+      setCurrentPage(1);
+    }
+  }, [focusInventoryId, inventoryData]);
+
   // Show loading state
   if (loading) {
     return (
@@ -248,14 +266,10 @@ const InventoryDashboard = () => {
       <ToastContainer position="top-right" autoClose={2500} hideProgressBar />
       <Sidebar />
 
-      {isSidebarOpen && (
-        <div className="fixed inset-0 bg-black/60 z-40 lg:hidden" onClick={() => setIsSidebarOpen(false)} />
-      )}
+      <div className="flex-1 min-w-0">
+        <NavBar />
 
-      <div className="flex-1">
-        <NavBar onMenuClick={() => setIsSidebarOpen(true)} />
-
-        <main className="p-4 mt-20 md:p-8 max-w-7xl mx-auto">
+        <main className="p-4 mt-20 md:p-8 max-w-7xl mx-auto min-w-0">
           {/* HEADER */}
           <div className="flex flex-col md:flex-row justify-between gap-4 mb-8">
             <div>
@@ -297,18 +311,18 @@ const InventoryDashboard = () => {
               </button>
             </div>
           ) : (
-            <div className={`rounded-2xl border overflow-hidden ${darkMode ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200"}`}>
+            <div className={`rounded-2xl border overflow-hidden max-w-full ${darkMode ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200"}`}>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[900px]">
                   <thead>
                     <tr className="text-xs uppercase text-slate-400 border-b">
-                      {["SKU", "Product", "Category", "Stock", "Min", "Price", "Total", "Status", "Actions"].map((h) => (
+                      {["SKU", "Product", "Category", "Stock", "Min", "Price", "Total", "Stock Movement By", "Status", "Actions"].map((h) => (
                         <th key={h} className="px-6 py-4 text-left">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {paginatedInventory.map((item) => (
+                    {scopedInventory.map((item) => (
                       <tr key={item.id || item.sku} className="border-t hover:bg-blue-500/5">
                         <td className="px-6 py-4 text-blue-500 font-bold">{item.sku}</td>
                         <td className="px-6 py-4 font-bold">{item.name}</td>
@@ -317,6 +331,7 @@ const InventoryDashboard = () => {
                         <td className="px-6 py-4">{item.min}</td>
                         <td className="px-6 py-4">{`₦${(item.price || 0).toLocaleString()}`}</td>
                         <td className="px-6 py-4 font-bold">{`₦${((item.stock || 0) * (item.price || 0)).toLocaleString()}`}</td>
+                        <td className="px-6 py-4">{item.last_movement_type ? `${item.last_movement_type} by ${item.last_moved_by_name || item.updated_by_name || item.created_by_name || "System"}` : `By ${item.last_moved_by_name || item.updated_by_name || item.created_by_name || "System"}`}</td>
                         <td className="px-6 py-4">
                           <span className={getStatusStyle(item.status)}>{item.status}</span>
                         </td>
@@ -447,6 +462,7 @@ const InventoryDashboard = () => {
               <p><strong>Selling Price:</strong> ₦{(viewItem.price || 0).toLocaleString()}</p>
               <p><strong>Purchase Price:</strong> ₦{(viewItem.purchase_price || 0).toLocaleString()}</p>
               <p><strong>Status:</strong> {viewItem.status}</p>
+              <p><strong>Last Movement By:</strong> {viewItem.last_movement_type ? `${viewItem.last_movement_type} by ${viewItem.last_moved_by_name || viewItem.updated_by_name || viewItem.created_by_name || "System"}` : `By ${viewItem.last_moved_by_name || viewItem.updated_by_name || viewItem.created_by_name || "System"}`}</p>
               <p><strong>Total Value:</strong> ₦{((viewItem.stock || 0) * (viewItem.price || 0)).toLocaleString()}</p>
             </div>
           </Modal>
@@ -458,8 +474,8 @@ const InventoryDashboard = () => {
 
 /* ---------- GENERIC MODAL ---------- */
 const Modal = ({ title, children, onClose, darkMode }) => (
-  <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-    <div className={`w-full max-w-md rounded-2xl p-6 relative ${darkMode ? "bg-slate-800 text-white" : "bg-white text-slate-900"}`}>
+  <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-3 sm:p-4">
+    <div className={`w-full max-w-md sm:max-w-lg rounded-2xl p-5 sm:p-6 relative max-h-[88vh] overflow-y-auto ${darkMode ? "bg-slate-800 text-white" : "bg-white text-slate-900"}`}>
       <button 
         onClick={onClose} 
         className="absolute top-4 right-4 p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full"

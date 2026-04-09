@@ -21,6 +21,7 @@ import Suppliershome from "./Dashboard/suppliers/suppliershome";
 import Customer from "./Dashboard/customer/customer";
 import Report from "./Dashboard/Report/ReportsAnalytics";
 import StaffPerformanceReport from "./Dashboard/Report/StaffPerformanceReport";
+import TaxVatManagement from "./Dashboard/Report/TaxVatManagement";
 import User from "./Dashboard/User/userhome";
 import ActivityLogs from "./Dashboard/ActivityLogs/ActivityLogs";
 import NewInvoice from "./Dashboard/newinvoice";
@@ -125,6 +126,11 @@ const AppWrapper = () => {
           <Route path="/admin/staff-report" element={
             <ProtectedRoute allowedRoles={["super-admin"]} loginPath="/admin/login" fallbackPath="/staff/dashboard">
               <StaffPerformanceReport />
+            </ProtectedRoute>
+          }/>
+          <Route path="/admin/tax-vat" element={
+            <ProtectedRoute allowedRoles={["super-admin"]} loginPath="/admin/login" fallbackPath="/staff/dashboard">
+              <TaxVatManagement />
             </ProtectedRoute>
           }/>
           <Route path="/admin/user" element={

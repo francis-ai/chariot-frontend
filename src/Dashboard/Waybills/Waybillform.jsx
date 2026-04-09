@@ -24,6 +24,9 @@ const WaybillForm = ({ onCancel, onSave, waybillData, submitting, customers = []
     delivery_location: "",
     driver: "",
     vehicle: "",
+    quotation_ids: "",
+    invoice_ids: "",
+    product_list: "",
     waybill_date: new Date().toISOString().split('T')[0],
     status: "Pending",
     notes: "",
@@ -40,6 +43,9 @@ const WaybillForm = ({ onCancel, onSave, waybillData, submitting, customers = []
         delivery_location: waybillData.delivery_location || "",
         driver: waybillData.driver || "",
         vehicle: waybillData.vehicle || "",
+        quotation_ids: waybillData.quotation_ids || "",
+        invoice_ids: waybillData.invoice_ids || "",
+        product_list: waybillData.product_list || "",
         waybill_date: waybillData.waybill_date || new Date().toISOString().split('T')[0],
         status: waybillData.status || "Pending",
         notes: waybillData.notes || "",
@@ -287,6 +293,47 @@ const WaybillForm = ({ onCancel, onSave, waybillData, submitting, customers = []
             placeholder="Toyota Hilux (ABC-123XY)"
             className={inputClass}
             required
+            disabled={loading || submitting}
+          />
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="text-sm font-medium mb-1 block">Quotation IDs (comma-separated)</label>
+          <input
+            type="text"
+            name="quotation_ids"
+            value={form.quotation_ids}
+            onChange={handleChange}
+            placeholder="e.g. 12, 15"
+            className={inputClass}
+            disabled={loading || submitting}
+          />
+          <p className="text-xs mt-1 opacity-70">Products will be auto-fetched from these quotation records.</p>
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="text-sm font-medium mb-1 block">Invoice IDs (comma-separated)</label>
+          <input
+            type="text"
+            name="invoice_ids"
+            value={form.invoice_ids}
+            onChange={handleChange}
+            placeholder="e.g. 7, 18"
+            className={inputClass}
+            disabled={loading || submitting}
+          />
+          <p className="text-xs mt-1 opacity-70">Products will also be fetched from these invoice records.</p>
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="text-sm font-medium mb-1 block">Products Conveyed</label>
+          <textarea
+            name="product_list"
+            value={form.product_list}
+            onChange={handleChange}
+            rows={2}
+            placeholder="Leave blank to auto-fill from quotation/invoice IDs, or enter manual products"
+            className={textareaClass}
             disabled={loading || submitting}
           />
         </div>

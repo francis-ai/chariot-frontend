@@ -17,17 +17,53 @@ import {
   FaFolder,
   FaBars,
   FaTimes,
+  FaPercent,
 } from "react-icons/fa";
 import API from "../utils/api";
 
-export default function Sidebar() {
-  const [isOpen, setIsOpen] = useState(false); 
+export default function Sidebar({
+  isOpen: externalIsOpen,
+  onClose,
+  sidebarOpen: legacySidebarOpen,
+  setSidebarOpen: legacySetSidebarOpen,
+}) {
+  const [isOpen, setIsOpen] = useState(false);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const location = useLocation(); 
   const { logout, user } = useContext(AuthContext);
   const navigate = useNavigate();
   const isSuperAdmin = user?.role === 'super-admin';
   const basePath = isSuperAdmin ? "/admin" : "";
+  const hasExternalBoolean = typeof externalIsOpen === "boolean";
+  const hasLegacyBoolean = typeof legacySidebarOpen === "boolean";
+  const isControlled = hasExternalBoolean || hasLegacyBoolean;
+  const sidebarOpen = hasExternalBoolean
+    ? externalIsOpen
+    : hasLegacyBoolean
+      ? legacySidebarOpen
+      : isOpen;
+
+  const handleOpen = () => {
+    if (isControlled) return;
+    setIsOpen(true);
+  };
+
+  const handleToggle = () => {
+    if (isControlled) {
+      if (sidebarOpen && onClose) onClose();
+      return;
+    }
+    setIsOpen((prev) => !prev);
+  };
+
+  const handleClose = () => {
+    if (isControlled) {
+      if (onClose) onClose();
+      if (legacySetSidebarOpen) legacySetSidebarOpen(false);
+      return;
+    }
+    setIsOpen(false);
+  };
 
   const fetchChatUnreadCount = async () => {
     if (!user?.id) return;
@@ -55,11 +91,12 @@ export default function Sidebar() {
     { icon: <FaFileAlt />, label: "Quotation", path: `${basePath}/QuotationPage` },
     { icon: <FaTruck />, label: "Waybill", path: `${basePath}/Waybill` },
     { icon: <FaShoppingCart />, label: "Purchase Orders", path: `${basePath}/ordermanagement` },
-    { icon: <FaBoxes />, label: "Inventory", path: `${basePath}/Inventory` },
+    { icon: <FaBoxes />, label: "Stock In/Out", path: `${basePath}/Inventory` },
     { icon: <FaBuilding />, label: "Supplier", path: `${basePath}/Suppliershome` },
     { icon: <FaUsers />, label: "Customers", path: `${basePath}/Customer` },
     { icon: <FaFolder  />, label: "Categories", path: `${basePath}/Categories` },
     { icon: <FaChartBar />, label: "Report", path: `${basePath}/Report` },
+    { icon: <FaPercent />, label: "Tax / VAT", path: `${basePath}/tax-vat`, superAdminOnly: true },
     { icon: <FaChartBar />, label: "Staff Report", path: `${basePath}/staff-report`, superAdminOnly: true },
     { icon: <FaFileAlt />, label: "Dedication", path: isSuperAdmin ? "/admin/dedication" : "/staff/dedication" },
     { icon: <FaPlus  />, label: "Users", path: `${basePath}/user` },
@@ -71,23 +108,26 @@ export default function Sidebar() {
 
   return (
     <>
+      {/* Desktop spacer so fixed sidebar never overlays page content */}
+      <div className="hidden md:block w-64 shrink-0" aria-hidden="true" />
+
       {/* Mobile toggle button */}
-      <div className="fixed top-4 classtoggle mt-15 right-4 z-50 md:hidden">
+      <div className="fixed top-4 right-4 z-50 md:hidden">
         <button
-          onClick={() => setIsOpen(prev => !prev)}
+          onClick={handleToggle}
           className="bg-red-600 text-white p-3 rounded-full shadow-lg text-2xl"
         >
-          {isOpen ? <FaTimes /> : <FaBars />}
+          {sidebarOpen ? <FaTimes /> : <FaBars />}
         </button>
       </div>
 
       {/* Sidebar */}
       <aside
         className={`
-          bg-red-600 w-64 h-screen overflow-y-auto overflow-x-hidden overscroll-contain flex flex-col p-6 shadow-lg
+          bg-red-600 w-72 max-w-[82vw] md:w-64 h-[100dvh] md:h-screen overflow-y-auto overflow-x-hidden overscroll-contain flex flex-col p-6 shadow-lg
           fixed top-0 left-0 z-40 transform transition-transform duration-300
-          ${isOpen ? "translate-x-0" : "-translate-x-full"}
-          md:translate-x-0 md:sticky md:top-0 md:flex
+          ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
+          md:translate-x-0
         `}
       >
         {/* Logo / Title */}
@@ -108,7 +148,7 @@ export default function Sidebar() {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-3 p-3 rounded transition text-gray-800 hover:bg-red-100"
-                      onClick={() => setIsOpen(false)}
+                      onClick={handleClose}
                     >
                       <span className="w-5 h-5 flex justify-center text-red-600">{item.icon}</span>
                       <div className="flex flex-col leading-tight">
@@ -129,7 +169,7 @@ export default function Sidebar() {
                         flex items-center gap-3 p-3 rounded transition
                         ${isActive ? "bg-red-500 text-white" : "text-gray-800 hover:bg-red-100"}
                       `}
-                      onClick={() => setIsOpen(false)}
+                      onClick={handleClose}
                     >
                       <span className={`w-5 h-5 flex justify-center ${isActive ? "text-white" : "text-red-600"}`}>
                         {item.icon}
@@ -178,10 +218,10 @@ export default function Sidebar() {
       </aside>
 
       {/* Mobile overlay */}
-      {isOpen && (
+      {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/30 z-30 md:hidden"
-          onClick={() => setIsOpen(false)}
+          onClick={handleClose}
         />
       )}
     </>

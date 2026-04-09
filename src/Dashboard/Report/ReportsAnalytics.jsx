@@ -4,6 +4,7 @@ import { FileText, Calendar, Menu, Download, Loader, FileSpreadsheet, File as Fi
 import Sidebar from '../../../src/component/sidebar';
 import NavBar from '../../../src/component/navigation';
 import { useTheme } from '../../../src/context/ThemeContext';
+import { AuthContext } from '../../context/authContext.jsx';
 import API from "../../utils/api";
 import { toast, ToastContainer } from "react-toastify";
 import * as XLSX from 'xlsx';
@@ -12,6 +13,7 @@ import 'jspdf-autotable';
 import "react-toastify/dist/ReactToastify.css";
 
 const ReportsAnalytics = () => {
+  const { user } = React.useContext(AuthContext);
   const { darkMode } = useTheme();
   const PAGE_SIZE = 10;
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -25,6 +27,8 @@ const ReportsAnalytics = () => {
   const [chartType, setChartType] = useState('bar');
   const [currentPage, setCurrentPage] = useState(1);
 
+  const isSuperAdmin = user?.role === "super-admin";
+
   const reportTypes = [
     { value: 'invoice', label: 'Sales Report'},
     { value: 'purchase_orders', label: 'Purchase Orders Report'},
@@ -32,7 +36,8 @@ const ReportsAnalytics = () => {
     { value: 'waybill', label: 'Waybill Report'},
     { value: 'customers', label: 'Customers Report'},
     { value: 'suppliers', label: 'Suppliers Report'},
-    { value: 'quotations', label: 'Quotations Report'},  
+    { value: 'quotations', label: 'Quotations Report'},
+    ...(isSuperAdmin ? [{ value: 'tax_summary', label: 'Tax / VAT Report'}] : []),
   ];
 
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
@@ -144,6 +149,18 @@ const ReportsAnalytics = () => {
         }, {});
         processed = Object.entries(quoteStatus).map(([name, value]) => ({ name, value }));
         setChartType('pie');
+        break;
+
+      case 'tax_summary':
+        const taxByPeriod = reportData.reduce((acc, item) => {
+          const key = item.period ? new Date(item.period).toLocaleDateString() : 'Unknown';
+          acc[key] = (acc[key] || 0) + Number(item.amount || 0);
+          return acc;
+        }, {});
+        processed = Object.entries(taxByPeriod)
+          .slice(0, 14)
+          .map(([name, value]) => ({ name, value: Math.round(value) }));
+        setChartType('bar');
         break;
 
       default:
@@ -380,6 +397,9 @@ const ReportsAnalytics = () => {
                 formatter={(value) => {
                   if (reportType === 'invoice') {
                     return [`₦${(value * 1000).toLocaleString()}`, 'Sales'];
+                  }
+                  if (reportType === 'tax_summary') {
+                    return [`₦${Number(value || 0).toLocaleString()}`, 'Tax'];
                   }
                   return [`${value} records`, 'Count'];
                 }}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Eye, Download, Edit3, Plus, Trash2, X } from 'lucide-react';
 import CreateQuotation from "../Quotation/createquoation";
 import NavBar from '../../component/navigation';
@@ -375,6 +376,8 @@ const QuotationManagement = () => {
   const [submitting, setSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchParams] = useSearchParams();
+  const focusQuotationId = searchParams.get("view");
 
   const tabs = ['All Quotations', 'Pending', 'Accepted', 'Paid', 'Unpaid', 'Expired'];
 
@@ -473,7 +476,7 @@ const QuotationManagement = () => {
       setSubmitting(true);
       
       // Generate quotation number if not exists
-      const quotation_number = quotationData.quotation_number || `QUT-${Date.now()}`;
+      const quotation_number = quotationData.quotation_number || `CLTQUO-${Date.now().toString().slice(-8)}`;
       const items = Array.isArray(quotationData.items) ? quotationData.items : (() => {
         try {
           return quotationData.items_json ? JSON.parse(quotationData.items_json) : [];
@@ -579,6 +582,7 @@ const QuotationManagement = () => {
   };
 
   const filteredQuotations = quotations.filter(q => {
+    if (focusQuotationId && String(q.id) !== String(focusQuotationId)) return false;
     const matchesTab = activeTab === 'All Quotations' || q.status === activeTab;
     const searchValue = searchTerm.trim().toLowerCase();
     const matchesSearch = !searchValue || [q.customer, q.quotation_number, q.notes]
@@ -590,6 +594,18 @@ const QuotationManagement = () => {
   useEffect(() => {
     setCurrentPage(1);
   }, [activeTab, searchTerm, quotations.length]);
+
+  useEffect(() => {
+    if (!focusQuotationId || !quotations.length) return;
+    const matched = quotations.find((q) => String(q.id) === String(focusQuotationId));
+    if (matched) {
+      setModalData(matched);
+      setIsEditable(false);
+      setActiveTab("All Quotations");
+      setSearchTerm("");
+      setCurrentPage(1);
+    }
+  }, [focusQuotationId, quotations]);
 
   const totalPages = Math.max(1, Math.ceil(filteredQuotations.length / PAGE_SIZE));
   const paginatedQuotations = filteredQuotations.slice(

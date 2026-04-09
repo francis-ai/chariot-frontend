@@ -17,7 +17,7 @@ import { downloadInvoicePdf } from "../utils/documentPdf";
 
 const TABS = ["All Invoices", "Paid", "Unpaid", "Pending", "Overdue"];
 
-const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefresh, darkMode }) => {
+const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefresh, darkMode, focusId }) => {
   const [activeTab, setActiveTab] = useState("All Invoices");
   const [invoices, setInvoices] = useState([]);
   const [search, setSearch] = useState("");
@@ -37,6 +37,18 @@ const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefr
       fetchInvoices();
     }
   }, [propInvoices]);
+
+  useEffect(() => {
+    if (!focusId || !invoices.length) return;
+    const matched = invoices.find((row) => String(row.id) === String(focusId));
+    if (matched) {
+      setSelectedInvoice(matched);
+      setViewOpen(true);
+      setActiveTab("All Invoices");
+      setSearch("");
+      setCurrentPage(1);
+    }
+  }, [focusId, invoices]);
 
   const fetchInvoices = async () => {
     try {
@@ -63,6 +75,7 @@ const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefr
   };
 
   const filteredInvoices = invoices.filter((inv) => {
+    if (focusId && String(inv.id) !== String(focusId)) return false;
     if (activeTab !== "All Invoices" && inv.status !== activeTab) return false;
     if (search && !inv.customer?.toLowerCase().includes(search.toLowerCase()) && 
         !inv.invoice_number?.toLowerCase().includes(search.toLowerCase())) {
@@ -106,9 +119,14 @@ const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefr
   const handleSaveEdit = async (updatedData) => {
     try {
       const subtotal = Number(updatedData.quantity || 0) * Number(updatedData.price || 0);
-      const total = subtotal - Number(updatedData.discount || 0);
+      const discount = Number(updatedData.discount || 0);
+      const taxableBase = Math.max(0, subtotal - discount);
+      const taxRate = Number(updatedData.tax_rate || updatedData.vat_rate || 0);
+      const explicitTaxAmount = Number(updatedData.tax_amount || updatedData.vat_amount);
+      const taxAmount = Number.isFinite(explicitTaxAmount) ? explicitTaxAmount : (taxableBase * taxRate) / 100;
+      const total = taxableBase + taxAmount;
       const payload = {
-        invoice_number: updatedData.invoice_number || selectedInvoice?.invoice_number || `CLT-${Date.now()}`,
+        invoice_number: updatedData.invoice_number || selectedInvoice?.invoice_number || `CLTINV-${Date.now()}`,
         customer: updatedData.customer,
         invoice_date: updatedData.invoice_date,
         due_date: updatedData.due_date,
@@ -116,7 +134,11 @@ const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefr
         description: updatedData.description || "",
         quantity: Number(updatedData.quantity) || 0,
         price: Number(updatedData.price) || 0,
-        discount: Number(updatedData.discount) || 0,
+        discount,
+        tax_rate: taxRate,
+        tax_amount: taxAmount,
+        vat_rate: taxRate,
+        vat_amount: taxAmount,
         total,
         status: updatedData.status || "Unpaid",
         signature_name: updatedData.signature_name || "",
@@ -346,6 +368,14 @@ const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefr
                 <div>
                   <label className="text-xs uppercase opacity-60">Discount</label>
                   <p>₦{Number(selectedInvoice.discount || 0).toLocaleString()}</p>
+                </div>
+                <div>
+                  <label className="text-xs uppercase opacity-60">VAT / Tax Rate</label>
+                  <p>{Number(selectedInvoice.vat_rate ?? selectedInvoice.tax_rate ?? 0).toLocaleString()}%</p>
+                </div>
+                <div>
+                  <label className="text-xs uppercase opacity-60">VAT / Tax Amount</label>
+                  <p>₦{Number(selectedInvoice.vat_amount ?? selectedInvoice.tax_amount ?? 0).toLocaleString()}</p>
                 </div>
                 <div>
                   <label className="text-xs uppercase opacity-60">Total</label>

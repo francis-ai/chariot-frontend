@@ -94,10 +94,10 @@ const StaffPerformanceReport = () => {
     <div className={`min-h-screen flex overflow-x-hidden ${darkMode ? "bg-gray-900 text-gray-100" : "bg-gray-100 text-gray-800"}`}>
       <ToastContainer position="top-right" autoClose={2500} hideProgressBar />
       <Sidebar />
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         <NavBar />
 
-        <main className="p-4 md:p-6 mt-20 space-y-6 max-w-full">
+        <main className="p-4 md:p-6 mt-20 space-y-6 max-w-full min-w-0">
           <div>
             <h1 className="text-2xl font-bold">Staff Performance Report</h1>
             <p className="text-sm opacity-70">Track each staff member by records created and activity details.</p>
@@ -111,7 +111,7 @@ const StaffPerformanceReport = () => {
             <StatCard darkMode={darkMode} label="Activities" value={totals.activities} />
           </div>
 
-          <div className="flex flex-col md:flex-row gap-3">
+          <div className="flex flex-col md:flex-row gap-3 min-w-0">
             <input
               type="text"
               value={searchTerm}
@@ -139,13 +139,13 @@ const StaffPerformanceReport = () => {
             </button>
           </div>
 
-          <section className={`rounded-xl border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"}`}>
+          <section className={`rounded-xl border overflow-hidden ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"}`}>
             <h2 className="px-4 py-3 font-semibold border-b border-gray-200/20">Staff Summary</h2>
             {loading ? (
               <p className="px-4 py-6">Loading summary...</p>
             ) : (
               <>
-                <div className="hidden md:block overflow-x-auto">
+                <div className="hidden md:block overflow-x-auto max-w-full">
                   <table className="w-full min-w-[1200px] text-sm">
                     <thead className={darkMode ? "bg-gray-700" : "bg-gray-50"}>
                       <tr>
@@ -158,6 +158,11 @@ const StaffPerformanceReport = () => {
                           "Quotation Amount",
                           "Purchase Orders",
                           "PO Amount",
+                          "Stock Moves",
+                          "Stock Out Qty",
+                          "Stock In Qty",
+                          "Invoice Tax",
+                          "Quotation Tax",
                           "Waybills",
                           "Customers",
                           "Suppliers",
@@ -178,6 +183,11 @@ const StaffPerformanceReport = () => {
                           <td className="px-3 py-2">N{Number(row.quotation_total_amount || 0).toLocaleString()}</td>
                           <td className="px-3 py-2">{row.purchase_order_count}</td>
                           <td className="px-3 py-2">N{Number(row.purchase_order_total_amount || 0).toLocaleString()}</td>
+                          <td className="px-3 py-2">{row.stock_movement_count}</td>
+                          <td className="px-3 py-2">{Number(row.stock_out_quantity || 0).toLocaleString()}</td>
+                          <td className="px-3 py-2">{Number(row.stock_in_quantity || 0).toLocaleString()}</td>
+                          <td className="px-3 py-2">N{Number(row.invoice_tax_total || 0).toLocaleString()}</td>
+                          <td className="px-3 py-2">N{Number(row.quotation_tax_total || 0).toLocaleString()}</td>
                           <td className="px-3 py-2">{row.waybill_count}</td>
                           <td className="px-3 py-2">{row.customer_count}</td>
                           <td className="px-3 py-2">{row.supplier_count}</td>
@@ -197,6 +207,7 @@ const StaffPerformanceReport = () => {
                         <p>Invoices: {row.invoice_count}</p>
                         <p>Quotations: {row.quotation_count}</p>
                         <p>POs: {row.purchase_order_count}</p>
+                        <p>Stock Moves: {row.stock_movement_count}</p>
                         <p>Waybills: {row.waybill_count}</p>
                         <p>Customers: {row.customer_count}</p>
                         <p>Suppliers: {row.supplier_count}</p>
@@ -205,6 +216,8 @@ const StaffPerformanceReport = () => {
                         <p>Invoice Amount: N{Number(row.invoice_total_amount || 0).toLocaleString()}</p>
                         <p>Quotation Amount: N{Number(row.quotation_total_amount || 0).toLocaleString()}</p>
                         <p>PO Amount: N{Number(row.purchase_order_total_amount || 0).toLocaleString()}</p>
+                        <p>Invoice Tax: N{Number(row.invoice_tax_total || 0).toLocaleString()}</p>
+                        <p>Quotation Tax: N{Number(row.quotation_tax_total || 0).toLocaleString()}</p>
                         <p className="font-medium">Activities: {row.activity_count}</p>
                       </div>
                     </div>
@@ -237,13 +250,13 @@ const StaffPerformanceReport = () => {
             )}
           </section>
 
-          <section className={`rounded-xl border ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"}`}>
+          <section className={`rounded-xl border overflow-hidden ${darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"}`}>
             <h2 className="px-4 py-3 font-semibold border-b border-gray-200/20">Recent Staff Activity Details</h2>
             {loading ? (
               <p className="px-4 py-6">Loading activities...</p>
             ) : (
               <>
-                <div className="hidden md:block overflow-x-auto">
+                <div className="hidden md:block overflow-x-auto max-w-full">
                   <table className="w-full min-w-[1000px] text-sm">
                     <thead className={darkMode ? "bg-gray-700" : "bg-gray-50"}>
                       <tr>
@@ -314,10 +327,11 @@ const StaffPerformanceReport = () => {
 };
 
 const StatCard = ({ darkMode, label, value }) => {
+  const isNumeric = typeof value === "number";
   return (
     <div className={`rounded-xl p-4 ${darkMode ? "bg-gray-800" : "bg-white"}`}>
       <p className="text-xs uppercase opacity-60 mb-1">{label}</p>
-      <p className="text-2xl font-bold">{Number(value || 0).toLocaleString()}</p>
+      <p className="text-2xl font-bold">{isNumeric ? Number(value || 0).toLocaleString() : String(value || "-")}</p>
     </div>
   );
 };

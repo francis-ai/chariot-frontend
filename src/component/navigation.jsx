@@ -107,6 +107,10 @@ export default function NavBar() {
         navigate(`${basePath}/invoiceManagement?view=${result.id}`);
         toast.info(`Viewing invoice: ${result.invoice_number}`);
         break;
+      case 'waybill':
+        navigate(`${basePath}/Waybill?view=${result.id}`);
+        toast.info(`Viewing waybill: ${result.waybill_number}`);
+        break;
       default:
         toast.info(`Found: ${result.name || result.customer || 'Item'}`);
     }
@@ -132,8 +136,12 @@ export default function NavBar() {
       case 'supplier':
         return result.email || 'Supplier';
       case 'purchaseOrder':
-        return `Date: ${result.order_data || 'N/A'}`;
+        return `Date: ${result.order_date || 'N/A'}`;
       case 'quotations':
+        return `Customer: ${result.customer || 'N/A'}`;
+      case 'invoice':
+        return `Customer: ${result.customer || 'N/A'}`;
+      case 'waybill':
         return `Customer: ${result.customer || 'N/A'}`;
       default:
         return '';

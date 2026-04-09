@@ -17,6 +17,8 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
     quantity: 1,
     price: 0,
     discount: 0,
+    tax_rate: 0,
+    tax_amount: 0,
     notes: ""
   });
   const [customers, setCustomers] = useState([]);
@@ -50,6 +52,8 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
         quantity: invoiceData.quantity || 1,
         price: invoiceData.price || 0,
         discount: invoiceData.discount || 0,
+        tax_rate: Number(invoiceData.vat_rate ?? invoiceData.tax_rate ?? 0),
+        tax_amount: Number(invoiceData.vat_amount ?? invoiceData.tax_amount ?? 0),
         notes: invoiceData.notes || ""
       });
     }
@@ -164,12 +168,27 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
   };
 
   // Calculations
-  const subtotal = form.quantity * form.price;
-  const total = subtotal - (form.discount || 0);
+  const subtotal = Number(form.quantity || 0) * Number(form.price || 0);
+  const taxableBase = Math.max(0, subtotal - Number(form.discount || 0));
+  const computedTaxAmount = (taxableBase * Number(form.tax_rate || 0)) / 100;
+  const effectiveTaxAmount = Number.isFinite(Number(form.tax_amount))
+    ? Number(form.tax_amount)
+    : computedTaxAmount;
+  const total = taxableBase + effectiveTaxAmount;
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
+    setForm((prev) => {
+      const next = { ...prev, [name]: value };
+      if (name === "tax_rate") {
+        const nextBase = Math.max(
+          0,
+          Number(next.quantity || 0) * Number(next.price || 0) - Number(next.discount || 0)
+        );
+        next.tax_amount = Number(((nextBase * Number(value || 0)) / 100).toFixed(2));
+      }
+      return next;
+    });
   };
 
   const handleSignatureUpload = (e) => {
@@ -541,6 +560,47 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
                         : 'bg-white text-gray-900 border border-gray-300'
                     }`}
                   />
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <span>VAT / Tax Rate (%)</span>
+                  <input
+                    type="number"
+                    name="tax_rate"
+                    value={form.tax_rate}
+                    onChange={handleChange}
+                    min="0"
+                    step="0.01"
+                    disabled={loading}
+                    className={`w-32 rounded px-2 py-1 text-right ${
+                      darkMode
+                        ? 'bg-gray-600 text-gray-200 border border-gray-500'
+                        : 'bg-white text-gray-900 border border-gray-300'
+                    }`}
+                  />
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <span>VAT / Tax Amount</span>
+                  <input
+                    type="number"
+                    name="tax_amount"
+                    value={form.tax_amount}
+                    onChange={handleChange}
+                    min="0"
+                    step="0.01"
+                    disabled={loading}
+                    className={`w-32 rounded px-2 py-1 text-right ${
+                      darkMode
+                        ? 'bg-gray-600 text-gray-200 border border-gray-500'
+                        : 'bg-white text-gray-900 border border-gray-300'
+                    }`}
+                  />
+                </div>
+
+                <div className="flex justify-between">
+                  <span>Taxable Base</span>
+                  <span>₦{taxableBase.toLocaleString()}</span>
                 </div>
 
                 <hr className={`${darkMode ? 'border-gray-600' : 'border-gray-300'}`} />

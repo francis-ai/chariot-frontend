@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'; 
+import { useSearchParams } from 'react-router-dom';
 import { Truck, Search, Plus, Eye, X, Edit3, Trash2 } from 'lucide-react';
 import WaybillForm from "./Waybillform";
 import Sidebar from '../../component/sidebar';
@@ -23,6 +24,8 @@ const WaybillManagement = () => {
   const [deleting, setDeleting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchParams] = useSearchParams();
+  const focusWaybillId = searchParams.get("view");
 
   const statusMap = {
     'Delivered': darkMode ? 'bg-emerald-700 text-emerald-100 border-emerald-600' : 'bg-emerald-100 text-emerald-700 border-emerald-200',
@@ -71,6 +74,9 @@ const WaybillManagement = () => {
         delivery_location: wb.delivery_location || "",
         driver: wb.driver || "",
         vehicle: wb.vehicle || "",
+        quotation_ids: wb.quotation_ids || "",
+        invoice_ids: wb.invoice_ids || "",
+        product_list: wb.product_list || "",
         waybill_date: wb.waybill_date ? wb.waybill_date.split('T')[0] : "",
         status: wb.status || "Pending",
         notes: wb.notes || "",
@@ -89,6 +95,7 @@ const WaybillManagement = () => {
 
   // Filter waybills based on tab and search
   const filteredWaybills = waybills.filter(item => {
+    if (focusWaybillId && String(item.id) !== String(focusWaybillId)) return false;
     const matchesTab = activeTab === 'All Waybills' || item.status === activeTab;
     const matchesSearch = searchTerm === '' || 
       Object.values(item).some(val =>
@@ -96,6 +103,18 @@ const WaybillManagement = () => {
       );
     return matchesTab && matchesSearch;
   });
+
+  useEffect(() => {
+    if (!focusWaybillId || !waybills.length) return;
+    const matched = waybills.find((item) => String(item.id) === String(focusWaybillId));
+    if (matched) {
+      setSelectedWaybill(matched);
+      setShowViewModal(true);
+      setActiveTab("All Waybills");
+      setSearchTerm("");
+      setCurrentPage(1);
+    }
+  }, [focusWaybillId, waybills]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -131,6 +150,9 @@ const WaybillManagement = () => {
         delivery_location: waybillData.delivery_location, // snake_case
         driver: waybillData.driver,
         vehicle: waybillData.vehicle,
+        quotation_ids: waybillData.quotation_ids || "",
+        invoice_ids: waybillData.invoice_ids || "",
+        product_list: waybillData.product_list || "",
         waybill_date: waybillData.waybill_date, // snake_case
         status: waybillData.status,
         notes: waybillData.notes || ""
@@ -266,7 +288,7 @@ const WaybillManagement = () => {
               <table className="w-full min-w-[1000px] text-left border-collapse">
                 <thead>
                   <tr className={`border-b ${darkMode ? 'border-gray-600 bg-gray-700 text-gray-200' : 'border-slate-100 bg-slate-50 text-slate-400'}`}>
-                    {['Waybill #', 'Customer', 'Date', 'Pickup', 'Delivery', 'Status', 'Actions'].map(h => (
+                    {['Waybill #', 'Customer', 'Date', 'Pickup', 'Delivery', 'Products', 'Status', 'Actions'].map(h => (
                       <th key={h} className="px-4 py-3 text-[11px] font-black uppercase tracking-[0.05em]">{h}</th>
                     ))}
                   </tr>
@@ -279,6 +301,7 @@ const WaybillManagement = () => {
                       <td className="px-4 py-3 text-sm">{item.waybill_date}</td>
                       <td className="px-4 py-3 text-sm truncate">{item.pickup_location}</td>
                       <td className="px-4 py-3 text-sm truncate">{item.delivery_location}</td>
+                      <td className="px-4 py-3 text-sm truncate">{item.product_list || '-'}</td>
                       {/* <td className="px-4 py-3 font-medium truncate">{item.driver}</td> */}
                       {/* <td className="px-4 py-3 text-sm truncate">{item.vehicle}</td> */}
                       <td className="px-4 py-3">
@@ -416,7 +439,7 @@ const ViewWaybillModal = ({ waybill, onClose, darkMode }) => {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-xs uppercase opacity-60 font-bold">Waybill #</label>
-              <p className="font-semibold text-blue-600">{waybill.waybill_number || waybill.id}</p>
+                <p className="font-semibold text-blue-600">{waybill.waybill_number || waybill.id}</p>
             </div>
             <div>
               <label className="text-xs uppercase opacity-60 font-bold">Status</label>
@@ -456,6 +479,10 @@ const ViewWaybillModal = ({ waybill, onClose, darkMode }) => {
               <label className="text-xs uppercase opacity-60 font-bold">Vehicle</label>
               <p>{waybill.vehicle}</p>
             </div>
+              <div className="col-span-2">
+                <label className="text-xs uppercase opacity-60 font-bold">Products Conveyed</label>
+                <p>{waybill.product_list || '-'}</p>
+              </div>
           </div>
 
           <div>
