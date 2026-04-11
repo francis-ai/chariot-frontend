@@ -266,7 +266,7 @@ export default function App() {
   return (
     <ThemeProvider>
       <SearchProvider>
-        <AuthProvider> {/* Wrap with AuthProvider */}
+        <AuthProvider> 
           <Router>
             <AppWrapper />
           </Router>
