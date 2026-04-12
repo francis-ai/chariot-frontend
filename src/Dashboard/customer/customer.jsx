@@ -1,9 +1,11 @@
 import React, { useMemo, useState, useEffect } from "react";
+import { useContext } from "react";
 import Navigation from "../../component/navigation";
 import Sidebar from "../../component/sidebar";
 import { useSearch } from "../../context/searchcontex";
 import { Eye, X, Plus, Edit, Trash2 } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
+import { AuthContext } from "../../context/authContext";
 import API from "../../utils/api";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -21,6 +23,8 @@ export default function CustomersDashboard() {
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const { user } = useContext(AuthContext);
+  const canDeleteCustomer = ["super-admin", "admin"].includes(String(user?.role || "").toLowerCase());
 
   // Fetch customers
   const fetchCustomers = async () => {
@@ -175,12 +179,14 @@ export default function CustomersDashboard() {
                           >
                             <Edit size={14} /> Edit
                           </button>
-                          <button
-                            onClick={() => setDeleteModal(c)}
-                            className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded flex items-center gap-1 text-xs"
-                          >
-                            <Trash2 size={14} /> Delete
-                          </button>
+                          {canDeleteCustomer && (
+                            <button
+                              onClick={() => setDeleteModal(c)}
+                              className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded flex items-center gap-1 text-xs"
+                            >
+                              <Trash2 size={14} /> Delete
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -227,12 +233,14 @@ export default function CustomersDashboard() {
                     >
                       <Edit size={14} /> Edit
                     </button>
-                    <button
-                      onClick={() => setDeleteModal(c)}
-                      className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded flex items-center gap-1 text-xs"
-                    >
-                      <Trash2 size={14} /> Delete
-                    </button>
+                    {canDeleteCustomer && (
+                      <button
+                        onClick={() => setDeleteModal(c)}
+                        className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded flex items-center gap-1 text-xs"
+                      >
+                        <Trash2 size={14} /> Delete
+                      </button>
+                    )}
                   </div>
                 </div>
               ))
@@ -271,6 +279,7 @@ export default function CustomersDashboard() {
               onSave={handleSaveCustomer}
               darkMode={darkMode}
               editCustomer={editCustomer}
+              canDeleteSignature={canDeleteCustomer}
             />
           )}
 
@@ -284,7 +293,7 @@ export default function CustomersDashboard() {
           )}
 
           {/* Delete Confirmation Modal */}
-          {deleteModal && (
+          {deleteModal && canDeleteCustomer && (
             <DeleteConfirmationModal
               onClose={() => setDeleteModal(null)}
               onConfirm={handleDeleteCustomer}
@@ -300,8 +309,8 @@ export default function CustomersDashboard() {
 }
 
 /* ================== ADD CUSTOMER MODAL ================== */
-const AddCustomerModal = ({ onClose, onSave, darkMode, editCustomer }) => {
-  const [form, setForm] = useState({ name: "", email: "", phone: "", company: "", status: "Active" });
+const AddCustomerModal = ({ onClose, onSave, darkMode, editCustomer, canDeleteSignature }) => {
+  const [form, setForm] = useState({ name: "", email: "", phone: "", company: "", status: "Active", signature_name: "", signature_image: "" });
   const [errors, setErrors] = useState({});
 
   React.useEffect(() => {
@@ -321,6 +330,22 @@ const AddCustomerModal = ({ onClose, onSave, darkMode, editCustomer }) => {
   const handleSave = () => {
     if (!validate()) return;
     onSave(form);
+  };
+
+  const handleSignatureUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setForm((prev) => ({
+        ...prev,
+        signature_image: String(reader.result || ""),
+        signature_name: prev.signature_name || prev.name || "",
+      }));
+    };
+    reader.readAsDataURL(file);
   };
 
   const inputBg = darkMode ? "bg-gray-800 text-gray-100 placeholder-gray-400" : "bg-white text-gray-900 placeholder-gray-500";
@@ -354,6 +379,35 @@ const AddCustomerModal = ({ onClose, onSave, darkMode, editCustomer }) => {
             <option>Inactive</option>
           </select>
 
+          <input
+            className={`px-3 py-2 rounded-lg shadow focus:outline-none focus:ring-1 focus:ring-blue-600 ${inputBg}`}
+            placeholder="Signature label (optional)"
+            value={form.signature_name || ""}
+            onChange={e => setForm({ ...form, signature_name: e.target.value })}
+          />
+
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleSignatureUpload}
+            className={`px-3 py-2 rounded-lg shadow focus:outline-none focus:ring-1 focus:ring-blue-600 ${inputBg}`}
+          />
+
+          {form.signature_image && (
+            <div className="space-y-2">
+              <img src={form.signature_image} alt="Customer signature" className="h-16 w-auto object-contain border rounded p-1" />
+              {canDeleteSignature && (
+                <button
+                  type="button"
+                  onClick={() => setForm((prev) => ({ ...prev, signature_image: "", signature_name: "" }))}
+                  className="px-3 py-1 rounded bg-red-600 text-white text-xs font-semibold hover:bg-red-700"
+                >
+                  Remove Signature
+                </button>
+              )}
+            </div>
+          )}
+
           <button 
             onClick={handleSave} 
             className="mt-2 w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-bold"
@@ -384,6 +438,13 @@ const ViewCustomerModal = ({ customer, onClose, darkMode }) => {
           <p><strong>Phone:</strong> {customer.phone || "-"}</p>
           <p><strong>Company:</strong> {customer.company || "-"}</p>
           <p><strong>Status:</strong> {customer.status || "-"}</p>
+          <p><strong>Signature Name:</strong> {customer.signature_name || "-"}</p>
+          {customer.signature_image && (
+            <div>
+              <p><strong>Signature:</strong></p>
+              <img src={customer.signature_image} alt="Customer signature" className="h-16 w-auto object-contain border rounded p-1 mt-1" />
+            </div>
+          )}
           <p><strong>Added By:</strong> {customer.created_by_name || "System"}</p>
         </div>
       </div>

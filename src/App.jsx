@@ -134,7 +134,7 @@ const AppWrapper = () => {
             </ProtectedRoute>
           }/>
           <Route path="/admin/user" element={
-            <ProtectedRoute allowedRoles={["super-admin"]} loginPath="/admin/login" fallbackPath="/staff/dashboard">
+            <ProtectedRoute allowedRoles={["super-admin", "admin"]} loginPath="/admin/login" fallbackPath="/staff/dashboard">
               <User />
             </ProtectedRoute>
           }/>
@@ -213,7 +213,7 @@ const AppWrapper = () => {
             </ProtectedRoute>
           }/>
           <Route path="/user" element={
-            <ProtectedRoute allowedRoles={["super-admin"]}>
+            <ProtectedRoute allowedRoles={["super-admin", "admin"]}>
               <User />
             </ProtectedRoute>
           }/>

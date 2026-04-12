@@ -26,12 +26,23 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
   const [loading, setLoading] = useState(false);
   const [customerSearch, setCustomerSearch] = useState("");
   const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [showItemModal, setShowItemModal] = useState(false);
   const [newCustomer, setNewCustomer] = useState({
     name: "",
     company: "",
     phone: "",
     email: "",
     status: "Active",
+    signature_name: "",
+    signature_image: "",
+  });
+  const [newItem, setNewItem] = useState({
+    product_name: "",
+    category: "General",
+    current_stock: 0,
+    min_stock: 0,
+    purchase_price: 0,
+    selling_price: 0,
   });
 
   const handleChange = (e) => {
@@ -144,12 +155,57 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
         }));
       }
 
-      setNewCustomer({ name: "", company: "", phone: "", email: "", status: "Active" });
+      setNewCustomer({ name: "", company: "", phone: "", email: "", status: "Active", signature_name: "", signature_image: "" });
       setShowCustomerModal(false);
       toast.success("Customer added successfully");
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to add customer");
     }
+  };
+
+  const handleCreateItem = async () => {
+    if (!newItem.product_name?.trim()) {
+      toast.error("Item name is required");
+      return;
+    }
+
+    try {
+      await API.post("/inventory", {
+        ...newItem,
+        sku: `SKU-${Date.now()}`,
+      });
+      toast.success("Item added successfully");
+      setShowItemModal(false);
+      setNewItem({
+        product_name: "",
+        category: "General",
+        current_stock: 0,
+        min_stock: 0,
+        purchase_price: 0,
+        selling_price: 0,
+      });
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to add item");
+    }
+  };
+
+  const handleNewCustomerSignatureUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload a valid signature image");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setNewCustomer((prev) => ({
+        ...prev,
+        signature_image: String(reader.result || ""),
+        signature_name: prev.signature_name || prev.name || "",
+      }));
+    };
+    reader.readAsDataURL(file);
   };
 
   const subtotal = formData.items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.price) || 0), 0);
@@ -338,14 +394,24 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
         <div className="md:col-span-2 space-y-4">
           <div className="flex items-center justify-between gap-4">
             <h3 className={`text-sm font-semibold ${darkMode ? "text-gray-200" : "text-gray-700"}`}>Quotation Items</h3>
-            <button
-              type="button"
-              onClick={addItem}
-              disabled={loading}
-              className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
-            >
-              Add Item
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowItemModal(true)}
+                disabled={loading}
+                className="px-3 py-2 rounded-lg bg-slate-700 text-white text-sm font-medium hover:bg-slate-800"
+              >
+                Create Item
+              </button>
+              <button
+                type="button"
+                onClick={addItem}
+                disabled={loading}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
+              >
+                Add Item
+              </button>
+            </div>
           </div>
 
           <div className="space-y-4">
@@ -523,6 +589,22 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
                 onChange={(e) => setNewCustomer((prev) => ({ ...prev, email: e.target.value }))}
                 className={inputClass}
               />
+              <input
+                type="text"
+                placeholder="Signature label"
+                value={newCustomer.signature_name || ""}
+                onChange={(e) => setNewCustomer((prev) => ({ ...prev, signature_name: e.target.value }))}
+                className={inputClass}
+              />
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleNewCustomerSignatureUpload}
+                className={inputClass}
+              />
+              {newCustomer.signature_image ? (
+                <img src={newCustomer.signature_image} alt="Signature preview" className="h-14 w-auto rounded border border-gray-400 p-1" />
+              ) : null}
             </div>
 
             <div className="flex justify-end gap-3 mt-5">
@@ -540,6 +622,33 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
               >
                 Create
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showItemModal && (
+        <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4">
+          <div className={`w-full max-w-xl rounded-xl p-6 shadow-xl ${darkMode ? "bg-gray-800 text-gray-200" : "bg-white text-gray-800"}`}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Create Item</h3>
+              <button type="button" onClick={() => setShowItemModal(false)} className="p-2 rounded hover:bg-gray-200/30">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <input className={inputClass} placeholder="Item name *" value={newItem.product_name} onChange={(e) => setNewItem((prev) => ({ ...prev, product_name: e.target.value }))} />
+              <input className={inputClass} placeholder="Category" value={newItem.category} onChange={(e) => setNewItem((prev) => ({ ...prev, category: e.target.value }))} />
+              <input className={inputClass} type="number" placeholder="Opening stock" value={newItem.current_stock} onChange={(e) => setNewItem((prev) => ({ ...prev, current_stock: Number(e.target.value || 0) }))} />
+              <input className={inputClass} type="number" placeholder="Min stock" value={newItem.min_stock} onChange={(e) => setNewItem((prev) => ({ ...prev, min_stock: Number(e.target.value || 0) }))} />
+              <input className={inputClass} type="number" placeholder="Purchase price" value={newItem.purchase_price} onChange={(e) => setNewItem((prev) => ({ ...prev, purchase_price: Number(e.target.value || 0) }))} />
+              <input className={inputClass} type="number" placeholder="Selling price" value={newItem.selling_price} onChange={(e) => setNewItem((prev) => ({ ...prev, selling_price: Number(e.target.value || 0) }))} />
+            </div>
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" onClick={() => setShowItemModal(false)} className={`px-4 py-2 rounded ${darkMode ? "bg-gray-600" : "bg-gray-200"}`}>Cancel</button>
+              <button type="button" onClick={handleCreateItem} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">Save Item</button>
             </div>
           </div>
         </div>

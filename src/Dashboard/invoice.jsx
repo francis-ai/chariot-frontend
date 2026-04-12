@@ -29,12 +29,23 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [customerSearch, setCustomerSearch] = useState("");
   const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [showItemModal, setShowItemModal] = useState(false);
   const [newCustomer, setNewCustomer] = useState({
     name: "",
     company: "",
     phone: "",
     email: "",
     status: "Active",
+    signature_name: "",
+    signature_image: "",
+  });
+  const [newItem, setNewItem] = useState({
+    product_name: "",
+    category: "General",
+    current_stock: 0,
+    min_stock: 0,
+    purchase_price: 0,
+    selling_price: 0,
   });
 
   // Load invoice data if editing
@@ -235,12 +246,74 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
         }));
       }
 
-      setNewCustomer({ name: "", company: "", phone: "", email: "", status: "Active" });
+      setNewCustomer({ name: "", company: "", phone: "", email: "", status: "Active", signature_name: "", signature_image: "" });
       setShowCustomerModal(false);
       toast.success("Customer added successfully");
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to add customer");
     }
+  };
+
+  const handleCreateItem = async () => {
+    if (!newItem.product_name?.trim()) {
+      toast.error("Item name is required");
+      return;
+    }
+
+    try {
+      const payload = {
+        ...newItem,
+        sku: `SKU-${Date.now()}`,
+      };
+
+      await API.post("/inventory", payload);
+      const res = await API.get("/inventory/catalog");
+      const updatedItems = res.data || [];
+      setItems(updatedItems);
+
+      const created = updatedItems.find((item) => (item.product_name || item.name) === payload.product_name);
+      if (created) {
+        setSelectedItemId(String(created.id || created._id));
+        setForm((prev) => ({
+          ...prev,
+          item: created.product_name || created.name || "",
+          price: Number(created.selling_price || created.price || 0),
+          description: prev.description || created.description || "",
+        }));
+      }
+
+      setShowItemModal(false);
+      setNewItem({
+        product_name: "",
+        category: "General",
+        current_stock: 0,
+        min_stock: 0,
+        purchase_price: 0,
+        selling_price: 0,
+      });
+      toast.success("Item added successfully");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to add item");
+    }
+  };
+
+  const handleNewCustomerSignatureUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload a valid signature image");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setNewCustomer((prev) => ({
+        ...prev,
+        signature_image: String(reader.result || ""),
+        signature_name: prev.signature_name || prev.name || "",
+      }));
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSubmit = async (e, print = false) => {
@@ -396,7 +469,16 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
               <h3 className={`text-md font-medium mb-4 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Items</h3>
               <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <div>
-                  <label className={`text-sm mb-1 block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Item *</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className={`text-sm block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Item *</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowItemModal(true)}
+                      className="text-xs inline-flex items-center gap-1 px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
+                    >
+                      <Plus size={12} /> Create item
+                    </button>
+                  </div>
                   <select
                     value={selectedItemId}
                     onChange={handleItemChange}
@@ -678,11 +760,43 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
               <input className={inputClass} placeholder="Company *" value={newCustomer.company} onChange={(e) => setNewCustomer((prev) => ({ ...prev, company: e.target.value }))} />
               <input className={inputClass} placeholder="Phone" value={newCustomer.phone} onChange={(e) => setNewCustomer((prev) => ({ ...prev, phone: e.target.value }))} />
               <input className={inputClass} placeholder="Email" value={newCustomer.email} onChange={(e) => setNewCustomer((prev) => ({ ...prev, email: e.target.value }))} />
+              <input className={inputClass} placeholder="Signature Label" value={newCustomer.signature_name || ""} onChange={(e) => setNewCustomer((prev) => ({ ...prev, signature_name: e.target.value }))} />
+              <input type="file" accept="image/*" onChange={handleNewCustomerSignatureUpload} className={inputClass} />
+              {newCustomer.signature_image ? (
+                <img src={newCustomer.signature_image} alt="Customer signature preview" className="md:col-span-2 h-14 w-auto rounded border border-gray-400 p-1" />
+              ) : null}
             </div>
 
             <div className="mt-4 flex justify-end gap-2">
               <button type="button" onClick={() => setShowCustomerModal(false)} className={`px-4 py-2 rounded ${darkMode ? "bg-gray-600" : "bg-gray-200"}`}>Cancel</button>
               <button type="button" onClick={handleCreateCustomer} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">Save Customer</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showItemModal ? (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className={`w-full max-w-xl rounded-xl p-6 ${darkMode ? "bg-gray-800 text-gray-200" : "bg-white text-gray-800"}`}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Create Item</h3>
+              <button type="button" onClick={() => setShowItemModal(false)} className="p-2 rounded hover:bg-gray-200/30">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <input className={inputClass} placeholder="Item name *" value={newItem.product_name} onChange={(e) => setNewItem((prev) => ({ ...prev, product_name: e.target.value }))} />
+              <input className={inputClass} placeholder="Category" value={newItem.category} onChange={(e) => setNewItem((prev) => ({ ...prev, category: e.target.value }))} />
+              <input className={inputClass} type="number" placeholder="Opening stock" value={newItem.current_stock} onChange={(e) => setNewItem((prev) => ({ ...prev, current_stock: Number(e.target.value || 0) }))} />
+              <input className={inputClass} type="number" placeholder="Min stock" value={newItem.min_stock} onChange={(e) => setNewItem((prev) => ({ ...prev, min_stock: Number(e.target.value || 0) }))} />
+              <input className={inputClass} type="number" placeholder="Purchase price" value={newItem.purchase_price} onChange={(e) => setNewItem((prev) => ({ ...prev, purchase_price: Number(e.target.value || 0) }))} />
+              <input className={inputClass} type="number" placeholder="Selling price" value={newItem.selling_price} onChange={(e) => setNewItem((prev) => ({ ...prev, selling_price: Number(e.target.value || 0) }))} />
+            </div>
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" onClick={() => setShowItemModal(false)} className={`px-4 py-2 rounded ${darkMode ? "bg-gray-600" : "bg-gray-200"}`}>Cancel</button>
+              <button type="button" onClick={handleCreateItem} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">Save Item</button>
             </div>
           </div>
         </div>

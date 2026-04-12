@@ -2,13 +2,22 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 const COMPANY_NAME = "CHARIOT LINK TECH. & IND. PRODUCTS LTD.";
-const COMPANY_LINES = [
-  "Head Office: 30, Osolo Way Opp. Wakanow, Off",
+const HEAD_OFFICE_LINES = [
+  "30, Osolo Way Opp. Wakanow, Off",
   "Airport Road by 7/8 bus stop, Ajao Estate, Lagos, Nigeria.",
-  "Branch Office: 14, Sofuye Street, Opposite Shark Filling Station, Ilasmaja, Lagos, Nigeria",
-  "Phone: +234803399228, +2348184415556",
-  "E-mail: info@chariotlink.com.ng, chariot_tech@yahoo.com",
 ];
+const BRANCH_OFFICE_LINES = [
+  "14, Sofuye Street, Opposite Shark Filling",
+  "Station, Ilasmaja, Lagos, Nigeria",
+];
+const CONTACT_LINES = [
+  "Phone: +2348033039229, +2348184415556",
+  "E-mail: info@chariotlink.com.ng,",
+  "chariot_tech@yahoo.com",
+];
+
+const MANAGER_NAME = "CHINEDU O. ORJI";
+const MANAGER_TITLE = "SALES DIRECTOR";
 
 const NAIRA = "NGN";
 
@@ -63,6 +72,60 @@ const parseAmountText = (value) => {
   return getNumeric(normalized);
 };
 
+const NUMBER_WORDS = {
+  ones: ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"],
+  teens: ["Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"],
+  tens: ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"],
+};
+
+const toWordsBelowThousand = (value) => {
+  const amount = Math.floor(Number(value || 0));
+  if (!amount) return "";
+
+  const hundred = Math.floor(amount / 100);
+  const rest = amount % 100;
+
+  const hundredPart = hundred ? `${NUMBER_WORDS.ones[hundred]} Hundred` : "";
+
+  let restPart = "";
+  if (rest >= 10 && rest <= 19) {
+    restPart = NUMBER_WORDS.teens[rest - 10];
+  } else {
+    const ten = Math.floor(rest / 10);
+    const one = rest % 10;
+    restPart = [NUMBER_WORDS.tens[ten], NUMBER_WORDS.ones[one]].filter(Boolean).join(" ");
+  }
+
+  return [hundredPart, restPart].filter(Boolean).join(" ").trim();
+};
+
+const amountToWords = (value) => {
+  let amount = Math.floor(getNumeric(value));
+  if (amount <= 0) return "Zero";
+
+  const scales = [
+    { name: "Billion", value: 1000000000 },
+    { name: "Million", value: 1000000 },
+    { name: "Thousand", value: 1000 },
+    { name: "", value: 1 },
+  ];
+
+  const parts = [];
+
+  scales.forEach((scale) => {
+    if (amount >= scale.value) {
+      const chunk = Math.floor(amount / scale.value);
+      amount %= scale.value;
+      const chunkText = toWordsBelowThousand(chunk);
+      if (chunkText) {
+        parts.push([chunkText, scale.name].filter(Boolean).join(" "));
+      }
+    }
+  });
+
+  return parts.join(" ").trim();
+};
+
 const loadImage = (src) =>
   new Promise((resolve, reject) => {
     const image = new Image();
@@ -71,6 +134,46 @@ const loadImage = (src) =>
     image.onerror = reject;
     image.src = src;
   });
+
+const drawSummaryOnRight = ({ doc, finalY, lines }) => {
+  let y = finalY + 10;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+
+  lines.forEach((line) => {
+    doc.text(`${line.label}: ${line.value}`, 194, y, { align: "right" });
+    y += 6;
+  });
+
+  doc.setFont("helvetica", "normal");
+  return y;
+};
+
+const drawManagerBlock = async ({ doc, startY, signatureImage }) => {
+  let cursorY = startY;
+
+  const sources = [signatureImage, "/signature.jpg"].filter(Boolean);
+
+  for (const src of sources) {
+    try {
+      const image = await loadImage(src);
+      const format = src.toLowerCase().includes("png") ? "PNG" : "JPEG";
+      doc.addImage(image, format, 14, cursorY, 40, 16);
+      cursorY += 18;
+      break;
+    } catch (error) {
+      // Continue to fallback image source.
+    }
+  }
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.text(MANAGER_NAME, 14, cursorY + 4);
+  doc.text(MANAGER_TITLE, 14, cursorY + 10);
+  doc.setFont("helvetica", "normal");
+
+  return cursorY + 14;
+};
 
 const addCompanyHeader = async (doc, title, numberLabel, numberValue, metaLines = []) => {
   try {
@@ -87,26 +190,48 @@ const addCompanyHeader = async (doc, title, numberLabel, numberValue, metaLines 
   doc.setFontSize(8);
 
   let cursorY = 24;
-  COMPANY_LINES.forEach((line) => {
+  doc.setFont("helvetica", "bold");
+  doc.text("HEAD OFFICE:", 14, cursorY);
+  cursorY += 4;
+  doc.setFont("helvetica", "normal");
+  HEAD_OFFICE_LINES.forEach((line) => {
+    doc.text(line, 14, cursorY);
+    cursorY += 4;
+  });
+
+  cursorY += 2;
+
+  doc.setFont("helvetica", "bold");
+  doc.text("BRANCH OFFICE:", 14, cursorY);
+  cursorY += 4;
+  doc.setFont("helvetica", "normal");
+  BRANCH_OFFICE_LINES.forEach((line) => {
+    doc.text(line, 14, cursorY);
+    cursorY += 4;
+  });
+
+  CONTACT_LINES.forEach((line) => {
     doc.text(line, 14, cursorY);
     cursorY += 4;
   });
 
   doc.setDrawColor(30);
-  doc.line(14, 47, 196, 47);
+  doc.line(14, cursorY + 1, 196, cursorY + 1);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
-  doc.text(title, 14, 56);
+  doc.text(title, 14, cursorY + 10);
   doc.setFontSize(10);
-  doc.text(`${numberLabel}: ${numberValue}`, 14, 63);
+  doc.text(`${numberLabel}: ${numberValue}`, 14, cursorY + 17);
 
-  let metaY = 56;
+  let metaY = cursorY + 10;
   metaLines.forEach((line) => {
     doc.setFont("helvetica", "normal");
     doc.text(line, 126, metaY);
     metaY += 5;
   });
+
+  return cursorY + 22;
 };
 
 export const downloadInvoicePdf = async (invoice) => {
@@ -129,14 +254,14 @@ export const downloadInvoicePdf = async (invoice) => {
     },
   ];
 
-  await addCompanyHeader(doc, "INVOICE", "Invoice No", invoice.invoice_number || invoice.id, [
+  const headerEndY = await addCompanyHeader(doc, "INVOICE", "Invoice No", invoice.invoice_number || invoice.id, [
     `Customer: ${invoice.customer || ""}`,
     `Invoice Date: ${invoice.invoice_date || ""}`,
     `Due Date: ${invoice.due_date || ""}`,
   ]);
 
   autoTable(doc, {
-    startY: 72,
+    startY: headerEndY,
     head: [["Item", "Description", "Qty", "Unit Price", "Total"]],
     body: items.map((row) => [row.item, row.description, row.quantity, money(row.price), money(row.total)]),
     styles: { fontSize: 9 },
@@ -144,26 +269,28 @@ export const downloadInvoicePdf = async (invoice) => {
   });
 
   const finalY = doc.lastAutoTable?.finalY || 90;
+  const summaryEndY = drawSummaryOnRight({
+    doc,
+    finalY,
+    lines: [
+      { label: "Subtotal", value: money(tax.subtotal) },
+      { label: "Discount", value: money(discount) },
+      { label: `Tax (${tax.taxRate.toFixed(2)}%)`, value: money(tax.taxAmount) },
+      { label: `VAT (${tax.vatRate.toFixed(2)}%)`, value: money(tax.vatAmount) },
+      { label: "Total", value: money(grandTotal) },
+      { label: "Status", value: invoice.status || "Unpaid" },
+    ],
+  });
+
   doc.setFont("helvetica", "bold");
-  doc.text(`Subtotal: ${money(tax.subtotal)}`, 14, finalY + 12);
-  doc.text(`Discount: ${money(discount)}`, 14, finalY + 18);
-  doc.text(`Tax (${tax.taxRate.toFixed(2)}%): ${money(tax.taxAmount)}`, 14, finalY + 24);
-  doc.text(`VAT (${tax.vatRate.toFixed(2)}%): ${money(tax.vatAmount)}`, 14, finalY + 30);
-  doc.text(`Total: ${money(grandTotal)}`, 14, finalY + 36);
-  doc.text(`Status: ${invoice.status || "Unpaid"}`, 14, finalY + 42);
+  doc.text(`NGN ${amountToWords(grandTotal)} Only`, 14, summaryEndY + 8);
   doc.setFont("helvetica", "normal");
 
-  let signatureY = finalY + 52;
-  if (invoice.signature_image) {
-    try {
-      doc.addImage(invoice.signature_image, "PNG", 14, signatureY - 10, 40, 16);
-      signatureY += 12;
-    } catch (error) {
-      // Keep PDF generation resilient if image format cannot be parsed.
-    }
-  }
-
-  doc.text(`Signature: ${invoice.signature_name || "________________"}`, 14, signatureY);
+  await drawManagerBlock({
+    doc,
+    startY: summaryEndY + 16,
+    signatureImage: invoice.signature_image,
+  });
 
   doc.save(`invoice-${invoice.invoice_number || invoice.id}.pdf`);
 };
@@ -188,36 +315,58 @@ export const downloadQuotationPdf = async (quotation) => {
   const tax = resolveTaxVat(quotation, fallbackSubtotal);
   const total = getNumeric(quotation.amount || tax.subtotal + tax.taxAmount + tax.vatAmount);
 
-  await addCompanyHeader(doc, "QUOTATION", "Quotation No", quotation.quotation_number || quotation.id, [
+  const headerEndY = await addCompanyHeader(doc, "QUOTATION", "Quote Ref. No", quotation.quotation_number || quotation.id, [
     `Customer: ${quotation.customer || ""}`,
-    `Quotation Date: ${quotation.quotation_date || ""}`,
+    `Date: ${quotation.quotation_date || ""}`,
     `Valid Until: ${quotation.valid_until || ""}`,
   ]);
 
   autoTable(doc, {
-    startY: 72,
-    head: [["Item", "Description", "Qty", "Unit Price", "Total"]],
+    startY: headerEndY,
+    head: [["No.", "Item Code", "Description", "Qty", "Unit Price(NGN)", "Total(NGN)"]],
     body: items.length
-      ? items.map((row) => [row.name || row.item || "", row.description || "", row.quantity || row.qty || 0, money(row.price), money((row.quantity || row.qty || 0) * (row.price || 0))])
-      : [[quotation.customer || "", quotation.notes || "Quotation summary", 1, money(quotation.subtotal || quotation.amount || 0), money(quotation.amount || 0)]],
+      ? items.map((row, index) => {
+          const qty = Number(row.quantity || row.qty || 0);
+          const price = Number(row.price || 0);
+          return [
+            index + 1,
+            row.item_code || row.code || "",
+            row.description || row.name || row.item || "",
+            qty,
+            formatNumber(price),
+            formatNumber(qty * price),
+          ];
+        })
+      : [[1, "", quotation.notes || "Quotation summary", 1, formatNumber(quotation.subtotal || quotation.amount || 0), formatNumber(quotation.amount || 0)]],
     styles: { fontSize: 9 },
-    headStyles: { fillColor: [37, 99, 235] },
+    headStyles: { fillColor: [225, 225, 225], textColor: 30 },
   });
 
   const finalY = doc.lastAutoTable?.finalY || 90;
+  const summaryEndY = drawSummaryOnRight({
+    doc,
+    finalY,
+    lines: [
+      { label: "Grand Total", value: `${formatNumber(tax.subtotal)} ${NAIRA}` },
+      { label: `VAT(${tax.vatRate.toFixed(1)}%)`, value: `${formatNumber(tax.vatAmount)} ${NAIRA}` },
+      { label: "Net Total", value: `${formatNumber(total)} ${NAIRA}` },
+    ],
+  });
+
   doc.setFont("helvetica", "bold");
-  doc.text(`Subtotal: ${money(tax.subtotal)}`, 14, finalY + 12);
-  doc.text(`Tax (${tax.taxRate.toFixed(2)}%): ${money(tax.taxAmount)}`, 14, finalY + 18);
-  doc.text(`VAT (${tax.vatRate.toFixed(2)}%): ${money(tax.vatAmount)}`, 14, finalY + 24);
-  doc.text(`Total: ${money(total)}`, 14, finalY + 30);
+  doc.text(`NGN ${amountToWords(total)} Only`, 14, summaryEndY + 8);
   doc.setFont("helvetica", "normal");
 
   if (quotation.terms) {
     const wrapped = doc.splitTextToSize(`Terms & Conditions: ${quotation.terms}`, 180);
-    doc.text(wrapped, 14, finalY + 44);
+    doc.text(wrapped, 14, summaryEndY + 20);
   }
 
-  doc.text(`Signature: ${quotation.signature_name || "________________"}`, 14, finalY + 64);
+  await drawManagerBlock({
+    doc,
+    startY: summaryEndY + 40,
+    signatureImage: quotation.signature_image,
+  });
 
   doc.save(`quotation-${quotation.quotation_number || quotation.id}.pdf`);
 };
@@ -228,7 +377,7 @@ export const downloadWaybillPdf = async (waybill) => {
   const tax = resolveTaxVat(waybill, subtotal);
   const total = getNumeric(waybill.total_amount || waybill.amount || subtotal + tax.taxAmount + tax.vatAmount);
 
-  await addCompanyHeader(doc, "WAYBILL", "Waybill No", waybill.waybill_number || waybill.id, [
+  const headerEndY = await addCompanyHeader(doc, "WAYBILL", "Waybill No", waybill.waybill_number || waybill.id, [
     `Customer: ${waybill.customer || ""}`,
     `Date: ${waybill.waybill_date || ""}`,
     `Status: ${waybill.status || "Pending"}`,
@@ -237,7 +386,7 @@ export const downloadWaybillPdf = async (waybill) => {
   const products = String(waybill.product_list || "").trim();
 
   autoTable(doc, {
-    startY: 72,
+    startY: headerEndY,
     head: [["Pickup", "Delivery", "Driver", "Vehicle", "Products Conveyed"]],
     body: [[
       waybill.pickup_location || "",
@@ -257,18 +406,18 @@ export const downloadWaybillPdf = async (waybill) => {
     },
   });
 
-  // const finalY = doc.lastAutoTable?.finalY || 100;
-  // doc.setFont("helvetica", "bold");
-  // doc.text(`Subtotal: ${money(tax.subtotal)}`, 14, finalY + 12);
-  // doc.text(`Tax (${tax.taxRate.toFixed(2)}%): ${money(tax.taxAmount)}`, 14, finalY + 18);
-  // doc.text(`VAT (${tax.vatRate.toFixed(2)}%): ${money(tax.vatAmount)}`, 14, finalY + 24);
-  // doc.text(`Total: ${money(total)}`, 14, finalY + 30);
-  // doc.setFont("helvetica", "normal");
+  const finalY = doc.lastAutoTable?.finalY || 100;
 
   if (waybill.notes) {
     const wrapped = doc.splitTextToSize(`Notes: ${waybill.notes}`, 180);
     doc.text(wrapped, 14, finalY + 42);
   }
+
+  await drawManagerBlock({
+    doc,
+    startY: finalY + 56,
+    signatureImage: waybill.signature_image,
+  });
 
   doc.save(`waybill-${waybill.waybill_number || waybill.id}.pdf`);
 };
@@ -279,17 +428,19 @@ export const downloadPurchaseOrderPdf = async (purchaseOrder) => {
   const tax = resolveTaxVat(purchaseOrder, subtotal);
   const total = getNumeric(purchaseOrder.total_amount || purchaseOrder.amount || subtotal + tax.taxAmount + tax.vatAmount);
 
-  await addCompanyHeader(doc, "PURCHASE ORDER", "PO No", purchaseOrder.po_number || purchaseOrder.id, [
+  const headerEndY = await addCompanyHeader(doc, "PURCHASE ORDER", "PO No", purchaseOrder.po_number || purchaseOrder.id, [
     `Supplier: ${purchaseOrder.supplier_name || purchaseOrder.entity || ""}`,
     `Order Date: ${purchaseOrder.order_date || purchaseOrder.date || ""}`,
     `Delivery Date: ${purchaseOrder.delivery_date || purchaseOrder.secondaryDate || ""}`,
   ]);
 
   autoTable(doc, {
-    startY: 72,
-    head: [["Supplier", "Order Date", "Delivery Date", "Status", "Amount"]],
+    startY: headerEndY,
+    head: [["Supplier", "Item", "Address", "Order Date", "Delivery Date", "Status", "Amount"]],
     body: [[
       purchaseOrder.supplier_name || purchaseOrder.entity || "",
+      purchaseOrder.item || "",
+      purchaseOrder.address || "",
       purchaseOrder.order_date || purchaseOrder.date || "",
       purchaseOrder.delivery_date || purchaseOrder.secondaryDate || "",
       purchaseOrder.status || "Pending",
@@ -300,17 +451,31 @@ export const downloadPurchaseOrderPdf = async (purchaseOrder) => {
   });
 
   const finalY = doc.lastAutoTable?.finalY || 95;
+  const summaryEndY = drawSummaryOnRight({
+    doc,
+    finalY,
+    lines: [
+      { label: "Subtotal", value: money(tax.subtotal) },
+      { label: `Tax (${tax.taxRate.toFixed(2)}%)`, value: money(tax.taxAmount) },
+      { label: `VAT (${tax.vatRate.toFixed(2)}%)`, value: money(tax.vatAmount) },
+      { label: "Total", value: money(total) },
+    ],
+  });
+
   doc.setFont("helvetica", "bold");
-  doc.text(`Subtotal: ${money(tax.subtotal)}`, 14, finalY + 12);
-  doc.text(`Tax (${tax.taxRate.toFixed(2)}%): ${money(tax.taxAmount)}`, 14, finalY + 18);
-  doc.text(`VAT (${tax.vatRate.toFixed(2)}%): ${money(tax.vatAmount)}`, 14, finalY + 24);
-  doc.text(`Total: ${money(total)}`, 14, finalY + 30);
+  doc.text(`NGN ${amountToWords(total)} Only`, 14, summaryEndY + 8);
   doc.setFont("helvetica", "normal");
 
   if (purchaseOrder.notes) {
     const wrapped = doc.splitTextToSize(`Notes: ${purchaseOrder.notes}`, 180);
-    doc.text(wrapped, 14, finalY + 42);
+    doc.text(wrapped, 14, summaryEndY + 20);
   }
+
+  await drawManagerBlock({
+    doc,
+    startY: summaryEndY + 40,
+    signatureImage: purchaseOrder.signature_image,
+  });
 
   doc.save(`purchase-order-${purchaseOrder.po_number || purchaseOrder.id}.pdf`);
 };

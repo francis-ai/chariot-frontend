@@ -241,7 +241,7 @@ export default function NavBar() {
           <span className="hidden md:block text-gray-700 dark:text-gray-200 font-medium">
             {user?.username || user?.name || 'User'}
           </span>
-          <FaUserCircle className="text-3xl text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition" />
+          <FaUserCircle className="text-3xl text-green-700 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 transition" />
         </button>
 
         {open && (
@@ -253,7 +253,7 @@ export default function NavBar() {
               <p className="text-gray-500 dark:text-gray-300 truncate">
                 {user?.email || 'admin@company.com'}
               </p>
-              <p className="mt-1 text-xs inline-block bg-red-100 dark:bg-red-600 text-red-600 dark:text-red-100 px-2 py-1 rounded-full">
+              <p className="mt-1 text-xs inline-block bg-green-100 dark:bg-green-700 text-green-700 dark:text-green-100 px-2 py-1 rounded-full">
                 {formatRoleLabel(user?.role)}
               </p>
             </div>
@@ -264,7 +264,7 @@ export default function NavBar() {
                   setOpen(false);
                   navigate('/profile');
                 }}
-                className="w-full text-left text-sm text-gray-600 dark:text-gray-200 hover:text-red-600 dark:hover:text-red-400 transition"
+                className="w-full text-left text-sm text-gray-600 dark:text-gray-200 hover:text-green-700 dark:hover:text-green-400 transition"
               >
                 View Profile
               </button>
@@ -275,7 +275,7 @@ export default function NavBar() {
                   localStorage.removeItem('user');
                   window.location.href = user?.role === "super-admin" ? '/admin/login' : '/login';
                 }}
-                className="w-full bg-red-600 text-white rounded-lg py-2 text-sm hover:bg-red-700 transition"
+                className="w-full bg-green-700 text-white rounded-lg py-2 text-sm hover:bg-green-800 transition"
               >
                 Logout
               </button>

@@ -48,6 +48,9 @@ const UserManagement = () => {
   const [editingUser, setEditingUser] = useState(null);
   const [viewModal, setViewModal] = useState(null);
   const [deleteModal, setDeleteModal] = useState(null);
+  const [passwordModal, setPasswordModal] = useState(null);
+  const [passwordForm, setPasswordForm] = useState({ newPassword: "", confirmPassword: "" });
+  const [passwordUpdating, setPasswordUpdating] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [formData, setFormData] = useState({
@@ -205,6 +208,36 @@ const UserManagement = () => {
   };
 
   const isSuperAdmin = user?.role === 'super-admin';
+  const canManageUsers = user?.role === 'super-admin' || user?.role === 'admin';
+
+  const openPasswordModal = (targetUser) => {
+    setPasswordModal(targetUser);
+    setPasswordForm({ newPassword: "", confirmPassword: "" });
+  };
+
+  const handleResetPassword = async () => {
+    if (!passwordModal) return;
+    if (!passwordForm.newPassword || passwordForm.newPassword.length < 6) {
+      toast.error("New password must be at least 6 characters");
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast.error("Password confirmation does not match");
+      return;
+    }
+
+    setPasswordUpdating(true);
+    try {
+      await API.put(`/users/${passwordModal.id}/password`, { newPassword: passwordForm.newPassword });
+      toast.success("Password updated successfully");
+      setPasswordModal(null);
+      setPasswordForm({ newPassword: "", confirmPassword: "" });
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to update password");
+    } finally {
+      setPasswordUpdating(false);
+    }
+  };
 
   return (
     <div className={`min-h-screen block lg:flex transition-colors ${darkMode ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"}`}>
@@ -223,7 +256,7 @@ const UserManagement = () => {
                 Manage system users and their roles
               </p>
             </div>
-            {isSuperAdmin && (
+            {canManageUsers && (
               <button
                 onClick={openAddModal}
                 className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg transition"
@@ -244,7 +277,7 @@ const UserManagement = () => {
             <div className={`text-center py-12 rounded-2xl ${darkMode ? "bg-gray-800" : "bg-white"}`}>
               <UserCog size={48} className="mx-auto mb-4 text-gray-400" />
               <p className="text-gray-400 mb-4">No users found</p>
-              {isSuperAdmin && (
+              {canManageUsers && (
                 <button
                   onClick={openAddModal}
                   className="text-blue-600 hover:text-blue-700 font-medium"
@@ -291,8 +324,17 @@ const UserManagement = () => {
                             >
                               <Eye size={18} />
                             </button>
-                            {isSuperAdmin && (
+                            {canManageUsers && (
                               <>
+                                <button
+                                  onClick={() => openPasswordModal(user)}
+                                  className={`p-2 rounded-lg transition ${
+                                    darkMode ? "hover:bg-gray-600 text-cyan-300" : "hover:bg-gray-200 text-cyan-600"
+                                  }`}
+                                  title="Change Password"
+                                >
+                                  <Lock size={18} />
+                                </button>
                                 <button
                                   onClick={() => openEditModal(user)}
                                   className={`p-2 rounded-lg transition ${
@@ -302,16 +344,18 @@ const UserManagement = () => {
                                 >
                                   <Edit3 size={18} />
                                 </button>
-                                <button
-                                  onClick={() => setDeleteModal(user)}
-                                  className={`p-2 rounded-lg transition ${
-                                    darkMode ? "hover:bg-gray-600 text-red-400" : "hover:bg-gray-200 text-red-600"
-                                  }`}
-                                  title="Delete"
-                                  disabled={user.role === 'super-admin'} // Prevent deleting super-admin
-                                >
-                                  <Trash2 size={18} />
-                                </button>
+                                {isSuperAdmin && (
+                                  <button
+                                    onClick={() => setDeleteModal(user)}
+                                    className={`p-2 rounded-lg transition ${
+                                      darkMode ? "hover:bg-gray-600 text-red-400" : "hover:bg-gray-200 text-red-600"
+                                    }`}
+                                    title="Delete"
+                                    disabled={user.role === 'super-admin'}
+                                  >
+                                    <Trash2 size={18} />
+                                  </button>
+                                )}
                               </>
                             )}
                           </div>
@@ -347,7 +391,7 @@ const UserManagement = () => {
           )}
 
           {/* Add/Edit User Modal */}
-          {showModal && isSuperAdmin && (
+          {showModal && canManageUsers && (
             <UserModal
               onClose={() => { setShowModal(false); setEditingUser(null); }}
               onSave={handleSaveUser}
@@ -375,6 +419,18 @@ const UserManagement = () => {
               user={deleteModal}
               darkMode={darkMode}
               deleting={deleting}
+            />
+          )}
+
+          {passwordModal && canManageUsers && (
+            <PasswordModal
+              user={passwordModal}
+              onClose={() => setPasswordModal(null)}
+              onSave={handleResetPassword}
+              passwordForm={passwordForm}
+              setPasswordForm={setPasswordForm}
+              darkMode={darkMode}
+              loading={passwordUpdating}
             />
           )}
         </main>
@@ -655,6 +711,56 @@ const DeleteConfirmationModal = ({ onClose, onConfirm, user, darkMode, deleting 
             ) : (
               'Delete'
             )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const PasswordModal = ({ user, onClose, onSave, passwordForm, setPasswordForm, darkMode, loading }) => {
+  const inputClass = `w-full px-4 py-2.5 rounded-lg outline-none transition-colors focus:ring-2 focus:ring-blue-500 ${
+    darkMode
+      ? "bg-gray-700 text-gray-200 border border-gray-600"
+      : "bg-white text-gray-900 border border-gray-300"
+  }`;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className={`w-full max-w-md rounded-2xl p-6 relative ${darkMode ? "bg-gray-800 text-white" : "bg-white text-gray-900"}`}>
+        <button onClick={onClose} className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition" disabled={loading}>
+          <X size={20} />
+        </button>
+
+        <h2 className="text-xl font-bold mb-2">Change User Password</h2>
+        <p className={`text-sm mb-5 ${darkMode ? "text-gray-400" : "text-gray-500"}`}>{user.username} ({user.email})</p>
+
+        <div className="space-y-3">
+          <input
+            type="password"
+            placeholder="New password"
+            value={passwordForm.newPassword}
+            onChange={(e) => setPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))}
+            className={inputClass}
+            disabled={loading}
+          />
+          <input
+            type="password"
+            placeholder="Confirm new password"
+            value={passwordForm.confirmPassword}
+            onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+            className={inputClass}
+            disabled={loading}
+          />
+        </div>
+
+        <div className="flex justify-end gap-3 mt-6">
+          <button onClick={onClose} disabled={loading} className={`px-4 py-2 rounded-lg font-medium transition ${darkMode ? "bg-gray-700 hover:bg-gray-600" : "bg-gray-200 hover:bg-gray-300"}`}>
+            Cancel
+          </button>
+          <button onClick={onSave} disabled={loading} className="px-4 py-2 rounded-lg font-medium bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 disabled:opacity-60">
+            <Save size={16} />
+            {loading ? "Updating..." : "Update Password"}
           </button>
         </div>
       </div>

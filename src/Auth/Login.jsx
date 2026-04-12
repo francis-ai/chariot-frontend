@@ -94,7 +94,7 @@ export default function Login() {
               placeholder="Enter your email"
               value={formData.email}
               onChange={handleChange}
-              className="w-full p-3 rounded-lg bg-white/70 shadow-inner placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-red-400/40"
+              className="w-full p-3 rounded-lg bg-white/70 shadow-inner placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500/40"
             />
             {error.email && <p className="text-red-600 text-sm mt-1">{error.email}</p>}
           </div>
@@ -109,7 +109,7 @@ export default function Login() {
                 placeholder="Enter your password"
                 value={formData.password}
                 onChange={handleChange}
-                className="w-full p-3 pr-12 rounded-lg bg-white/70 shadow-inner placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-red-400/40"
+                className="w-full p-3 pr-12 rounded-lg bg-white/70 shadow-inner placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500/40"
               />
               <button
                 type="button"
@@ -128,7 +128,7 @@ export default function Login() {
             <button
               type="button"
               onClick={() => navigate(isAdminLogin ? "/admin/forgot-password" : "/forgot-password")}
-              className="text-sm text-red-600 hover:underline"
+              className="text-sm text-green-700 hover:underline"
             >
               Forgot password?
             </button>
@@ -138,7 +138,7 @@ export default function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="relative w-full bg-red-600/90 text-white py-3 rounded-xl font-semibold tracking-wide hover:bg-red-700 transition shadow-[0_6px_20px_rgba(220,38,38,0.25)]"
+            className="relative w-full bg-green-700 text-white py-3 rounded-xl font-semibold tracking-wide hover:bg-green-800 transition shadow-[0_6px_20px_rgba(21,128,61,0.30)]"
           >
             {loading ? "Logging in..." : "Login"}
           </button>

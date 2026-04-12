@@ -7,6 +7,8 @@ import API from "../../utils/api";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
+const generatePoNumber = () => `CLTPO-${Date.now().toString().slice(-8)}`;
+
 /* ===================== DASHBOARD ===================== */
 const EnterpriseDashboard = () => {
   const { darkMode } = useTheme();
@@ -53,10 +55,17 @@ const EnterpriseDashboard = () => {
         po_number: po.po_number,
         supplier_id: po.supplier_id,
         supplier_name: po.supplier_name || "",
+        item: po.item || "",
+        address: po.address || "",
+        quantity: Number(po.quantity || 1),
         order_date: po.order_date ? po.order_date.split('T')[0] : "",
         delivery_date: po.delivery_date ? po.delivery_date.split('T')[0] : "",
         total_amount: Number(po.total_amount || 0),
         formatted_amount: `₦${Number(po.total_amount || 0).toLocaleString()}`,
+        tax_rate: Number(po.tax_rate || 0),
+        tax_amount: Number(po.tax_amount || 0),
+        vat_rate: Number(po.vat_rate || 0),
+        vat_amount: Number(po.vat_amount || 0),
         status: po.status || "Pending",
         created_by_name: po.created_by_name || "",
         created_at: po.created_at,
@@ -138,11 +147,18 @@ const EnterpriseDashboard = () => {
   const handleCreate = async (poData) => {
     try {
       const payload = {
-        po_number: poData.po_number || `CLTPO-${Date.now().toString().slice(-8)}`,
+        po_number: poData.po_number || generatePoNumber(),
         supplier_id: poData.supplier_id,
+        item: poData.item,
+        address: poData.address,
+        quantity: Number(poData.quantity || 1),
         order_date: poData.order_date,
         delivery_date: poData.delivery_date || null,
         total_amount: parseFloat(poData.total_amount) || 0,
+        tax_rate: Number(poData.tax_rate || 0),
+        tax_amount: Number(poData.tax_amount || 0),
+        vat_rate: Number(poData.vat_rate || 0),
+        vat_amount: Number(poData.vat_amount || 0),
         status: poData.status || "Pending"
       };
 
@@ -165,9 +181,16 @@ const EnterpriseDashboard = () => {
       const payload = {
         po_number: poData.po_number,
         supplier_id: poData.supplier_id,
+        item: poData.item,
+        address: poData.address,
+        quantity: Number(poData.quantity || 1),
         order_date: poData.order_date,
         delivery_date: poData.delivery_date || null,
         total_amount: parseFloat(poData.total_amount) || 0,
+        tax_rate: Number(poData.tax_rate || 0),
+        tax_amount: Number(poData.tax_amount || 0),
+        vat_rate: Number(poData.vat_rate || 0),
+        vat_amount: Number(poData.vat_amount || 0),
         status: poData.status
       };
 
@@ -313,6 +336,8 @@ const EnterpriseDashboard = () => {
                     <th className="px-3 py-2 text-left font-bold uppercase text-xs">PO #</th>
                     <th className="px-3 py-2 text-left font-bold uppercase text-xs">Supplier</th>
                     <th className="px-3 py-2 text-left font-bold uppercase text-xs">Order Date</th>
+                    <th className="px-3 py-2 text-left font-bold uppercase text-xs hidden lg:table-cell">Item</th>
+                    <th className="px-3 py-2 text-left font-bold uppercase text-xs hidden lg:table-cell">Qty</th>
                     <th className="px-3 py-2 text-left font-bold uppercase text-xs hidden sm:table-cell">Delivery Date</th>
                     <th className="px-3 py-2 text-left font-bold uppercase text-xs">Amount</th>
                     <th className="px-3 py-2 text-left font-bold uppercase text-xs">Status</th>
@@ -325,6 +350,8 @@ const EnterpriseDashboard = () => {
                       <td className="px-3 py-2 text-blue-500 font-medium truncate">{row.po_number}</td>
                       <td className="px-3 py-2 truncate">{row.supplier_name}</td>
                       <td className="px-3 py-2 text-sm truncate">{row.order_date}</td>
+                      <td className="px-3 py-2 text-sm hidden lg:table-cell truncate">{row.item || '-'}</td>
+                      <td className="px-3 py-2 text-sm hidden lg:table-cell truncate">{row.quantity || 1}</td>
                       <td className="px-3 py-2 text-sm hidden sm:table-cell truncate">{row.delivery_date || '-'}</td>
                       <td className="px-3 py-2 font-bold truncate">{row.formatted_amount}</td>
                       <td className="px-3 py-2">
@@ -464,8 +491,20 @@ const ViewModal = ({ title, onClose, data, darkMode }) => {
               <p className="font-semibold">{data.order_date}</p>
             </div>
             <div>
+              <label className="text-xs uppercase opacity-60">Item</label>
+              <p className="font-semibold">{data.item || '-'}</p>
+            </div>
+            <div>
               <label className="text-xs uppercase opacity-60">Delivery Date</label>
               <p className="font-semibold">{data.delivery_date || '-'}</p>
+            </div>
+            <div>
+              <label className="text-xs uppercase opacity-60">Quantity</label>
+              <p className="font-semibold">{data.quantity || 1}</p>
+            </div>
+            <div className="col-span-2">
+              <label className="text-xs uppercase opacity-60">Delivery Address</label>
+              <p className="font-semibold">{data.address || '-'}</p>
             </div>
             <div>
               <label className="text-xs uppercase opacity-60">Amount</label>
@@ -492,16 +531,32 @@ const FormModal = ({ title, onClose, data, create, onSave, darkMode }) => {
     id: data.id,
     po_number: data.po_number,
     supplier_id: data.supplier_id || "",
+    item: data.item || "",
+    address: data.address || "",
+    quantity: Number(data.quantity || 1),
     order_date: data.order_date || new Date().toISOString().split('T')[0],
     delivery_date: data.delivery_date || "",
+    unit_price: Number(data.quantity || 1) > 0 ? Number(data.total_amount || 0) / Number(data.quantity || 1) : 0,
     total_amount: data.total_amount || "",
+    tax_rate: Number(data.tax_rate || 0),
+    tax_amount: Number(data.tax_amount || 0),
+    vat_rate: Number(data.vat_rate || 0),
+    vat_amount: Number(data.vat_amount || 0),
     status: data.status || "Pending"
   } : {
-    po_number: `PO-${Date.now()}`,
+    po_number: generatePoNumber(),
     supplier_id: "",
+    item: "",
+    address: "",
+    quantity: 1,
     order_date: new Date().toISOString().split('T')[0],
     delivery_date: "",
+    unit_price: 0,
     total_amount: "",
+    tax_rate: 0,
+    tax_amount: 0,
+    vat_rate: 0,
+    vat_amount: 0,
     status: "Pending"
   });
 
@@ -509,6 +564,8 @@ const FormModal = ({ title, onClose, data, create, onSave, darkMode }) => {
   const [loading, setLoading] = useState(false);
   const [fetchingSuppliers, setFetchingSuppliers] = useState(true);
   const [showSupplierModal, setShowSupplierModal] = useState(false);
+  const [showItemModal, setShowItemModal] = useState(false);
+  const [inventoryItems, setInventoryItems] = useState([]);
   const [newSupplier, setNewSupplier] = useState({
     name: "",
     email: "",
@@ -517,6 +574,14 @@ const FormModal = ({ title, onClose, data, create, onSave, darkMode }) => {
     address: "",
     city: "",
     country: "",
+  });
+  const [newItem, setNewItem] = useState({
+    product_name: "",
+    category: "General",
+    current_stock: 0,
+    min_stock: 0,
+    purchase_price: 0,
+    selling_price: 0,
   });
 
   // Fetch suppliers for dropdown
@@ -537,9 +602,65 @@ const FormModal = ({ title, onClose, data, create, onSave, darkMode }) => {
     fetchSuppliers();
   }, []);
 
+  useEffect(() => {
+    const fetchInventory = async () => {
+      try {
+        const res = await API.get("/inventory/catalog");
+        setInventoryItems(Array.isArray(res.data) ? res.data : []);
+      } catch (err) {
+        setInventoryItems([]);
+      }
+    };
+
+    fetchInventory();
+  }, []);
+
+  const recalculateTotal = (quantityValue, unitPriceValue) => {
+    const qty = Math.max(1, Number(quantityValue || 1));
+    const unitPrice = Math.max(0, Number(unitPriceValue || 0));
+    return Number((qty * unitPrice).toFixed(2));
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
+    setForm((prev) => {
+      if (name === "quantity") {
+        const nextQuantity = Math.max(1, Number(value || 1));
+        return {
+          ...prev,
+          quantity: nextQuantity,
+          total_amount: recalculateTotal(nextQuantity, prev.unit_price),
+        };
+      }
+
+      if (name === "unit_price") {
+        const nextUnitPrice = Math.max(0, Number(value || 0));
+        return {
+          ...prev,
+          unit_price: nextUnitPrice,
+          total_amount: recalculateTotal(prev.quantity, nextUnitPrice),
+        };
+      }
+
+      return { ...prev, [name]: value };
+    });
+  };
+
+  const handleItemChange = (e) => {
+    const selectedItemName = e.target.value;
+    const matchedItem = inventoryItems.find(
+      (inv) => (inv.product_name || inv.name) === selectedItemName
+    );
+    const prefetchedUnitPrice = Number(
+      matchedItem?.purchase_price ?? matchedItem?.selling_price ?? 0
+    );
+
+    setForm((prev) => ({
+      ...prev,
+      item: selectedItemName,
+      unit_price: prefetchedUnitPrice,
+      total_amount: recalculateTotal(prev.quantity, prefetchedUnitPrice),
+    }));
   };
 
   const handleSubmit = async () => {
@@ -550,6 +671,14 @@ const FormModal = ({ title, onClose, data, create, onSave, darkMode }) => {
     }
     if (!form.order_date) {
       toast.error("Order date is required");
+      return;
+    }
+    if (!form.item?.trim()) {
+      toast.error("Item is required");
+      return;
+    }
+    if (!form.address?.trim()) {
+      toast.error("Address is required");
       return;
     }
     if (!form.total_amount || form.total_amount <= 0) {
@@ -592,6 +721,43 @@ const FormModal = ({ title, onClose, data, create, onSave, darkMode }) => {
       toast.success("Supplier added successfully");
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to create supplier");
+    }
+  };
+
+  const handleCreateItem = async () => {
+    if (!newItem.product_name?.trim()) {
+      toast.error("Item name is required");
+      return;
+    }
+
+    try {
+      const payload = {
+        ...newItem,
+        sku: `SKU-${Date.now()}`,
+      };
+
+      await API.post("/inventory", payload);
+      const res = await API.get("/inventory/catalog");
+      const catalog = Array.isArray(res.data) ? res.data : [];
+      setInventoryItems(catalog);
+      setForm((prev) => ({
+        ...prev,
+        item: payload.product_name,
+        unit_price: Number(payload.purchase_price || 0),
+        total_amount: recalculateTotal(prev.quantity, Number(payload.purchase_price || 0)),
+      }));
+      setShowItemModal(false);
+      setNewItem({
+        product_name: "",
+        category: "General",
+        current_stock: 0,
+        min_stock: 0,
+        purchase_price: 0,
+        selling_price: 0,
+      });
+      toast.success("Item created successfully");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to create item");
     }
   };
 
@@ -681,16 +847,83 @@ const FormModal = ({ title, onClose, data, create, onSave, darkMode }) => {
           </div>
 
           <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-sm font-medium block">Item *</label>
+              <button
+                type="button"
+                onClick={() => setShowItemModal(true)}
+                className="text-xs px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
+              >
+                Create Item
+              </button>
+            </div>
+            <select
+              name="item"
+              value={form.item}
+              onChange={handleItemChange}
+              className={inputStyle}
+              required
+            >
+              <option value="">Select Item</option>
+              {inventoryItems.map((inv) => (
+                <option key={inv.id || inv._id} value={inv.product_name || inv.name}>
+                  {inv.product_name || inv.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium mb-1 block">Delivery Address *</label>
+            <textarea
+              name="address"
+              value={form.address}
+              onChange={handleChange}
+              className={inputStyle}
+              rows={2}
+              placeholder="Enter delivery address"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium mb-1 block">Quantity *</label>
+            <input
+              type="number"
+              min="1"
+              name="quantity"
+              value={form.quantity}
+              onChange={handleChange}
+              className={inputStyle}
+              required
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium mb-1 block">Unit Price (from inventory) *</label>
+            <input
+              type="number"
+              name="unit_price"
+              value={form.unit_price}
+              onChange={handleChange}
+              className={inputStyle}
+              min="0"
+              step="0.01"
+              required
+            />
+          </div>
+
+          <div>
             <label className="text-sm font-medium mb-1 block">Amount (₦) *</label>
             <input
               type="number"
               name="total_amount"
               value={form.total_amount}
-              onChange={handleChange}
               className={inputStyle}
-              placeholder="Enter amount"
+              placeholder="Auto calculated from quantity x unit price"
               min="0"
               step="0.01"
+              readOnly
               required
             />
           </div>
@@ -744,6 +977,51 @@ const FormModal = ({ title, onClose, data, create, onSave, darkMode }) => {
               <div className="mt-4 flex justify-end gap-2">
                 <button type="button" onClick={() => setShowSupplierModal(false)} className={`px-4 py-2 rounded ${darkMode ? "bg-gray-600" : "bg-gray-200"}`}>Cancel</button>
                 <button type="button" onClick={handleCreateSupplier} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">Save Supplier</button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {showItemModal ? (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className={`w-full max-w-xl rounded-xl p-6 ${darkMode ? "bg-gray-800 text-gray-200" : "bg-white text-gray-800"}`}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Create Item</h3>
+                <button type="button" onClick={() => setShowItemModal(false)} className="p-2 rounded hover:bg-gray-200/30">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Item Name *</label>
+                  <input className={inputStyle} placeholder="Enter item name" value={newItem.product_name} onChange={(e) => setNewItem((prev) => ({ ...prev, product_name: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Category</label>
+                  <input className={inputStyle} placeholder="Enter category" value={newItem.category} onChange={(e) => setNewItem((prev) => ({ ...prev, category: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Opening Stock</label>
+                  <input className={inputStyle} type="number" placeholder="0" value={newItem.current_stock} onChange={(e) => setNewItem((prev) => ({ ...prev, current_stock: Number(e.target.value || 0) }))} />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Minimum Stock</label>
+                  <input className={inputStyle} type="number" placeholder="0" value={newItem.min_stock} onChange={(e) => setNewItem((prev) => ({ ...prev, min_stock: Number(e.target.value || 0) }))} />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Purchase Price</label>
+                  <input className={inputStyle} type="number" placeholder="0.00" value={newItem.purchase_price} onChange={(e) => setNewItem((prev) => ({ ...prev, purchase_price: Number(e.target.value || 0) }))} />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Selling Price</label>
+                  <input className={inputStyle} type="number" placeholder="0.00" value={newItem.selling_price} onChange={(e) => setNewItem((prev) => ({ ...prev, selling_price: Number(e.target.value || 0) }))} />
+                </div>
+              </div>
+
+              <div className="mt-4 flex justify-end gap-2">
+                <button type="button" onClick={() => setShowItemModal(false)} className={`px-4 py-2 rounded ${darkMode ? "bg-gray-600" : "bg-gray-200"}`}>Cancel</button>
+                <button type="button" onClick={handleCreateItem} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">Save Item</button>
               </div>
             </div>
           </div>

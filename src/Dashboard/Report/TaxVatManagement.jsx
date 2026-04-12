@@ -28,6 +28,9 @@ export default function TaxVatManagement() {
   const [dateTo, setDateTo] = useState("");
   const [downloading, setDownloading] = useState({ pdf: false });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [detailModal, setDetailModal] = useState(null);
+  const [detailRows, setDetailRows] = useState([]);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   useEffect(() => {
     const today = new Date();
@@ -114,6 +117,27 @@ export default function TaxVatManagement() {
       toast.success("Tax/VAT PDF downloaded");
     } finally {
       setDownloading((prev) => ({ ...prev, pdf: false }));
+    }
+  };
+
+  const openTaxDetail = async (row) => {
+    if (!row?.period || !row?.source) return;
+
+    try {
+      setDetailLoading(true);
+      setDetailModal(row);
+      const params = new URLSearchParams({
+        type: "tax_details",
+        source: String(row.source),
+        periodDate: new Date(row.period).toISOString().split("T")[0],
+      });
+      const res = await API.get(`/reports?${params.toString()}`);
+      setDetailRows(Array.isArray(res.data?.rows) ? res.data.rows : []);
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to fetch VAT detail breakdown");
+      setDetailRows([]);
+    } finally {
+      setDetailLoading(false);
     }
   };
 
@@ -268,13 +292,19 @@ export default function TaxVatManagement() {
             <div>
               <div className="sm:hidden divide-y divide-gray-200/20">
                 {reportRows.map((row, index) => (
-                  <div key={`${row.period}-${row.source}-${index}`} className="p-3 space-y-1">
+                  <button
+                    key={`${row.period}-${row.source}-${index}`}
+                    type="button"
+                    onClick={() => openTaxDetail(row)}
+                    className="w-full text-left p-3 space-y-1 hover:bg-gray-200/20 transition"
+                  >
                     <p className="text-xs uppercase tracking-wide opacity-70">
                       {row.period ? new Date(row.period).toISOString().split("T")[0] : "-"}
                     </p>
                     <p className="text-sm capitalize">Source: <span className="font-semibold">{row.source || "-"}</span></p>
                     <p className="text-sm">Amount: <span className="font-semibold">{currency(row.amount)}</span></p>
-                  </div>
+                    <p className="text-xs text-blue-500">Tap to view VAT generation details</p>
+                  </button>
                 ))}
                 {!reportRows.length && (
                   <div className="px-3 py-4 text-center opacity-70 text-sm">No report rows for selected date range.</div>
@@ -291,7 +321,7 @@ export default function TaxVatManagement() {
                   </thead>
                   <tbody>
                     {reportRows.map((row, index) => (
-                      <tr key={`${row.period}-${row.source}-${index}`} className="border-t border-gray-200/20">
+                      <tr key={`${row.period}-${row.source}-${index}`} className="border-t border-gray-200/20 hover:bg-gray-200/20 cursor-pointer" onClick={() => openTaxDetail(row)}>
                         <td className="px-2 sm:px-3 py-2 whitespace-nowrap text-xs sm:text-sm">
                           {row.period ? new Date(row.period).toISOString().split("T")[0] : "-"}
                         </td>
@@ -312,6 +342,19 @@ export default function TaxVatManagement() {
             </div>
           </section>
         </main>
+
+        {detailModal ? (
+          <TaxDetailModal
+            darkMode={darkMode}
+            row={detailModal}
+            detailRows={detailRows}
+            loading={detailLoading}
+            onClose={() => {
+              setDetailModal(null);
+              setDetailRows([]);
+            }}
+          />
+        ) : null}
       </div>
     </div>
   );
@@ -324,6 +367,68 @@ function StatCard({ darkMode, label, value }) {
     }`}>
       <p className="text-[10px] sm:text-xs uppercase opacity-60 mb-1 tracking-wider">{label}</p>
       <p className="text-lg sm:text-xl md:text-2xl font-bold break-words">{value}</p>
+    </div>
+  );
+}
+
+function TaxDetailModal({ darkMode, row, detailRows, loading, onClose }) {
+  const period = row?.period ? new Date(row.period).toISOString().split("T")[0] : "-";
+  const source = String(row?.source || "-").toUpperCase();
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+      <div className={`w-full max-w-4xl rounded-xl border ${darkMode ? "bg-gray-800 border-gray-700 text-gray-100" : "bg-white border-gray-200 text-gray-800"}`}>
+        <div className="px-4 py-3 border-b border-gray-300/20 flex items-center justify-between">
+          <h3 className="font-semibold">VAT Generation Details</h3>
+          <button type="button" onClick={onClose} className="px-3 py-1 rounded bg-slate-600 text-white hover:bg-slate-700">Close</button>
+        </div>
+
+        <div className="p-4 space-y-3">
+          <p className="text-sm">Period: <span className="font-semibold">{period}</span></p>
+          <p className="text-sm">Source: <span className="font-semibold">{source}</span></p>
+          <p className="text-sm">Total VAT for this row: <span className="font-semibold">{currency(row?.amount)}</span></p>
+
+          <div className={`p-3 rounded border ${darkMode ? "border-gray-700 bg-gray-900" : "border-gray-200 bg-gray-50"}`}>
+            <p className="text-sm font-semibold mb-1">Generation Formula</p>
+            <p className="text-xs opacity-80">Sum of VAT amount from all {source.toLowerCase()} records on {period}.</p>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs sm:text-sm">
+              <thead className={darkMode ? "bg-gray-700" : "bg-gray-100"}>
+                <tr>
+                  <th className="px-3 py-2 text-left">Document #</th>
+                  <th className="px-3 py-2 text-left">Customer</th>
+                  <th className="px-3 py-2 text-left">Date</th>
+                  <th className="px-3 py-2 text-left">VAT Rate</th>
+                  <th className="px-3 py-2 text-left">VAT Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td className="px-3 py-4 text-center" colSpan={5}>Loading detail rows...</td>
+                  </tr>
+                ) : detailRows.length ? (
+                  detailRows.map((detail) => (
+                    <tr key={`${detail.document_number}-${detail.id}`} className="border-t border-gray-300/20">
+                      <td className="px-3 py-2">{detail.document_number || detail.id}</td>
+                      <td className="px-3 py-2">{detail.customer || "-"}</td>
+                      <td className="px-3 py-2">{detail.document_date ? new Date(detail.document_date).toISOString().split("T")[0] : "-"}</td>
+                      <td className="px-3 py-2">{Number(detail.vat_rate || 0).toFixed(2)}%</td>
+                      <td className="px-3 py-2">{currency(detail.vat_amount)}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td className="px-3 py-4 text-center" colSpan={5}>No detail records found for this row.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

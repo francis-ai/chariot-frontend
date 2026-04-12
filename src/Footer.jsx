@@ -70,7 +70,7 @@ export default function Footer() {
           onClick={goToChat}
           className="
             w-14 h-14 rounded-full
-            bg-red-600 hover:bg-red-700
+            bg-green-700 hover:bg-green-800
             text-white text-2xl
             shadow-lg
             flex items-center justify-center
