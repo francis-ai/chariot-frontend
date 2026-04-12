@@ -53,8 +53,8 @@ export default function StaffDashboard() {
         <NavBar />
 
         <main className="p-6 mt-20">
-          <h1 className="text-2xl font-bold mb-2">Welcome, {user?.username || "Staff"}</h1>
-          <p className="text-sm opacity-70 mb-6">This dashboard is scoped to your account records.</p>
+          <h1 className="text-2xl font-bold mb-2">WELCOME TO CHARIOT LINK TECH. & IND. PRODUCTS LTD</h1>
+          <p className="text-sm opacity-70 mb-6">Welcome, {user?.username || "Staff"}. This dashboard is scoped to your account records.</p>
 
           {loading ? (
             <p>Loading dashboard...</p>

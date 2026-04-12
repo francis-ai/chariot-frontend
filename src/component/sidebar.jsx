@@ -115,7 +115,7 @@ export default function Sidebar({
       <div className="fixed top-4 right-4 z-50 md:hidden">
         <button
           onClick={handleToggle}
-          className="bg-red-600 text-white p-3 rounded-full shadow-lg text-2xl"
+          className="bg-green-600 text-white p-3 rounded-full shadow-lg text-2xl"
         >
           {sidebarOpen ? <FaTimes /> : <FaBars />}
         </button>
@@ -124,7 +124,7 @@ export default function Sidebar({
       {/* Sidebar */}
       <aside
         className={`
-          bg-red-600 w-72 max-w-[82vw] md:w-64 h-[100dvh] md:h-screen overflow-y-auto overflow-x-hidden overscroll-contain flex flex-col p-6 shadow-lg
+          bg-green-600 w-72 max-w-[82vw] md:w-64 h-[100dvh] md:h-screen overflow-y-auto overflow-x-hidden overscroll-contain flex flex-col p-6 shadow-lg
           fixed top-0 left-0 z-40 transform transition-transform duration-300
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
           md:translate-x-0
@@ -147,15 +147,15 @@ export default function Sidebar({
                       href={item.path}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-3 p-3 rounded transition text-gray-800 hover:bg-red-100"
+                      className="flex items-center gap-3 p-3 rounded transition text-gray-800 hover:bg-green-100"
                       onClick={handleClose}
                     >
-                      <span className="w-5 h-5 flex justify-center text-red-600">{item.icon}</span>
+                      <span className="w-5 h-5 flex justify-center text-green-600">{item.icon}</span>
                       <div className="flex flex-col leading-tight">
                         <span className="font-medium flex items-center gap-2">
                           {item.label}
                           {item.label === "Chat" && chatUnreadCount > 0 && (
-                            <span className="inline-flex min-w-5 h-5 px-1.5 items-center justify-center rounded-full bg-red-600 text-white text-[10px] font-bold">
+                            <span className="inline-flex min-w-5 h-5 px-1.5 items-center justify-center rounded-full bg-green-600 text-white text-[10px] font-bold">
                               {chatUnreadCount > 99 ? "99+" : chatUnreadCount}
                             </span>
                           )}
@@ -167,29 +167,29 @@ export default function Sidebar({
                       to={item.path}
                       className={`
                         flex items-center gap-3 p-3 rounded transition
-                        ${isActive ? "bg-red-500 text-white" : "text-gray-800 hover:bg-red-100"}
+                        ${isActive ? "bg-green-500 text-white" : "text-gray-800 hover:bg-green-100"}
                       `}
                       onClick={handleClose}
                     >
-                      <span className={`w-5 h-5 flex justify-center ${isActive ? "text-white" : "text-red-600"}`}>
+                      <span className={`w-5 h-5 flex justify-center ${isActive ? "text-white" : "text-green-600"}`}>
                         {item.icon}
                       </span>
                       <div className="flex flex-col leading-tight">
                         <span className="font-medium flex items-center gap-2">
                           {item.label}
                           {item.label === "Chat" && chatUnreadCount > 0 && (
-                            <span className="inline-flex min-w-5 h-5 px-1.5 items-center justify-center rounded-full bg-red-600 text-white text-[10px] font-bold">
+                            <span className="inline-flex min-w-5 h-5 px-1.5 items-center justify-center rounded-full bg-green-600 text-white text-[10px] font-bold">
                               {chatUnreadCount > 99 ? "99+" : chatUnreadCount}
                             </span>
                           )}
                         </span>
                         {item.label === "Users" && (
-                          <span className={`text-[10px] ${isActive ? "text-red-100" : "text-gray-500"}`}>
+                          <span className={`text-[10px] ${isActive ? "text-green-100" : "text-gray-500"}`}>
                             Only super-admin is allowed
                           </span>
                         )}
                         {item.label === "Activity Logs" && (
-                          <span className={`text-[10px] ${isActive ? "text-red-100" : "text-gray-500"}`}>
+                          <span className={`text-[10px] ${isActive ? "text-green-100" : "text-gray-500"}`}>
                             Only super-admin is allowed
                           </span>
                         )}
@@ -209,9 +209,9 @@ export default function Sidebar({
               logout();           // clear user & token
               navigate(isSuperAdmin ? "/admin/login" : "/login");
             }}
-            className="flex items-center gap-3 p-3 rounded hover:bg-red-500 transition w-full bg-white"
+            className="flex items-center gap-3 p-3 rounded hover:bg-green-500 transition w-full bg-white"
           >
-            <FaSignOutAlt className="w-5 h-5 text-red-600" />
+            <FaSignOutAlt className="w-5 h-5 text-green-600" />
             <span className="text-gray-800 font-medium">Logout</span>
           </button>
         </div>

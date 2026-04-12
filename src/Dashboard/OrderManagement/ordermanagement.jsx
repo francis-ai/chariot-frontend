@@ -138,7 +138,7 @@ const EnterpriseDashboard = () => {
   const handleCreate = async (poData) => {
     try {
       const payload = {
-        po_number: poData.po_number || `PO-${Date.now()}`,
+        po_number: poData.po_number || `CLTPO-${Date.now().toString().slice(-8)}`,
         supplier_id: poData.supplier_id,
         order_date: poData.order_date,
         delivery_date: poData.delivery_date || null,

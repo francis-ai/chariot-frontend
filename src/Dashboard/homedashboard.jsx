@@ -59,7 +59,7 @@ export default function HomeDashboard() {
         <main className="flex-1 p-6 mt-20">
           
           <h1 className={`text-2xl md:text-3xl font-bold mb-8 ${darkMode ? "text-gray-100" : "text-gray-800"}`}>
-            Welcome to Chariot
+            WELCOME TO CHARIOT LINK TECH. & IND. PRODUCTS LTD
           </h1>
 
           {/* Loading State */}
