@@ -3,6 +3,7 @@ import { Eye, Edit3, Plus, X, Download } from 'lucide-react';
 import Addsupplier from './Addpurchase';
 import NavBar from '../../component/navigation';
 import Sidebar from '../../component/sidebar';
+import API from '../../utils/api';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { downloadPurchaseOrderPdf } from '../../utils/documentPdf';
@@ -14,12 +15,47 @@ const ERPDashboard = () => {
   const [addModal, setAddModal] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const [tableData, setTableData] = useState([
-    { id: 'PO-2023-0030', entity: 'Electronics Wholesale Ltd', date: '2023-10-16', secondaryDate: '2023-10-23', amount: '₦450,000', status: 'Pending' },
-    { id: 'PO-2023-0029', entity: 'Office Supplies Co', date: '2023-10-15', secondaryDate: '2023-10-22', amount: '₦125,000', status: 'Approved' },
-    { id: 'PO-2023-0028', entity: 'Furniture Manufacturers', date: '2023-10-12', secondaryDate: '2023-10-26', amount: '₦780,000', status: 'Received' },
-    { id: 'PO-2023-0027', entity: 'Stationery Distributors', date: '2023-10-10', secondaryDate: '2023-10-17', amount: '₦45,000', status: 'Pending' },
-  ]);
+  const [tableData, setTableData] = useState([]);
+
+  const fetchPurchaseOrders = async () => {
+    try {
+      const res = await API.get('/purchase-orders');
+      const mapped = (Array.isArray(res.data) ? res.data : []).map((po) => ({
+        id: po.po_number || `PO-${po.id}`,
+        backend_id: po.id,
+        entity: po.supplier_name || 'Unknown Supplier',
+        date: po.order_date ? po.order_date.split('T')[0] : '',
+        secondaryDate: po.delivery_date ? po.delivery_date.split('T')[0] : '',
+        amount: `₦${Number(po.total_amount || 0).toLocaleString()}`,
+        amount_value: Number(po.total_amount || 0),
+        item: po.item || '',
+        supplier_id: po.supplier_id,
+        status: po.status || 'Pending',
+        vat_rate: Number(po.vat_rate || 0),
+        vat_amount: Number(po.vat_amount || 0),
+        tax_rate: Number(po.tax_rate || 0),
+        tax_amount: Number(po.tax_amount || 0),
+      }));
+      setTableData(mapped);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to load purchase orders');
+      setTableData([]);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchPurchaseOrders();
+  }, []);
+
+  const handleCreatedPurchaseOrder = async (payload) => {
+    await fetchPurchaseOrders();
+    setAddModal(false);
+    if (payload?.emailSent) {
+      toast.success('Purchase order created and sent to supplier email');
+      return;
+    }
+    toast.success('Purchase order created successfully');
+  };
 
   const stats = [
     { label: 'Total POs', value: tableData.length, color: 'text-slate-800' },
@@ -182,6 +218,7 @@ const ERPDashboard = () => {
             <div className="space-y-1 text-sm">
               <p><strong>Ref #:</strong> {viewModal.id}</p>
               <p><strong>Partner:</strong> {viewModal.entity}</p>
+              <p><strong>Item:</strong> {viewModal.item || '-'}</p>
               <p><strong>Date:</strong> {viewModal.date}</p>
               <p><strong>Expected:</strong> {viewModal.secondaryDate}</p>
               <p><strong>Amount:</strong> {viewModal.amount}</p>
@@ -196,8 +233,8 @@ const ERPDashboard = () => {
             <EditForm data={editModal} onSave={handleSaveEdit} />
           </Modal>}
 
-          {addModal && <Modal title="Add Supplier" onClose={() => setAddModal(false)}>
-            <Addsupplier />
+          {addModal && <Modal title="Create Purchase Order" onClose={() => setAddModal(false)}>
+            <Addsupplier onCreated={handleCreatedPurchaseOrder} />
           </Modal>}
         </main>
       </div>
