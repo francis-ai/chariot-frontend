@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { FaPlus, FaPrint } from "react-icons/fa";
+import { FaPlus } from "react-icons/fa";
 import Sidebar from "../component/sidebar";
 import NavBar from "../component/navigation";
 import InvoiceForm from "./invoice";
@@ -188,7 +188,7 @@ export default function InvoiceManagement() {
                   Invoice Management
                 </h1>
                 <p className={`text-sm mt-1 transition-colors ${darkMode ? "text-gray-300" : "text-gray-500"}`}>
-                  Create, manage and print invoices
+                  Create and manage invoices
                 </p>
               </div>
 
@@ -210,14 +210,6 @@ export default function InvoiceManagement() {
                     >
                       <FaPlus />
                       Create Invoice
-                    </button>
-                    <button
-                      onClick={() => window.print()}
-                      className={`flex items-center gap-2 border px-4 py-2 rounded-lg transition
-                        ${darkMode ? "border-gray-600 text-gray-200 hover:bg-gray-700" : "border-gray-300 text-gray-700 hover:bg-gray-100"}`}
-                    >
-                      <FaPrint />
-                      Print
                     </button>
                   </>
                 )}

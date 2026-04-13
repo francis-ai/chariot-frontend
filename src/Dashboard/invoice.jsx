@@ -316,7 +316,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
     reader.readAsDataURL(file);
   };
 
-  const handleSubmit = async (e, print = false) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     // Validation
@@ -340,11 +340,6 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
     setLoading(true);
     try {
       await onSave(form);
-      
-      if (print) {
-        toast.success("Invoice saved! Printing...");
-        setTimeout(() => window.print(), 500);
-      }
     } catch (err) {
       console.error("Form submission error:", err);
     } finally {
@@ -718,28 +713,16 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
                 {loading ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Saving...
+                    Processing...
                   </>
                 ) : (
                   <>
                     <Save size={18} />
-                    Save
+                    Submit Invoice
                   </>
                 )}
               </button>
 
-              <button
-                type="button"
-                onClick={(e) => handleSubmit(e, true)}
-                disabled={loading || items.length === 0 || customers.length === 0}
-                className={`px-6 py-2 rounded-lg font-medium border transition-colors ${
-                  darkMode 
-                    ? 'border-blue-600 text-blue-500 hover:bg-blue-600/20' 
-                    : 'border-blue-600 text-blue-600 hover:bg-blue-50'
-                } ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                Save & Print
-              </button>
             </div>
           </form>
         )}

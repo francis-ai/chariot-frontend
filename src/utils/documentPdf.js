@@ -150,16 +150,24 @@ const drawSummaryOnRight = ({ doc, finalY, lines }) => {
 };
 
 const drawManagerBlock = async ({ doc, startY, signatureImage }) => {
-  let cursorY = startY;
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const fixedTopY = pageHeight - 52;
+  let cursorY = fixedTopY;
 
-  const sources = [signatureImage, "/signature.jpg"].filter(Boolean);
+  // Keep signature block fixed near page bottom on all documents.
+  if (typeof startY === "number" && startY > fixedTopY - 8) {
+    doc.addPage();
+    cursorY = fixedTopY;
+  }
+
+  const sources = [signatureImage, "/IMG_7880.jpeg", "/signature.jpg"].filter(Boolean);
 
   for (const src of sources) {
     try {
       const image = await loadImage(src);
       const format = src.toLowerCase().includes("png") ? "PNG" : "JPEG";
-      doc.addImage(image, format, 14, cursorY, 40, 16);
-      cursorY += 18;
+      doc.addImage(image, format, 14, cursorY, 38, 14);
+      cursorY += 16;
       break;
     } catch (error) {
       // Continue to fallback image source.
@@ -424,56 +432,110 @@ export const downloadWaybillPdf = async (waybill) => {
 
 export const downloadPurchaseOrderPdf = async (purchaseOrder) => {
   const doc = new jsPDF();
-  const subtotal = getNumeric(purchaseOrder.subtotal || purchaseOrder.total_amount || purchaseOrder.amount || parseAmountText(purchaseOrder.amount));
-  const tax = resolveTaxVat(purchaseOrder, subtotal);
-  const total = getNumeric(purchaseOrder.total_amount || purchaseOrder.amount || subtotal + tax.taxAmount + tax.vatAmount);
+  const orderDate = purchaseOrder.order_date || purchaseOrder.date || "";
+  const deliveryDate = purchaseOrder.delivery_date || purchaseOrder.secondaryDate || "";
+  const supplierName = purchaseOrder.supplier_name || purchaseOrder.entity || "";
 
-  const headerEndY = await addCompanyHeader(doc, "PURCHASE ORDER", "PO No", purchaseOrder.po_number || purchaseOrder.id, [
-    `Supplier: ${purchaseOrder.supplier_name || purchaseOrder.entity || ""}`,
-    `Order Date: ${purchaseOrder.order_date || purchaseOrder.date || ""}`,
-    `Delivery Date: ${purchaseOrder.delivery_date || purchaseOrder.secondaryDate || ""}`,
-  ]);
+  const normalizedItems = Array.isArray(purchaseOrder.items) && purchaseOrder.items.length
+    ? purchaseOrder.items.map((item) => ({
+      description: item.description || item.item || item.name || "",
+      quantity: Math.max(1, getNumeric(item.quantity || item.qty || 1)),
+      rate: getNumeric(item.rate || item.price || 0),
+    }))
+    : [{
+      description: purchaseOrder.item || "",
+      quantity: Math.max(1, getNumeric(purchaseOrder.quantity || 1)),
+      rate: getNumeric(purchaseOrder.total_amount || purchaseOrder.amount || parseAmountText(purchaseOrder.amount)),
+    }];
 
-  autoTable(doc, {
-    startY: headerEndY,
-    head: [["Supplier", "Item", "Address", "Order Date", "Delivery Date", "Status", "Amount"]],
-    body: [[
-      purchaseOrder.supplier_name || purchaseOrder.entity || "",
-      purchaseOrder.item || "",
-      purchaseOrder.address || "",
-      purchaseOrder.order_date || purchaseOrder.date || "",
-      purchaseOrder.delivery_date || purchaseOrder.secondaryDate || "",
-      purchaseOrder.status || "Pending",
-      money(subtotal),
-    ]],
-    styles: { fontSize: 9 },
-    headStyles: { fillColor: [8, 145, 178] },
+  const itemRows = normalizedItems.map((item) => {
+    const amount = item.quantity * item.rate;
+    return [item.description, String(item.quantity), formatNumber(item.rate), formatNumber(amount)];
   });
 
-  const finalY = doc.lastAutoTable?.finalY || 95;
-  const summaryEndY = drawSummaryOnRight({
+  const subtotal = normalizedItems.reduce((sum, item) => sum + (item.quantity * item.rate), 0);
+  const taxRate = getNumeric(purchaseOrder.tax_rate || purchaseOrder.vat_rate || 10);
+  const taxAmount = getNumeric(purchaseOrder.tax_amount || (subtotal * taxRate) / 100);
+  const total = getNumeric(purchaseOrder.total_amount || subtotal + taxAmount);
+
+  const headerEndY = await addCompanyHeader(
     doc,
-    finalY,
-    lines: [
-      { label: "Subtotal", value: money(tax.subtotal) },
-      { label: `Tax (${tax.taxRate.toFixed(2)}%)`, value: money(tax.taxAmount) },
-      { label: `VAT (${tax.vatRate.toFixed(2)}%)`, value: money(tax.vatAmount) },
-      { label: "Total", value: money(total) },
-    ],
-  });
+    "PURCHASE ORDER",
+    "PO Ref. No",
+    purchaseOrder.po_number || purchaseOrder.id || "",
+    [
+      `Vendor: ${supplierName}`,
+      `Order Date: ${orderDate}`,
+      `Delivery Date: ${deliveryDate}`,
+    ]
+  );
 
   doc.setFont("helvetica", "bold");
-  doc.text(`NGN ${amountToWords(total)} Only`, 14, summaryEndY + 8);
+  doc.setFontSize(10);
+  doc.text("Vendor Address:", 14, headerEndY + 6);
   doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  const vendorLines = doc.splitTextToSize(`${supplierName}\n${purchaseOrder.address || ""}`, 84);
+  doc.text(vendorLines, 14, headerEndY + 11);
 
+  autoTable(doc, {
+    startY: headerEndY + 26,
+    head: [["Item Description", "Qty", "Rate", "Amount"]],
+    body: itemRows,
+    theme: "plain",
+    styles: {
+      fontSize: 10,
+      cellPadding: 3,
+      textColor: [75, 75, 75],
+    },
+    headStyles: {
+      fillColor: [102, 102, 102],
+      textColor: [255, 255, 255],
+      fontStyle: "bold",
+      fontSize: 11,
+    },
+    alternateRowStyles: { fillColor: [240, 240, 240] },
+    columnStyles: {
+      0: { cellWidth: 110 },
+      1: { cellWidth: 20, halign: "center" },
+      2: { cellWidth: 30, halign: "right" },
+      3: { cellWidth: 30, halign: "right" },
+    },
+  });
+
+  const tableBottomY = doc.lastAutoTable?.finalY || 110;
+  const summaryStartY = Math.max(tableBottomY + 12, 132);
+  const summaryX = 134;
+  const summaryWidth = 60;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+  doc.text("Sub Total", summaryX, summaryStartY);
+  doc.text(formatNumber(subtotal), 194, summaryStartY, { align: "right" });
+  doc.text(`Purchase Tax (${taxRate.toFixed(2)}%)`, summaryX, summaryStartY + 8);
+  doc.text(formatNumber(taxAmount), 194, summaryStartY + 8, { align: "right" });
+
+  doc.setFillColor(225, 225, 225);
+  doc.rect(summaryX - 6, summaryStartY + 14, summaryWidth, 12, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.text("TOTAL", summaryX - 2, summaryStartY + 22);
+  doc.text(formatNumber(total), 194, summaryStartY + 22, { align: "right" });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(12);
+
+  const wordsY = summaryStartY + 42;
+  doc.text(`NGN ${amountToWords(total)} Only`, 14, wordsY);
+
+  const notesStartY = wordsY + 8;
   if (purchaseOrder.notes) {
-    const wrapped = doc.splitTextToSize(`Notes: ${purchaseOrder.notes}`, 180);
-    doc.text(wrapped, 14, summaryEndY + 20);
+    const wrappedNotes = doc.splitTextToSize(`Notes: ${purchaseOrder.notes}`, 180);
+    doc.text(wrappedNotes, 14, notesStartY);
   }
 
   await drawManagerBlock({
     doc,
-    startY: summaryEndY + 40,
+    startY: notesStartY + 18,
     signatureImage: purchaseOrder.signature_image,
   });
 

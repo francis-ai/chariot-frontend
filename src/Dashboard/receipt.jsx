@@ -1,10 +1,6 @@
 import React from "react";
 
 const Invoice = () => {
-  const handlePrint = () => {
-    window.print();
-  };
-
   const invoiceData = {
     invoiceNumber: "CLT-22022876",
     date: "1/14/2026",
@@ -34,16 +30,6 @@ const Invoice = () => {
 
   return (
     <>
-      {/* PRINT BUTTON */}
-      <div className="max-w-[850px] mx-auto mt-10 flex justify-end print:hidden">
-        <button
-          onClick={handlePrint}
-          className="flex items-center gap-2 px-5 py-2 bg-gray-900 text-white text-sm font-semibold rounded-md hover:bg-gray-800 transition"
-        >
-          🖨 Print Invoice
-        </button>
-      </div>
-
       {/* INVOICE */}
       <div className="invoice max-w-[850px] mx-auto p-10 bg-white text-[13px] text-gray-800 font-sans leading-tight shadow-lg my-6 border border-gray-200 print:shadow-none print:border-none print:my-0 print:p-0">
 

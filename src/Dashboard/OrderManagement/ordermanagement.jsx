@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { Eye, Edit3, Plus, X, Save, Trash2 } from "lucide-react";
+import { Eye, Edit3, Plus, X, Trash2, Download } from "lucide-react";
 import Sidebar from "../../component/sidebar";
 import NavBar from "../../component/navigation";
 import { useTheme } from "../../context/ThemeContext";
 import API from "../../utils/api";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { downloadPurchaseOrderPdf } from "../../utils/documentPdf";
 
 const generatePoNumber = () => `CLTPO-${Date.now().toString().slice(-8)}`;
 
@@ -56,6 +57,7 @@ const EnterpriseDashboard = () => {
         supplier_id: po.supplier_id,
         supplier_name: po.supplier_name || "",
         item: po.item || "",
+        items: Array.isArray(po.items) ? po.items : [],
         address: po.address || "",
         quantity: Number(po.quantity || 1),
         order_date: po.order_date ? po.order_date.split('T')[0] : "",
@@ -67,6 +69,9 @@ const EnterpriseDashboard = () => {
         vat_rate: Number(po.vat_rate || 0),
         vat_amount: Number(po.vat_amount || 0),
         status: po.status || "Pending",
+        notes: po.notes || "",
+        terms: po.terms || "",
+        signature_image: po.signature_image || "",
         created_by_name: po.created_by_name || "",
         created_at: po.created_at,
         updated_at: po.updated_at
@@ -150,6 +155,7 @@ const EnterpriseDashboard = () => {
         po_number: poData.po_number || generatePoNumber(),
         supplier_id: poData.supplier_id,
         item: poData.item,
+        items: Array.isArray(poData.items) ? poData.items : [],
         address: poData.address,
         quantity: Number(poData.quantity || 1),
         order_date: poData.order_date,
@@ -159,7 +165,10 @@ const EnterpriseDashboard = () => {
         tax_amount: Number(poData.tax_amount || 0),
         vat_rate: Number(poData.vat_rate || 0),
         vat_amount: Number(poData.vat_amount || 0),
-        status: poData.status || "Pending"
+        status: poData.status || "Pending",
+        notes: poData.notes || "",
+        terms: poData.terms || "",
+        signature_image: poData.signature_image || "",
       };
 
       console.log("Creating PO with payload:", payload);
@@ -186,6 +195,7 @@ const EnterpriseDashboard = () => {
         po_number: poData.po_number,
         supplier_id: poData.supplier_id,
         item: poData.item,
+        items: Array.isArray(poData.items) ? poData.items : [],
         address: poData.address,
         quantity: Number(poData.quantity || 1),
         order_date: poData.order_date,
@@ -195,7 +205,10 @@ const EnterpriseDashboard = () => {
         tax_amount: Number(poData.tax_amount || 0),
         vat_rate: Number(poData.vat_rate || 0),
         vat_amount: Number(poData.vat_amount || 0),
-        status: poData.status
+        status: poData.status,
+        notes: poData.notes || "",
+        terms: poData.terms || "",
+        signature_image: poData.signature_image || "",
       };
 
       console.log("Updating PO with payload:", payload);
@@ -233,6 +246,23 @@ const EnterpriseDashboard = () => {
       case "Approved": return "bg-emerald-100 text-emerald-600 dark:bg-emerald-900 dark:text-emerald-300";
       case "Received": return "bg-cyan-100 text-cyan-600 dark:bg-cyan-900 dark:text-cyan-300";
       default: return "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300";
+    }
+  };
+
+  const handleDownload = async (row) => {
+    try {
+      await downloadPurchaseOrderPdf({
+        ...row,
+        date: row.order_date,
+        secondaryDate: row.delivery_date,
+        amount: row.total_amount,
+        items: Array.isArray(row.items) && row.items.length
+          ? row.items
+          : [{ description: row.item || "", quantity: row.quantity || 1, rate: row.quantity ? Number(row.total_amount || 0) / Number(row.quantity || 1) : 0 }],
+      });
+      toast.success("Purchase order downloaded successfully");
+    } catch (error) {
+      toast.error("Failed to download purchase order PDF");
     }
   };
 
@@ -380,6 +410,13 @@ const EnterpriseDashboard = () => {
                             <Edit3 size={16} />
                           </button>
                           <button 
+                            onClick={() => handleDownload(row)} 
+                            className="text-emerald-500 hover:text-emerald-600 p-1.5 hover:bg-emerald-50 rounded transition"
+                            title="Download"
+                          >
+                            <Download size={16} />
+                          </button>
+                          <button 
                             onClick={() => setDeleteModal(row)} 
                             className="text-red-500 hover:text-red-600 p-1.5 hover:bg-red-50 rounded transition"
                             title="Delete"
@@ -426,6 +463,7 @@ const EnterpriseDashboard = () => {
           title="View Purchase Order" 
           onClose={() => setViewModal(null)} 
           data={viewModal} 
+          onDownload={handleDownload}
           darkMode={darkMode}
         />
       )}
@@ -467,7 +505,7 @@ const EnterpriseDashboard = () => {
 };
 
 /* ===================== VIEW MODAL ===================== */
-const ViewModal = ({ title, onClose, data, darkMode }) => {
+const ViewModal = ({ title, onClose, data, darkMode, onDownload }) => {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className={`w-full max-w-md rounded-lg p-6 relative ${darkMode ? "bg-gray-800 text-gray-200" : "bg-white text-gray-800"}`}>
@@ -523,6 +561,14 @@ const ViewModal = ({ title, onClose, data, darkMode }) => {
               <p className="font-semibold">{data.created_by_name || "System"}</p>
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={() => onDownload(data)}
+            className="w-full mt-2 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+          >
+            <Download size={16} /> Download PDF
+          </button>
         </div>
       </div>
     </div>
@@ -535,31 +581,43 @@ const FormModal = ({ title, onClose, data, create, onSave, darkMode }) => {
     id: data.id,
     po_number: data.po_number,
     supplier_id: data.supplier_id || "",
-    item: data.item || "",
     address: data.address || "",
-    quantity: Number(data.quantity || 1),
     order_date: data.order_date || new Date().toISOString().split('T')[0],
     delivery_date: data.delivery_date || "",
-    total_amount: data.total_amount || "",
-    tax_rate: Number(data.tax_rate || 0),
-    tax_amount: Number(data.tax_amount || 0),
-    vat_rate: Number(data.vat_rate || 0),
-    vat_amount: Number(data.vat_amount || 0),
-    status: data.status || "Pending"
+    tax_rate: Number(data.tax_rate || 10),
+    status: data.status || "Pending",
+    notes: data.notes || "",
+    terms: data.terms || "",
+    signature_image: data.signature_image || "",
   } : {
     po_number: generatePoNumber(),
     supplier_id: "",
-    item: "",
     address: "",
-    quantity: 1,
     order_date: new Date().toISOString().split('T')[0],
     delivery_date: "",
-    total_amount: "",
-    tax_rate: 0,
-    tax_amount: 0,
-    vat_rate: 0,
-    vat_amount: 0,
-    status: "Pending"
+    tax_rate: 10,
+    status: "Pending",
+    notes: "",
+    terms: "",
+    signature_image: "",
+  });
+
+  const [lineItems, setLineItems] = useState(() => {
+    if (Array.isArray(data?.items) && data.items.length) {
+      return data.items.map((item) => ({
+        description: item.description || item.item || "",
+        quantity: Math.max(1, Number(item.quantity || item.qty || 1)),
+        rate: Math.max(0, Number(item.rate || item.price || 0)),
+      }));
+    }
+
+    if (data?.item) {
+      const qty = Math.max(1, Number(data.quantity || 1));
+      const amount = Number(data.total_amount || 0);
+      const rate = qty > 0 ? amount / qty : 0;
+      return [{ description: data.item, quantity: qty, rate: Number(rate.toFixed(2)) }];
+    }
+    return [{ description: "", quantity: 1, rate: 0 }];
   });
 
   const [suppliers, setSuppliers] = useState([]);
@@ -596,17 +654,52 @@ const FormModal = ({ title, onClose, data, create, onSave, darkMode }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm((prev) => {
-      if (name === "quantity") {
-        return { ...prev, quantity: Math.max(1, Number(value || 1)) };
-      }
-
-      return { ...prev, [name]: value };
-    });
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleLineItemChange = (index, field, value) => {
+    setLineItems((prev) => prev.map((item, itemIndex) => {
+      if (itemIndex !== index) return item;
+      if (field === "quantity") {
+        return { ...item, quantity: Math.max(1, Number(value || 1)) };
+      }
+      if (field === "rate") {
+        return { ...item, rate: Math.max(0, Number(value || 0)) };
+      }
+      return { ...item, [field]: value };
+    }));
+  };
+
+  const addLineItem = () => {
+    setLineItems((prev) => ([...prev, { description: "", quantity: 1, rate: 0 }]));
+  };
+
+  const removeLineItem = (index) => {
+    setLineItems((prev) => (prev.length > 1 ? prev.filter((_, itemIndex) => itemIndex !== index) : prev));
+  };
+
+  const handleSignatureUpload = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setForm((prev) => ({ ...prev, signature_image: String(reader.result || "") }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const subtotal = lineItems.reduce(
+    (sum, item) => sum + (Number(item.quantity || 0) * Number(item.rate || 0)),
+    0
+  );
+  const taxRate = Math.max(0, Number(form.tax_rate || 0));
+  const taxAmount = (subtotal * taxRate) / 100;
+  const totalAmount = subtotal + taxAmount;
+  const totalQuantity = lineItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+
   const handleSubmit = async () => {
-    // Validation
     if (!form.supplier_id) {
       toast.error("Please select a supplier");
       return;
@@ -615,22 +708,50 @@ const FormModal = ({ title, onClose, data, create, onSave, darkMode }) => {
       toast.error("Order date is required");
       return;
     }
-    if (!form.item?.trim()) {
-      toast.error("Item is required");
+
+    const normalizedItems = lineItems
+      .map((item) => ({
+        description: String(item.description || "").trim(),
+        quantity: Math.max(1, Number(item.quantity || 1)),
+        rate: Math.max(0, Number(item.rate || 0)),
+      }))
+      .filter((item) => item.description);
+
+    if (!normalizedItems.length) {
+      toast.error("Please add at least one item description");
       return;
     }
+
     if (!form.address?.trim()) {
       toast.error("Address is required");
       return;
     }
-    if (!form.total_amount || form.total_amount <= 0) {
-      toast.error("Valid amount is required");
+
+    if (totalAmount <= 0) {
+      toast.error("Total amount must be greater than zero");
       return;
     }
 
+    const combinedItemDescription = normalizedItems
+      .map((item) => `${item.description} (x${item.quantity})`)
+      .join(", ");
+
+    const payload = {
+      ...form,
+      item: combinedItemDescription,
+      items: normalizedItems,
+      quantity: Math.max(1, totalQuantity),
+      total_amount: Number(totalAmount.toFixed(2)),
+      tax_rate: Number(taxRate.toFixed(2)),
+      tax_amount: Number(taxAmount.toFixed(2)),
+      vat_rate: 0,
+      vat_amount: 0,
+      subtotal: Number(subtotal.toFixed(2)),
+    };
+
     setLoading(true);
     try {
-      await onSave(form);
+      await onSave(payload);
     } finally {
       setLoading(false);
     }
@@ -667,13 +788,11 @@ const FormModal = ({ title, onClose, data, create, onSave, darkMode }) => {
   };
 
 
-  const inputStyle = `px-3 py-2 rounded w-full ${
-    darkMode ? "bg-gray-700 text-white" : "bg-gray-100"
-  } focus:outline-none focus:ring-2 focus:ring-blue-500`;
+  const inputStyle = `px-3 py-2 rounded-md w-full border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500`;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-start sm:items-center justify-center z-50 overflow-y-auto p-4">
-      <div className={`w-full max-w-md rounded-lg p-6 relative max-h-[90vh] overflow-y-auto ${darkMode ? "bg-gray-800 text-gray-200" : "bg-white text-gray-800"}`}>
+      <div className="w-full max-w-4xl rounded-lg p-6 relative max-h-[90vh] overflow-y-auto bg-[#f6f6f6] text-slate-800 border border-[#e4decf]">
         <button 
           onClick={onClose} 
           className="absolute top-4 right-4 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
@@ -683,152 +802,179 @@ const FormModal = ({ title, onClose, data, create, onSave, darkMode }) => {
         
         <h2 className="text-xl font-bold mb-4">{title}</h2>
 
-        <div className="flex flex-col gap-3">
-          {create && (
+        <div className="bg-white border border-slate-300 p-6 space-y-5">
+          <div className="w-full text-right">
+            <h3 className="text-3xl font-light tracking-wide">PURCHASE ORDER</h3>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium mb-1 block">PO Number</label>
-              <input
-                name="po_number"
-                value={form.po_number}
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-sm font-semibold">Vendor Address *</label>
+                <button
+                  type="button"
+                  onClick={() => setShowSupplierModal(true)}
+                  className="text-xs px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
+                >
+                  New Supplier
+                </button>
+              </div>
+              <select
+                name="supplier_id"
+                value={form.supplier_id}
                 onChange={handleChange}
                 className={inputStyle}
-                placeholder="PO Number"
-                readOnly
-              />
-            </div>
-          )}
-
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-sm font-medium block">Supplier *</label>
-              <button
-                type="button"
-                onClick={() => setShowSupplierModal(true)}
-                className="text-xs px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
+                disabled={fetchingSuppliers}
               >
-                New Supplier
-              </button>
-            </div>
-            <select
-              name="supplier_id"
-              value={form.supplier_id}
-              onChange={handleChange}
-              className={inputStyle}
-              required
-              disabled={fetchingSuppliers}
-            >
-              <option value="">
-                {fetchingSuppliers ? "Loading suppliers..." : "Select Supplier"}
-              </option>
-              {suppliers.map(s => (
-                <option key={s.id || s._id} value={s.id || s._id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="text-sm font-medium mb-1 block">Order Date *</label>
-              <input
-                type="date"
-                name="order_date"
-                value={form.order_date}
+                <option value="">{fetchingSuppliers ? "Loading suppliers..." : "Select supplier"}</option>
+                {suppliers.map((supplier) => (
+                  <option key={supplier.id || supplier._id} value={supplier.id || supplier._id}>
+                    {supplier.company || supplier.name}
+                  </option>
+                ))}
+              </select>
+              <textarea
+                name="address"
+                value={form.address}
                 onChange={handleChange}
-                className={inputStyle}
-                required
+                rows={4}
+                className={`${inputStyle} mt-2`}
+                placeholder="Vendor delivery address"
               />
             </div>
-            <div>
-              <label className="text-sm font-medium mb-1 block">Delivery Date</label>
-              <input
-                type="date"
-                name="delivery_date"
-                value={form.delivery_date}
-                onChange={handleChange}
-                className={inputStyle}
-              />
+
+            <div className="grid grid-cols-2 gap-3 content-start">
+              <div className="col-span-2">
+                <label className="text-sm font-semibold">PO #</label>
+                <input name="po_number" value={form.po_number} readOnly className={inputStyle} />
+              </div>
+              <div>
+                <label className="text-sm font-semibold">Order Date</label>
+                <input type="date" name="order_date" value={form.order_date} onChange={handleChange} className={inputStyle} />
+              </div>
+              <div>
+                <label className="text-sm font-semibold">Delivery Date</label>
+                <input type="date" name="delivery_date" value={form.delivery_date} onChange={handleChange} className={inputStyle} />
+              </div>
+              <div className="col-span-2">
+                <label className="text-sm font-semibold">Status</label>
+                <select name="status" value={form.status} onChange={handleChange} className={inputStyle}>
+                  <option value="Pending">Pending</option>
+                  <option value="Approved">Approved</option>
+                  <option value="Received">Received</option>
+                </select>
+              </div>
             </div>
           </div>
 
-          <div>
-            <label className="text-sm font-medium mb-1 block">Item *</label>
-            <input
-              type="text"
-              name="item"
-              value={form.item}
-              onChange={handleChange}
-              className={inputStyle}
-              placeholder="Type item name"
-              required
-            />
+          <div className="border border-slate-300 rounded">
+            <div className="grid grid-cols-12 bg-slate-600 text-white text-xs font-semibold px-3 py-2">
+              <div className="col-span-6">Item Description</div>
+              <div className="col-span-2 text-right">Qty</div>
+              <div className="col-span-2 text-right">Rate</div>
+              <div className="col-span-2 text-right">Amount</div>
+            </div>
+
+            {lineItems.map((item, index) => {
+              const amount = Number(item.quantity || 0) * Number(item.rate || 0);
+              return (
+                <div key={`line-item-${index}`} className="grid grid-cols-12 gap-2 px-3 py-2 border-t border-slate-200 items-center">
+                  <div className="col-span-12 md:col-span-6">
+                    <input
+                      value={item.description}
+                      onChange={(event) => handleLineItemChange(index, "description", event.target.value)}
+                      placeholder="Enter item name/description"
+                      className={inputStyle}
+                    />
+                  </div>
+                  <div className="col-span-4 md:col-span-2">
+                    <input
+                      type="number"
+                      min="1"
+                      value={item.quantity}
+                      onChange={(event) => handleLineItemChange(index, "quantity", event.target.value)}
+                      className={inputStyle}
+                    />
+                  </div>
+                  <div className="col-span-4 md:col-span-2">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={item.rate}
+                      onChange={(event) => handleLineItemChange(index, "rate", event.target.value)}
+                      className={inputStyle}
+                    />
+                  </div>
+                  <div className="col-span-3 md:col-span-1 text-right font-semibold">{amount.toFixed(2)}</div>
+                  <div className="col-span-1 md:col-span-1 text-right">
+                    <button
+                      type="button"
+                      onClick={() => removeLineItem(index)}
+                      className="text-red-600 text-xs font-semibold"
+                      disabled={lineItems.length === 1}
+                    >
+                      X
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
-          <div>
-            <label className="text-sm font-medium mb-1 block">Delivery Address *</label>
-            <textarea
-              name="address"
-              value={form.address}
-              onChange={handleChange}
-              className={inputStyle}
-              rows={2}
-              placeholder="Enter delivery address"
-              required
-            />
-          </div>
+          <button type="button" onClick={addLineItem} className="text-sm font-semibold text-green-600">
+            + Add Line Item
+          </button>
 
-          <div>
-            <label className="text-sm font-medium mb-1 block">Quantity *</label>
-            <input
-              type="number"
-              min="1"
-              name="quantity"
-              value={form.quantity}
-              onChange={handleChange}
-              className={inputStyle}
-              required
-            />
-          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-semibold">Notes</label>
+              <textarea name="notes" value={form.notes} onChange={handleChange} rows={3} className={inputStyle} placeholder="Add notes" />
 
-          <div>
-            <label className="text-sm font-medium mb-1 block">Amount (₦) *</label>
-            <input
-              type="number"
-              name="total_amount"
-              value={form.total_amount}
-              onChange={handleChange}
-              className={inputStyle}
-              placeholder="Enter total amount"
-              min="0"
-              step="0.01"
-              required
-            />
-          </div>
+              <label className="text-sm font-semibold">Terms & Conditions</label>
+              <textarea name="terms" value={form.terms} onChange={handleChange} rows={3} className={inputStyle} placeholder="Terms and conditions" />
 
-          <div>
-            <label className="text-sm font-medium mb-1 block">Status</label>
-            <select
-              name="status"
-              value={form.status}
-              onChange={handleChange}
-              className={inputStyle}
-            >
-              <option value="Pending">Pending</option>
-              <option value="Approved">Approved</option>
-              <option value="Received">Received</option>
-            </select>
+              <label className="text-sm font-semibold">Signature Image</label>
+              <input type="file" accept="image/*" onChange={handleSignatureUpload} className={inputStyle} />
+              {form.signature_image ? (
+                <img src={form.signature_image} alt="PO signature" className="h-16 w-auto object-contain border border-slate-300 p-1 rounded" />
+              ) : null}
+            </div>
+
+            <div className="md:pl-8">
+              <div className="flex justify-between py-1 text-sm">
+                <span>Sub Total</span>
+                <span>{subtotal.toFixed(2)}</span>
+              </div>
+              <div className="flex items-center justify-between py-1 text-sm gap-2">
+                <span>Purchase Tax (%)</span>
+                <input
+                  type="number"
+                  name="tax_rate"
+                  min="0"
+                  step="0.01"
+                  value={form.tax_rate}
+                  onChange={handleChange}
+                  className="w-24 px-2 py-1 border border-slate-300 rounded text-right"
+                />
+              </div>
+              <div className="flex justify-between py-1 text-sm">
+                <span>Tax Amount</span>
+                <span>{taxAmount.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between py-2 mt-2 text-base font-bold bg-slate-100 px-2 border border-slate-300">
+                <span>TOTAL</span>
+                <span>{totalAmount.toFixed(2)}</span>
+              </div>
+            </div>
           </div>
 
           <button
             onClick={handleSubmit}
             disabled={loading || fetchingSuppliers}
-            className="w-full bg-[#1d7cf2] text-white py-3 rounded mt-2 hover:bg-blue-600 transition disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full bg-[#1d7cf2] text-white py-3 rounded mt-2 hover:bg-blue-600 transition disabled:opacity-50"
           >
-            {loading && (
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-            )}
-            <Save size={18} /> {create ? 'Create Purchase Order' : 'Save Changes'}
+            {loading ? "Processing..." : create ? "Create Purchase Order" : "Update Purchase Order"}
           </button>
         </div>
 
@@ -854,7 +1000,7 @@ const FormModal = ({ title, onClose, data, create, onSave, darkMode }) => {
 
               <div className="mt-4 flex justify-end gap-2">
                 <button type="button" onClick={() => setShowSupplierModal(false)} className={`px-4 py-2 rounded ${darkMode ? "bg-gray-600" : "bg-gray-200"}`}>Cancel</button>
-                <button type="button" onClick={handleCreateSupplier} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">Save Supplier</button>
+                <button type="button" onClick={handleCreateSupplier} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">Create Supplier</button>
               </div>
             </div>
           </div>
