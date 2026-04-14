@@ -70,6 +70,7 @@ const ERPDashboard = () => {
       case 'Pending': return base + "bg-amber-50 text-amber-600";
       case 'Approved': return base + "bg-emerald-50 text-emerald-600";
       case 'Received': return base + "bg-blue-50 text-blue-600";
+      case 'REJECTED': return base + "bg-rose-50 text-rose-700";
       default: return base + "bg-slate-50 text-slate-600";
     }
   };
@@ -96,7 +97,7 @@ const ERPDashboard = () => {
       .catch(() => toast.error('Failed to download purchase order PDF'));
   };
 
-  const tabs = ['All', 'Pending', 'Approved', 'Received'];
+  const tabs = ['All', 'Pending', 'Approved', 'Received', 'REJECTED'];
 
   const filteredData = tableData.filter(row => activeTab === 'All' || row.status === activeTab);
 
@@ -266,6 +267,7 @@ const EditForm = ({ data, onSave }) => {
         <option>Pending</option>
         <option>Approved</option>
         <option>Received</option>
+        <option>REJECTED</option>
       </select>
       <button onClick={() => onSave(form)} className="bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-xl font-bold mt-2">Save</button>
     </div>

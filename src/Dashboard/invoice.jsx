@@ -8,14 +8,12 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
   const [form, setForm] = useState({
     customer: "",
     status: "Unpaid",
-    signature_name: "",
-    signature_image: "",
     invoice_date: new Date().toISOString().split('T')[0],
     due_date: "",
     item: "",
     description: "",
-    quantity: 1,
-    price: 0,
+    quantity: "",
+    price: "",
     discount: 0,
     tax_rate: 0,
     tax_amount: 0,
@@ -36,16 +34,14 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
     phone: "",
     email: "",
     status: "Active",
-    signature_name: "",
-    signature_image: "",
   });
   const [newItem, setNewItem] = useState({
     product_name: "",
     category: "General",
-    current_stock: 0,
-    min_stock: 0,
-    purchase_price: 0,
-    selling_price: 0,
+    current_stock: "",
+    min_stock: "",
+    purchase_price: "",
+    selling_price: "",
   });
 
   // Load invoice data if editing
@@ -54,14 +50,12 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
       setForm({
         customer: invoiceData.customer || "",
         status: invoiceData.status || "Unpaid",
-        signature_name: invoiceData.signature_name || "",
-        signature_image: invoiceData.signature_image || "",
         invoice_date: invoiceData.invoice_date || new Date().toISOString().split('T')[0],
         due_date: invoiceData.due_date || "",
         item: invoiceData.item || "",
         description: invoiceData.description || "",
-        quantity: invoiceData.quantity || 1,
-        price: invoiceData.price || 0,
+        quantity: invoiceData.quantity || "",
+        price: invoiceData.price || "",
         discount: invoiceData.discount || 0,
         tax_rate: Number(invoiceData.vat_rate ?? invoiceData.tax_rate ?? 0),
         tax_amount: Number(invoiceData.vat_amount ?? invoiceData.tax_amount ?? 0),
@@ -151,7 +145,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
       setForm(prev => ({
         ...prev,
         item: "",
-        price: 0,
+        price: "",
         description: ""
       }));
     }
@@ -174,7 +168,6 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
     setForm((prev) => ({
       ...prev,
       customer: displayName,
-      signature_name: selectedCustomer.name || selectedCustomer.company || "",
     }));
   };
 
@@ -202,22 +195,6 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
     });
   };
 
-  const handleSignatureUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please upload a valid image file");
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      setForm((prev) => ({ ...prev, signature_image: String(reader.result || "") }));
-    };
-    reader.readAsDataURL(file);
-  };
-
   const handleCreateCustomer = async () => {
     if (!newCustomer.name || !newCustomer.company) {
       toast.error("Customer name and company are required");
@@ -242,11 +219,10 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
         setForm((prev) => ({
           ...prev,
           customer: [created.company, created.name].filter(Boolean).join(" - ") || created.company || created.name || "",
-          signature_name: created.name || created.company || "",
         }));
       }
 
-      setNewCustomer({ name: "", company: "", phone: "", email: "", status: "Active", signature_name: "", signature_image: "" });
+      setNewCustomer({ name: "", company: "", phone: "", email: "", status: "Active" });
       setShowCustomerModal(false);
       toast.success("Customer added successfully");
     } catch (error) {
@@ -263,6 +239,10 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
     try {
       const payload = {
         ...newItem,
+        current_stock: Number(newItem.current_stock || 0),
+        min_stock: Number(newItem.min_stock || 0),
+        purchase_price: Number(newItem.purchase_price || 0),
+        selling_price: Number(newItem.selling_price || 0),
         sku: `SKU-${Date.now()}`,
       };
 
@@ -286,34 +266,15 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
       setNewItem({
         product_name: "",
         category: "General",
-        current_stock: 0,
-        min_stock: 0,
-        purchase_price: 0,
-        selling_price: 0,
+        current_stock: "",
+        min_stock: "",
+        purchase_price: "",
+        selling_price: "",
       });
       toast.success("Item added successfully");
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to add item");
     }
-  };
-
-  const handleNewCustomerSignatureUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please upload a valid signature image");
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      setNewCustomer((prev) => ({
-        ...prev,
-        signature_image: String(reader.result || ""),
-        signature_name: prev.signature_name || prev.name || "",
-      }));
-    };
-    reader.readAsDataURL(file);
   };
 
   const handleSubmit = async (e) => {
@@ -517,6 +478,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
                     name="quantity"
                     value={form.quantity}
                     onChange={handleChange}
+                    placeholder="Enter quantity"
                     disabled={loading}
                     className={inputClass}
                   />
@@ -530,6 +492,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
                     name="price"
                     value={form.price}
                     onChange={handleChange}
+                    placeholder="Auto-filled from item"
                     disabled={loading}
                     readOnly
                     className={`${inputClass} ${darkMode ? 'bg-gray-600' : 'bg-gray-100'}`}
@@ -547,19 +510,6 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
               <h3 className={`text-md font-medium mb-4 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Approval</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
-                  <label className={`text-sm mb-1 block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Authorized Signature Name</label>
-                  <input
-                    type="text"
-                    name="signature_name"
-                    value={form.signature_name}
-                    onChange={handleChange}
-                    placeholder="Enter signatory name"
-                    disabled={loading}
-                    className={inputClass}
-                  />
-                </div>
-
-                <div>
                   <label className={`text-sm mb-1 block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Invoice Status</label>
                   <select
                     name="status"
@@ -573,24 +523,6 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
                     <option value="Pending">Pending</option>
                     <option value="Overdue">Overdue</option>
                   </select>
-                </div>
-
-                <div>
-                  <label className={`text-sm mb-1 block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Signature Image (Optional)</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleSignatureUpload}
-                    disabled={loading}
-                    className={inputClass}
-                  />
-                  {form.signature_image ? (
-                    <img
-                      src={form.signature_image}
-                      alt="Signature preview"
-                      className="mt-2 h-12 w-auto rounded border border-gray-400"
-                    />
-                  ) : null}
                 </div>
               </div>
             </div>
@@ -743,11 +675,6 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
               <input className={inputClass} placeholder="Company *" value={newCustomer.company} onChange={(e) => setNewCustomer((prev) => ({ ...prev, company: e.target.value }))} />
               <input className={inputClass} placeholder="Phone" value={newCustomer.phone} onChange={(e) => setNewCustomer((prev) => ({ ...prev, phone: e.target.value }))} />
               <input className={inputClass} placeholder="Email" value={newCustomer.email} onChange={(e) => setNewCustomer((prev) => ({ ...prev, email: e.target.value }))} />
-              <input className={inputClass} placeholder="Signature Label" value={newCustomer.signature_name || ""} onChange={(e) => setNewCustomer((prev) => ({ ...prev, signature_name: e.target.value }))} />
-              <input type="file" accept="image/*" onChange={handleNewCustomerSignatureUpload} className={inputClass} />
-              {newCustomer.signature_image ? (
-                <img src={newCustomer.signature_image} alt="Customer signature preview" className="md:col-span-2 h-14 w-auto rounded border border-gray-400 p-1" />
-              ) : null}
             </div>
 
             <div className="mt-4 flex justify-end gap-2">
@@ -771,10 +698,10 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <input className={inputClass} placeholder="Item name *" value={newItem.product_name} onChange={(e) => setNewItem((prev) => ({ ...prev, product_name: e.target.value }))} />
               <input className={inputClass} placeholder="Category" value={newItem.category} onChange={(e) => setNewItem((prev) => ({ ...prev, category: e.target.value }))} />
-              <input className={inputClass} type="number" placeholder="Opening stock" value={newItem.current_stock} onChange={(e) => setNewItem((prev) => ({ ...prev, current_stock: Number(e.target.value || 0) }))} />
-              <input className={inputClass} type="number" placeholder="Min stock" value={newItem.min_stock} onChange={(e) => setNewItem((prev) => ({ ...prev, min_stock: Number(e.target.value || 0) }))} />
-              <input className={inputClass} type="number" placeholder="Purchase price" value={newItem.purchase_price} onChange={(e) => setNewItem((prev) => ({ ...prev, purchase_price: Number(e.target.value || 0) }))} />
-              <input className={inputClass} type="number" placeholder="Selling price" value={newItem.selling_price} onChange={(e) => setNewItem((prev) => ({ ...prev, selling_price: Number(e.target.value || 0) }))} />
+              <input className={inputClass} type="number" placeholder="Opening stock" value={newItem.current_stock} onChange={(e) => setNewItem((prev) => ({ ...prev, current_stock: e.target.value }))} />
+              <input className={inputClass} type="number" placeholder="Min stock" value={newItem.min_stock} onChange={(e) => setNewItem((prev) => ({ ...prev, min_stock: e.target.value }))} />
+              <input className={inputClass} type="number" placeholder="Purchase price" value={newItem.purchase_price} onChange={(e) => setNewItem((prev) => ({ ...prev, purchase_price: e.target.value }))} />
+              <input className={inputClass} type="number" placeholder="Selling price" value={newItem.selling_price} onChange={(e) => setNewItem((prev) => ({ ...prev, selling_price: e.target.value }))} />
             </div>
 
             <div className="mt-4 flex justify-end gap-2">

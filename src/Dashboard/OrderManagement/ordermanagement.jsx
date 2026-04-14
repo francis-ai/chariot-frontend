@@ -32,7 +32,7 @@ const EnterpriseDashboard = () => {
     { label: "Avg. Delivery (Days)", value: "0" },
   ]);
 
-  const tabs = ["All Purchase Orders", "Pending", "Approved", "Received"];
+  const tabs = ["All Purchase Orders", "Pending", "Approved", "Received", "Rejected"];
 
   // Fetch purchase orders on component mount
   useEffect(() => {
@@ -245,6 +245,7 @@ const EnterpriseDashboard = () => {
       case "Pending": return "bg-orange-100 text-orange-600 dark:bg-orange-900 dark:text-orange-300";
       case "Approved": return "bg-emerald-100 text-emerald-600 dark:bg-emerald-900 dark:text-emerald-300";
       case "Received": return "bg-cyan-100 text-cyan-600 dark:bg-cyan-900 dark:text-cyan-300";
+      case "Rejected": return "bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300";
       default: return "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300";
     }
   };
@@ -271,12 +272,10 @@ const EnterpriseDashboard = () => {
       <ToastContainer position="top-right" autoClose={2500} hideProgressBar />
 
       {/* SIDEBAR */}
-      <aside className="md:block w-64 fixed top-0 h-screen z-40">
-        <Sidebar />
-      </aside>
+      <Sidebar />
 
       {/* MAIN */}
-      <main className="flex-1 md:ml-64 flex flex-col">
+      <main className="flex-1 flex flex-col min-w-0">
 
         {/* NAVBAR */}
         <div className={`sticky top-0 z-30 ${darkMode ? "bg-gray-900" : "bg-gray-50"}`}>
@@ -788,21 +787,27 @@ const FormModal = ({ title, onClose, data, create, onSave, darkMode }) => {
   };
 
 
-  const inputStyle = `px-3 py-2 rounded-md w-full border border-slate-300 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500`;
+  const inputStyle = `px-3 py-2 rounded-lg w-full border focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+    darkMode
+      ? "bg-gray-700 text-gray-100 border-gray-600"
+      : "bg-white text-gray-900 border-gray-300"
+  }`;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-start sm:items-center justify-center z-50 overflow-y-auto p-4">
-      <div className="w-full max-w-4xl rounded-lg p-6 relative max-h-[90vh] overflow-y-auto bg-[#f6f6f6] text-slate-800 border border-[#e4decf]">
+    <div className="fixed inset-0 bg-black/50 flex items-start sm:items-center justify-center z-50 overflow-y-auto p-0 sm:p-4">
+      <div className={`w-full h-full sm:h-auto sm:max-h-[90vh] max-w-4xl rounded-none sm:rounded-2xl p-4 sm:p-6 relative overflow-y-auto border-0 sm:border ${
+        darkMode ? "bg-gray-800 text-gray-100 sm:border-gray-700" : "bg-white text-gray-800 sm:border-gray-200"
+      }`}>
         <button 
           onClick={onClose} 
-          className="absolute top-4 right-4 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+          className={`absolute top-4 right-4 p-2 rounded-full ${darkMode ? "hover:bg-gray-700" : "hover:bg-gray-100"}`}
         >
           <X />
         </button>
         
         <h2 className="text-xl font-bold mb-4">{title}</h2>
 
-        <div className="bg-white border border-slate-300 p-6 space-y-5">
+        <div className={`p-4 sm:p-6 space-y-5 rounded-xl border ${darkMode ? "bg-gray-900 border-gray-700" : "bg-gray-50 border-gray-200"}`}>
           <div className="w-full text-right">
             <h3 className="text-3xl font-light tracking-wide">PURCHASE ORDER</h3>
           </div>
@@ -862,13 +867,14 @@ const FormModal = ({ title, onClose, data, create, onSave, darkMode }) => {
                   <option value="Pending">Pending</option>
                   <option value="Approved">Approved</option>
                   <option value="Received">Received</option>
+                  <option value="Rejected">Rejected</option>
                 </select>
               </div>
             </div>
           </div>
 
-          <div className="border border-slate-300 rounded">
-            <div className="grid grid-cols-12 bg-slate-600 text-white text-xs font-semibold px-3 py-2">
+          <div className={`border rounded-lg overflow-hidden ${darkMode ? "border-gray-700" : "border-slate-300"}`}>
+            <div className={`grid grid-cols-12 text-xs font-semibold px-3 py-2 ${darkMode ? "bg-gray-700 text-gray-100" : "bg-slate-600 text-white"}`}>
               <div className="col-span-6">Item Description</div>
               <div className="col-span-2 text-right">Qty</div>
               <div className="col-span-2 text-right">Rate</div>
@@ -878,7 +884,7 @@ const FormModal = ({ title, onClose, data, create, onSave, darkMode }) => {
             {lineItems.map((item, index) => {
               const amount = Number(item.quantity || 0) * Number(item.rate || 0);
               return (
-                <div key={`line-item-${index}`} className="grid grid-cols-12 gap-2 px-3 py-2 border-t border-slate-200 items-center">
+                <div key={`line-item-${index}`} className={`grid grid-cols-12 gap-2 px-3 py-2 border-t items-center ${darkMode ? "border-gray-700" : "border-slate-200"}`}>
                   <div className="col-span-12 md:col-span-6">
                     <input
                       value={item.description}
@@ -911,7 +917,7 @@ const FormModal = ({ title, onClose, data, create, onSave, darkMode }) => {
                     <button
                       type="button"
                       onClick={() => removeLineItem(index)}
-                      className="text-red-600 text-xs font-semibold"
+                      className="text-red-500 text-xs font-semibold"
                       disabled={lineItems.length === 1}
                     >
                       X
@@ -922,7 +928,7 @@ const FormModal = ({ title, onClose, data, create, onSave, darkMode }) => {
             })}
           </div>
 
-          <button type="button" onClick={addLineItem} className="text-sm font-semibold text-green-600">
+          <button type="button" onClick={addLineItem} className="text-sm font-semibold text-blue-500">
             + Add Line Item
           </button>
 
@@ -962,7 +968,7 @@ const FormModal = ({ title, onClose, data, create, onSave, darkMode }) => {
                 <span>Tax Amount</span>
                 <span>{taxAmount.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between py-2 mt-2 text-base font-bold bg-slate-100 px-2 border border-slate-300">
+              <div className={`flex justify-between py-2 mt-2 text-base font-bold px-2 border rounded ${darkMode ? "bg-gray-700 border-gray-600" : "bg-slate-100 border-slate-300"}`}>
                 <span>TOTAL</span>
                 <span>{totalAmount.toFixed(2)}</span>
               </div>

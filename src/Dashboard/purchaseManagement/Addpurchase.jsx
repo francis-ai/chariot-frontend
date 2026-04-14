@@ -185,6 +185,7 @@ const AddPurchaseOrder = ({ onCreated }) => {
               <option value="Pending">Pending</option>
               <option value="Approved">Approved</option>
               <option value="Received">Received</option>
+              <option value="REJECTED">REJECTED</option>
             </select>
           </div>
         </div>

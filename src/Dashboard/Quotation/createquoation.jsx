@@ -13,7 +13,6 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
     status: "Pending",
     notes: "",
     terms: "",
-    signature_name: "",
     items: [
       {
         name: "",
@@ -33,16 +32,14 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
     phone: "",
     email: "",
     status: "Active",
-    signature_name: "",
-    signature_image: "",
   });
   const [newItem, setNewItem] = useState({
     product_name: "",
     category: "General",
-    current_stock: 0,
-    min_stock: 0,
-    purchase_price: 0,
-    selling_price: 0,
+    current_stock: "",
+    min_stock: "",
+    purchase_price: "",
+    selling_price: "",
   });
 
   const handleChange = (e) => {
@@ -97,7 +94,6 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
         status: "Pending",
         notes: "",
         terms: "",
-        signature_name: "",
         items: [
           {
             name: "",
@@ -151,11 +147,10 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
         setFormData((prev) => ({
           ...prev,
           customer: formatCustomerLabel(created),
-          signature_name: created.name || created.company || "",
         }));
       }
 
-      setNewCustomer({ name: "", company: "", phone: "", email: "", status: "Active", signature_name: "", signature_image: "" });
+      setNewCustomer({ name: "", company: "", phone: "", email: "", status: "Active" });
       setShowCustomerModal(false);
       toast.success("Customer added successfully");
     } catch (error) {
@@ -172,6 +167,10 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
     try {
       await API.post("/inventory", {
         ...newItem,
+        current_stock: Number(newItem.current_stock || 0),
+        min_stock: Number(newItem.min_stock || 0),
+        purchase_price: Number(newItem.purchase_price || 0),
+        selling_price: Number(newItem.selling_price || 0),
         sku: `SKU-${Date.now()}`,
       });
       toast.success("Item added successfully");
@@ -179,33 +178,14 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
       setNewItem({
         product_name: "",
         category: "General",
-        current_stock: 0,
-        min_stock: 0,
-        purchase_price: 0,
-        selling_price: 0,
+        current_stock: "",
+        min_stock: "",
+        purchase_price: "",
+        selling_price: "",
       });
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to add item");
     }
-  };
-
-  const handleNewCustomerSignatureUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please upload a valid signature image");
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      setNewCustomer((prev) => ({
-        ...prev,
-        signature_image: String(reader.result || ""),
-        signature_name: prev.signature_name || prev.name || "",
-      }));
-    };
-    reader.readAsDataURL(file);
   };
 
   const subtotal = formData.items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.price) || 0), 0);
@@ -355,21 +335,6 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
             onChange={handleChange}
             min="0"
             step="0.1"
-            className={inputClass}
-            disabled={loading}
-          />
-        </div>
-
-        <div>
-          <label className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-300" : "text-gray-600"}`}>
-            Authorized Signature
-          </label>
-          <input
-            type="text"
-            name="signature_name"
-            value={formData.signature_name}
-            onChange={handleChange}
-            placeholder="Enter signatory name"
             className={inputClass}
             disabled={loading}
           />
@@ -589,22 +554,6 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
                 onChange={(e) => setNewCustomer((prev) => ({ ...prev, email: e.target.value }))}
                 className={inputClass}
               />
-              <input
-                type="text"
-                placeholder="Signature label"
-                value={newCustomer.signature_name || ""}
-                onChange={(e) => setNewCustomer((prev) => ({ ...prev, signature_name: e.target.value }))}
-                className={inputClass}
-              />
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleNewCustomerSignatureUpload}
-                className={inputClass}
-              />
-              {newCustomer.signature_image ? (
-                <img src={newCustomer.signature_image} alt="Signature preview" className="h-14 w-auto rounded border border-gray-400 p-1" />
-              ) : null}
             </div>
 
             <div className="flex justify-end gap-3 mt-5">
@@ -640,10 +589,10 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <input className={inputClass} placeholder="Item name *" value={newItem.product_name} onChange={(e) => setNewItem((prev) => ({ ...prev, product_name: e.target.value }))} />
               <input className={inputClass} placeholder="Category" value={newItem.category} onChange={(e) => setNewItem((prev) => ({ ...prev, category: e.target.value }))} />
-              <input className={inputClass} type="number" placeholder="Opening stock" value={newItem.current_stock} onChange={(e) => setNewItem((prev) => ({ ...prev, current_stock: Number(e.target.value || 0) }))} />
-              <input className={inputClass} type="number" placeholder="Min stock" value={newItem.min_stock} onChange={(e) => setNewItem((prev) => ({ ...prev, min_stock: Number(e.target.value || 0) }))} />
-              <input className={inputClass} type="number" placeholder="Purchase price" value={newItem.purchase_price} onChange={(e) => setNewItem((prev) => ({ ...prev, purchase_price: Number(e.target.value || 0) }))} />
-              <input className={inputClass} type="number" placeholder="Selling price" value={newItem.selling_price} onChange={(e) => setNewItem((prev) => ({ ...prev, selling_price: Number(e.target.value || 0) }))} />
+              <input className={inputClass} type="number" placeholder="Opening stock" value={newItem.current_stock} onChange={(e) => setNewItem((prev) => ({ ...prev, current_stock: e.target.value }))} />
+              <input className={inputClass} type="number" placeholder="Min stock" value={newItem.min_stock} onChange={(e) => setNewItem((prev) => ({ ...prev, min_stock: e.target.value }))} />
+              <input className={inputClass} type="number" placeholder="Purchase price" value={newItem.purchase_price} onChange={(e) => setNewItem((prev) => ({ ...prev, purchase_price: e.target.value }))} />
+              <input className={inputClass} type="number" placeholder="Selling price" value={newItem.selling_price} onChange={(e) => setNewItem((prev) => ({ ...prev, selling_price: e.target.value }))} />
             </div>
 
             <div className="mt-4 flex justify-end gap-2">
