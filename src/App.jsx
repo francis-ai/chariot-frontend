@@ -1,5 +1,5 @@
 import React from "react";
-import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import ProtectedRoute from "./routes/ProtectedRoute.jsx";
 
 // Auth
@@ -113,6 +113,11 @@ const AppWrapper = () => {
               <Suppliershome />
             </ProtectedRoute>
           }/>
+          <Route path="/admin/Suppliershome/add" element={
+            <ProtectedRoute allowedRoles={["super-admin"]} loginPath="/admin/login" fallbackPath="/staff/dashboard">
+              <Navigate to="/admin/Suppliershome?mode=add" replace />
+            </ProtectedRoute>
+          }/>
           <Route path="/admin/Customer" element={
             <ProtectedRoute allowedRoles={["super-admin"]} loginPath="/admin/login" fallbackPath="/staff/dashboard">
               <Customer />
@@ -200,6 +205,11 @@ const AppWrapper = () => {
           <Route path="/Suppliershome" element={
             <ProtectedRoute>
               <Suppliershome />
+            </ProtectedRoute>
+          }/>
+          <Route path="/Suppliershome/add" element={
+            <ProtectedRoute>
+              <Navigate to="/Suppliershome?mode=add" replace />
             </ProtectedRoute>
           }/>
           <Route path="/Customer" element={

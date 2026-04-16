@@ -53,6 +53,7 @@ export default function CustomersDashboard() {
         c.email?.toLowerCase().includes(lower) ||
         c.phone?.includes(lower) ||
         c.company?.toLowerCase().includes(lower) ||
+        c.address?.toLowerCase().includes(lower) ||
         c.status?.toLowerCase().includes(lower)
     );
   }, [searchQuery, customers]);
@@ -279,7 +280,6 @@ export default function CustomersDashboard() {
               onSave={handleSaveCustomer}
               darkMode={darkMode}
               editCustomer={editCustomer}
-              canDeleteSignature={canDeleteCustomer}
             />
           )}
 
@@ -309,8 +309,8 @@ export default function CustomersDashboard() {
 }
 
 /* ================== ADD CUSTOMER MODAL ================== */
-const AddCustomerModal = ({ onClose, onSave, darkMode, editCustomer, canDeleteSignature }) => {
-  const [form, setForm] = useState({ name: "", email: "", phone: "", company: "", status: "Active", signature_name: "", signature_image: "" });
+const AddCustomerModal = ({ onClose, onSave, darkMode, editCustomer }) => {
+  const [form, setForm] = useState({ name: "", email: "", phone: "", company: "", address: "", status: "Active" });
   const [errors, setErrors] = useState({});
 
   React.useEffect(() => {
@@ -323,6 +323,7 @@ const AddCustomerModal = ({ onClose, onSave, darkMode, editCustomer, canDeleteSi
     if (!form.email?.trim()) errs.email = "Email is required";
     if (!form.phone?.trim()) errs.phone = "Phone is required";
     if (!form.company?.trim()) errs.company = "Company is required";
+    if (!form.address?.trim()) errs.address = "Address is required";
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -330,22 +331,6 @@ const AddCustomerModal = ({ onClose, onSave, darkMode, editCustomer, canDeleteSi
   const handleSave = () => {
     if (!validate()) return;
     onSave(form);
-  };
-
-  const handleSignatureUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      setForm((prev) => ({
-        ...prev,
-        signature_image: String(reader.result || ""),
-        signature_name: prev.signature_name || prev.name || "",
-      }));
-    };
-    reader.readAsDataURL(file);
   };
 
   const inputBg = darkMode ? "bg-gray-800 text-gray-100 placeholder-gray-400" : "bg-white text-gray-900 placeholder-gray-500";
@@ -358,7 +343,7 @@ const AddCustomerModal = ({ onClose, onSave, darkMode, editCustomer, canDeleteSi
         </button>
         <h2 className="text-lg font-bold mb-4">{editCustomer ? "Edit Customer" : "Add New Customer"}</h2>
         <div className="flex flex-col gap-3">
-          {["name","email","phone","company"].map(field => (
+          {["name","email","phone","company", "address"].map(field => (
             <div key={field} className="flex flex-col">
               <input
                 className={`px-3 py-2 rounded-lg shadow focus:outline-none focus:ring-1 focus:ring-blue-600 ${inputBg}`}
@@ -378,35 +363,6 @@ const AddCustomerModal = ({ onClose, onSave, darkMode, editCustomer, canDeleteSi
             <option>Active</option>
             <option>Inactive</option>
           </select>
-
-          <input
-            className={`px-3 py-2 rounded-lg shadow focus:outline-none focus:ring-1 focus:ring-blue-600 ${inputBg}`}
-            placeholder="Signature label (optional)"
-            value={form.signature_name || ""}
-            onChange={e => setForm({ ...form, signature_name: e.target.value })}
-          />
-
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleSignatureUpload}
-            className={`px-3 py-2 rounded-lg shadow focus:outline-none focus:ring-1 focus:ring-blue-600 ${inputBg}`}
-          />
-
-          {form.signature_image && (
-            <div className="space-y-2">
-              <img src={form.signature_image} alt="Customer signature" className="h-16 w-auto object-contain border rounded p-1" />
-              {canDeleteSignature && (
-                <button
-                  type="button"
-                  onClick={() => setForm((prev) => ({ ...prev, signature_image: "", signature_name: "" }))}
-                  className="px-3 py-1 rounded bg-red-600 text-white text-xs font-semibold hover:bg-red-700"
-                >
-                  Remove Signature
-                </button>
-              )}
-            </div>
-          )}
 
           <button 
             onClick={handleSave} 
@@ -437,14 +393,8 @@ const ViewCustomerModal = ({ customer, onClose, darkMode }) => {
           <p><strong>Email:</strong> {customer.email || "-"}</p>
           <p><strong>Phone:</strong> {customer.phone || "-"}</p>
           <p><strong>Company:</strong> {customer.company || "-"}</p>
+          <p><strong>Address:</strong> {customer.address || "-"}</p>
           <p><strong>Status:</strong> {customer.status || "-"}</p>
-          <p><strong>Signature Name:</strong> {customer.signature_name || "-"}</p>
-          {customer.signature_image && (
-            <div>
-              <p><strong>Signature:</strong></p>
-              <img src={customer.signature_image} alt="Customer signature" className="h-16 w-auto object-contain border rounded p-1 mt-1" />
-            </div>
-          )}
           <p><strong>Added By:</strong> {customer.created_by_name || "System"}</p>
         </div>
       </div>

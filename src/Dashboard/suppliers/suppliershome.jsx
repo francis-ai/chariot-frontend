@@ -6,10 +6,13 @@ import AddSupplier from "./Addsupplier";
 import { useTheme } from "../../context/ThemeContext";
 import API from "../../utils/api";
 import { ToastContainer, toast } from "react-toastify";
+import { useLocation, useNavigate } from "react-router-dom";
 import "react-toastify/dist/ReactToastify.css";
 
 const SupplierManagement = () => {
   const { darkMode } = useTheme();
+  const location = useLocation();
+  const navigate = useNavigate();
   const PAGE_SIZE = 10;
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -17,7 +20,7 @@ const SupplierManagement = () => {
   const [editModal, setEditModal] = useState(null);
   const [deleteModal, setDeleteModal] = useState(null); // For delete confirmation
   const [formData, setFormData] = useState({});
-  const [isAddPage, setIsAddPage] = useState(false);
+  const isAddPage = new URLSearchParams(location.search).get("mode") === "add";
   const [suppliers, setSuppliers] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
@@ -63,6 +66,24 @@ const SupplierManagement = () => {
     }
   };
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, suppliers.length]);
+
+  const filteredSuppliers = suppliers.filter((supplier) => {
+    const query = searchTerm.trim().toLowerCase();
+    if (!query) return true;
+    return [supplier.name, supplier.company, supplier.email, supplier.phone, supplier.city, supplier.country]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(query));
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filteredSuppliers.length / PAGE_SIZE));
+  const paginatedSuppliers = filteredSuppliers.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
+
   /* ---------- ADD SUPPLIER ---------- */
   const handleAddSupplier = async (supplierData) => {
     try {
@@ -99,7 +120,7 @@ const SupplierManagement = () => {
       };
       
       setSuppliers(prev => [newSupplier, ...prev]);
-      setIsAddPage(false);
+      navigate(`${location.pathname}`, { replace: true });
       toast.success("Supplier added successfully!");
     } catch (err) {
       console.error("Add supplier error:", err);
@@ -166,16 +187,16 @@ const SupplierManagement = () => {
   /* ---------- ADD PAGE ---------- */
   if (isAddPage) {
     return (
-      <div className={`flex min-h-screen ${darkMode ? "bg-slate-900 text-white" : "bg-slate-50 text-slate-900"}`}>
+      <div className={`block lg:flex min-h-screen ${darkMode ? "bg-slate-900 text-white" : "bg-slate-50 text-slate-900"}`}>
         <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col w-full">
           <NavBar onMenuClick={() => setIsSidebarOpen(true)} />
-          <main className="p-6 max-w-7xl mx-auto w-full">
-            <div className="flex justify-between items-center mb-6">
+          <main className="p-4 md:p-6 mt-16 md:mt-0 max-w-7xl mx-auto w-full">
+            <div className="flex justify-between items-center mb-6 gap-4">
               <h1 className="text-2xl font-black">Add Supplier</h1>
               <button
-                onClick={() => setIsAddPage(false)}
-                className="flex items-center gap-2 bg-rose-600 text-white px-4 py-2 rounded-xl shadow-lg hover:bg-rose-700"
+                onClick={() => navigate(location.pathname, { replace: true })}
+                className="flex items-center gap-2 bg-rose-600 text-white px-3 md:px-4 py-2 rounded-xl shadow-lg hover:bg-rose-700 whitespace-nowrap text-sm md:text-base"
               >
                 <X size={18} /> Cancel
               </button>
@@ -188,23 +209,6 @@ const SupplierManagement = () => {
   }
 
   /* ---------- MAIN ---------- */
-  const filteredSuppliers = suppliers.filter((supplier) => {
-    const query = searchTerm.trim().toLowerCase();
-    if (!query) return true;
-    return [supplier.name, supplier.company, supplier.email, supplier.phone, supplier.city, supplier.country]
-      .filter(Boolean)
-      .some((value) => String(value).toLowerCase().includes(query));
-  });
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, suppliers.length]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredSuppliers.length / PAGE_SIZE));
-  const paginatedSuppliers = filteredSuppliers.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE
-  );
 
   return (
     <div className={`block lg:flex min-h-screen ${darkMode ? "bg-slate-900 text-white" : "bg-slate-50 text-slate-900"}`}>
@@ -221,7 +225,7 @@ const SupplierManagement = () => {
               <p className="text-sm text-slate-400 mt-1">Manage your suppliers and vendors</p>
             </div>
             <button
-              onClick={() => setIsAddPage(true)}
+              onClick={() => navigate(`${location.pathname}?mode=add`)}
               className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl font-bold shadow-lg"
             >
               <Plus size={18} /> Add Supplier
@@ -251,7 +255,7 @@ const SupplierManagement = () => {
             <div className={`text-center py-12 rounded-2xl ${darkMode ? "bg-slate-800" : "bg-white"}`}>
               <p className="text-slate-400 mb-4">No suppliers found</p>
               <button
-                onClick={() => setIsAddPage(true)}
+                onClick={() => navigate(`${location.pathname}?mode=add`)}
                 className="text-blue-600 hover:text-blue-700 font-medium"
               >
                 Add your first supplier
