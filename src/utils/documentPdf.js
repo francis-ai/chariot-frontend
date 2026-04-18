@@ -244,23 +244,46 @@ const addCompanyHeader = async (doc, title, numberLabel, numberValue, metaLines 
 
 export const downloadInvoicePdf = async (invoice) => {
   const doc = new jsPDF();
-  const unitPrice = getNumeric(invoice.price);
-  const quantity = getNumeric(invoice.quantity);
-  const lineTotal = getNumeric(invoice.total || quantity * unitPrice);
+  const invoiceItems = Array.isArray(invoice.items)
+    ? invoice.items
+    : (() => {
+        if (typeof invoice.items_json === "string" && invoice.items_json.trim()) {
+          try {
+            const parsed = JSON.parse(invoice.items_json);
+            return Array.isArray(parsed) ? parsed : [];
+          } catch (error) {
+            return [];
+          }
+        }
+        return [];
+      })();
+
+  const normalizedItems = invoiceItems.length
+    ? invoiceItems
+        .map((row) => ({
+          item: row.name || row.item || row.product_name || "",
+          description: row.description || "",
+          quantity: getNumeric(row.quantity || row.qty || 0),
+          price: getNumeric(row.price || 0),
+        }))
+        .filter((row) => row.item && row.quantity > 0)
+    : [
+        {
+          item: invoice.item || "",
+          description: invoice.description || "",
+          quantity: getNumeric(invoice.quantity),
+          price: getNumeric(invoice.price),
+        },
+      ].filter((row) => row.item && row.quantity > 0);
+
   const discount = getNumeric(invoice.discount);
-  const subtotal = Math.max(0, quantity * unitPrice - discount);
+  const subtotalBeforeDiscount = normalizedItems.reduce(
+    (sum, row) => sum + row.quantity * row.price,
+    0
+  );
+  const subtotal = Math.max(0, subtotalBeforeDiscount - discount);
   const tax = resolveTaxVat(invoice, subtotal);
   const grandTotal = getNumeric(invoice.total || subtotal + tax.taxAmount + tax.vatAmount);
-
-  const items = [
-    {
-      item: invoice.item || "",
-      description: invoice.description || "",
-      quantity,
-      price: unitPrice,
-      total: lineTotal,
-    },
-  ];
 
   const headerEndY = await addCompanyHeader(doc, "INVOICE", "Invoice No", invoice.invoice_number || invoice.id, [
     `Customer: ${invoice.customer || ""}`,
@@ -271,7 +294,7 @@ export const downloadInvoicePdf = async (invoice) => {
   autoTable(doc, {
     startY: headerEndY,
     head: [["Item", "Description", "Qty", "Unit Price", "Total"]],
-    body: items.map((row) => [row.item, row.description, row.quantity, money(row.price), money(row.total)]),
+    body: normalizedItems.map((row) => [row.item, row.description, row.quantity, money(row.price), money(row.quantity * row.price)]),
     styles: { fontSize: 9 },
     headStyles: { fillColor: [30, 41, 59] },
   });

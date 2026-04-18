@@ -17,6 +17,37 @@ import { downloadInvoicePdf } from "../utils/documentPdf";
 
 const TABS = ["All Invoices", "Paid", "Unpaid", "Pending", "Overdue"];
 
+const parseInvoiceItems = (invoice) => {
+  if (Array.isArray(invoice?.items) && invoice.items.length > 0) return invoice.items;
+  if (typeof invoice?.items_json === "string" && invoice.items_json.trim()) {
+    try {
+      const parsed = JSON.parse(invoice.items_json);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      return [];
+    }
+  }
+  if (invoice?.item) {
+    return [
+      {
+        name: invoice.item,
+        description: invoice.description || "",
+        quantity: Number(invoice.quantity || 0),
+        price: Number(invoice.price || 0),
+      },
+    ];
+  }
+  return [];
+};
+
+const getItemSummary = (invoice) => {
+  const rows = parseInvoiceItems(invoice);
+  if (!rows.length) return "";
+  const firstName = rows[0].name || rows[0].item || rows[0].product_name || "";
+  if (rows.length === 1) return firstName;
+  return `${firstName} +${rows.length - 1} more`;
+};
+
 const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefresh, darkMode, focusId }) => {
   const [activeTab, setActiveTab] = useState("All Invoices");
   const [invoices, setInvoices] = useState([]);
@@ -118,7 +149,33 @@ const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefr
 
   const handleSaveEdit = async (updatedData) => {
     try {
-      const subtotal = Number(updatedData.quantity || 0) * Number(updatedData.price || 0);
+      const normalizedItems = Array.isArray(updatedData.items)
+        ? updatedData.items
+            .map((row) => ({
+              name: String(row.name || row.item || row.product_name || "").trim(),
+              description: row.description || "",
+              quantity: Number(row.quantity || row.qty || 0),
+              price: Number(row.price || 0),
+            }))
+            .filter((row) => row.name && row.quantity > 0)
+        : [];
+
+      const lineItems = normalizedItems.length
+        ? normalizedItems
+        : [
+            {
+              name: updatedData.item,
+              description: updatedData.description || "",
+              quantity: Number(updatedData.quantity || 0),
+              price: Number(updatedData.price || 0),
+            },
+          ].filter((row) => row.name && row.quantity > 0);
+
+      const firstItem = lineItems[0] || { name: "", description: "", quantity: 0, price: 0 };
+      const subtotal = lineItems.reduce(
+        (sum, row) => sum + Number(row.quantity || 0) * Number(row.price || 0),
+        0
+      );
       const discount = Number(updatedData.discount || 0);
       const taxableBase = Math.max(0, subtotal - discount);
       const taxRate = Number(updatedData.tax_rate || updatedData.vat_rate || 0);
@@ -130,10 +187,12 @@ const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefr
         customer: updatedData.customer,
         invoice_date: updatedData.invoice_date,
         due_date: updatedData.due_date,
-        item: updatedData.item,
-        description: updatedData.description || "",
-        quantity: Number(updatedData.quantity) || 0,
-        price: Number(updatedData.price) || 0,
+        item: firstItem.name,
+        description: firstItem.description || "",
+        quantity: Number(firstItem.quantity) || 0,
+        price: Number(firstItem.price) || 0,
+        items: lineItems,
+        items_json: JSON.stringify(lineItems),
         discount,
         tax_rate: taxRate,
         tax_amount: taxAmount,
@@ -240,7 +299,7 @@ const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefr
                     <td className="px-4 py-2">{inv.customer}</td>
                     <td className="px-4 py-2">{inv.invoice_date}</td>
                     <td className="px-4 py-2">{inv.due_date}</td>
-                    <td className="px-4 py-2">{inv.item}</td>
+                    <td className="px-4 py-2">{getItemSummary(inv)}</td>
                     <td className="px-4 py-2 font-bold">₦{Number(inv.total).toLocaleString()}</td>
                     <td className="px-4 py-2">
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusStyles(inv.status)}`}>
@@ -355,7 +414,7 @@ const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefr
                 </div>
                 <div>
                   <label className="text-xs uppercase opacity-60">Item</label>
-                  <p>{selectedInvoice.item}</p>
+                  <p>{getItemSummary(selectedInvoice)}</p>
                 </div>
                 <div>
                   <label className="text-xs uppercase opacity-60">Quantity</label>
@@ -389,6 +448,18 @@ const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefr
                   </p>
                 </div>
               </div>
+              {parseInvoiceItems(selectedInvoice).length > 1 && (
+                <div>
+                  <label className="text-xs uppercase opacity-60">Items</label>
+                  <div className={`text-sm p-2 rounded space-y-1 ${darkMode ? "bg-slate-700 text-slate-100" : "bg-slate-100 text-slate-800"}`}>
+                    {parseInvoiceItems(selectedInvoice).map((row, index) => (
+                      <p key={`${row.name || row.item}-${index}`}>
+                        {(row.name || row.item || row.product_name || "Item")} x {Number(row.quantity || row.qty || 0)}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
               {selectedInvoice.notes && (
                 <div>
                   <label className="text-xs uppercase opacity-60">Notes</label>

@@ -51,6 +51,19 @@ export default function InvoiceManagement() {
         invoice_date: inv.invoice_date ? inv.invoice_date.split('T')[0] : "",
         due_date: inv.due_date ? inv.due_date.split('T')[0] : "",
         item: inv.item || "",
+        items_json: inv.items_json || "",
+        items: (() => {
+          if (Array.isArray(inv.items)) return inv.items;
+          if (typeof inv.items_json === "string" && inv.items_json.trim()) {
+            try {
+              const parsed = JSON.parse(inv.items_json);
+              return Array.isArray(parsed) ? parsed : [];
+            } catch (error) {
+              return [];
+            }
+          }
+          return [];
+        })(),
         description: inv.description || "",
         quantity: parseInt(inv.quantity) || 0,
         price: parseFloat(inv.price) || 0,
@@ -121,8 +134,33 @@ export default function InvoiceManagement() {
 
   const handleSaveInvoice = async (invoiceData) => {
     try {
-      // Calculate total
-      const subtotal = Number(invoiceData.quantity || 0) * Number(invoiceData.price || 0);
+      const normalizedItems = Array.isArray(invoiceData.items)
+        ? invoiceData.items
+            .map((row) => ({
+              name: String(row.name || row.item || row.product_name || "").trim(),
+              description: row.description || "",
+              quantity: Number(row.quantity || row.qty || 0),
+              price: Number(row.price || 0),
+            }))
+            .filter((row) => row.name && row.quantity > 0)
+        : [];
+
+      const lineItems = normalizedItems.length
+        ? normalizedItems
+        : [
+            {
+              name: invoiceData.item,
+              description: invoiceData.description || "",
+              quantity: Number(invoiceData.quantity || 0),
+              price: Number(invoiceData.price || 0),
+            },
+          ].filter((row) => row.name && row.quantity > 0);
+
+      const firstItem = lineItems[0] || { name: "", description: "", quantity: 0, price: 0 };
+      const subtotal = lineItems.reduce(
+        (sum, row) => sum + Number(row.quantity || 0) * Number(row.price || 0),
+        0
+      );
       const discount = Number(invoiceData.discount || 0);
       const taxableBase = Math.max(0, subtotal - discount);
       const taxRate = Number(invoiceData.tax_rate || invoiceData.vat_rate || 0);
@@ -136,10 +174,12 @@ export default function InvoiceManagement() {
         signature_name: invoiceData.signature_name || "",
         invoice_date: invoiceData.invoice_date,
         due_date: invoiceData.due_date,
-        item: invoiceData.item,
-        description: invoiceData.description || "",
-        quantity: parseInt(invoiceData.quantity) || 0,
-        price: parseFloat(invoiceData.price) || 0,
+        item: firstItem.name,
+        description: firstItem.description || "",
+        quantity: parseInt(firstItem.quantity) || 0,
+        price: parseFloat(firstItem.price) || 0,
+        items: lineItems,
+        items_json: JSON.stringify(lineItems),
         discount,
         tax_rate: taxRate,
         tax_amount: taxAmount,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { toast, ToastContainer } from "react-toastify";
 import { X, Save, Plus } from "lucide-react";
 import "react-toastify/dist/ReactToastify.css";
@@ -23,16 +23,24 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState({ customers: true, items: true });
-  const [selectedItemId, setSelectedItemId] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [customerSearch, setCustomerSearch] = useState("");
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [showItemModal, setShowItemModal] = useState(false);
+  const [lineItems, setLineItems] = useState([
+    {
+      name: "",
+      description: "",
+      quantity: 1,
+      price: 0,
+    },
+  ]);
   const [newCustomer, setNewCustomer] = useState({
     name: "",
     company: "",
     phone: "",
     email: "",
+    address: "",
     status: "Active",
   });
   const [newItem, setNewItem] = useState({
@@ -47,6 +55,42 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
   // Load invoice data if editing
   useEffect(() => {
     if (invoiceData) {
+      let parsedItems = [];
+      if (Array.isArray(invoiceData.items) && invoiceData.items.length > 0) {
+        parsedItems = invoiceData.items;
+      } else if (typeof invoiceData.items_json === "string" && invoiceData.items_json.trim()) {
+        try {
+          const value = JSON.parse(invoiceData.items_json);
+          parsedItems = Array.isArray(value) ? value : [];
+        } catch (error) {
+          parsedItems = [];
+        }
+      }
+
+      if (parsedItems.length === 0 && invoiceData.item) {
+        parsedItems = [
+          {
+            name: invoiceData.item,
+            description: invoiceData.description || "",
+            quantity: Number(invoiceData.quantity || 1),
+            price: Number(invoiceData.price || 0),
+          },
+        ];
+      }
+
+      const firstItem = parsedItems.length
+        ? parsedItems[0]
+        : { name: "", description: "", quantity: 1, price: 0 };
+
+      setLineItems([
+        {
+          name: firstItem.name || firstItem.item || firstItem.product_name || "",
+          description: firstItem.description || "",
+          quantity: Number(firstItem.quantity || firstItem.qty || 1),
+          price: Number(firstItem.price || firstItem.unit_price || 0),
+        },
+      ]);
+
       setForm({
         customer: invoiceData.customer || "",
         status: invoiceData.status || "Unpaid",
@@ -76,16 +120,6 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
       setSelectedCustomerId(String(matchedCustomer.id || matchedCustomer._id));
     }
   }, [customers, form.customer]);
-
-  // Find the item ID for the select dropdown when items are loaded
-  useEffect(() => {
-    if (invoiceData && items.length > 0) {
-      const item = items.find(i => i.product_name === invoiceData.item);
-      if (item) {
-        setSelectedItemId(String(item.id || item._id));
-      }
-    }
-  }, [invoiceData, items]);
 
   // Fetch customers
   useEffect(() => {
@@ -125,30 +159,12 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
     fetchItems();
   }, []);
 
-  // Handle item selection - auto-fill price
-  const handleItemChange = (e) => {
-    const selectedId = e.target.value;
-    setSelectedItemId(selectedId);
-    
-    const selectedItem = items.find(
-      (item) => String(item.id) === String(selectedId) || String(item._id) === String(selectedId)
-    );
-
-    if (selectedItem) {
-      setForm(prev => ({
-        ...prev,
-        item: selectedItem.product_name || selectedItem.name || "",
-        price: Number(selectedItem.selling_price || selectedItem.price || 0),
-        description: prev.description || selectedItem.description || ""
-      }));
-    } else {
-      setForm(prev => ({
-        ...prev,
-        item: "",
-        price: "",
-        description: ""
-      }));
-    }
+  const updateLineItem = (index, field, value) => {
+    setLineItems((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
   };
 
   const handleCustomerChange = (e) => {
@@ -172,7 +188,10 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
   };
 
   // Calculations
-  const subtotal = Number(form.quantity || 0) * Number(form.price || 0);
+  const subtotal = lineItems.reduce(
+    (sum, item) => sum + Number(item.quantity || 0) * Number(item.price || 0),
+    0
+  );
   const taxableBase = Math.max(0, subtotal - Number(form.discount || 0));
   const computedTaxAmount = (taxableBase * Number(form.tax_rate || 0)) / 100;
   const effectiveTaxAmount = Number.isFinite(Number(form.tax_amount))
@@ -185,10 +204,11 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
     setForm((prev) => {
       const next = { ...prev, [name]: value };
       if (name === "tax_rate") {
-        const nextBase = Math.max(
-          0,
-          Number(next.quantity || 0) * Number(next.price || 0) - Number(next.discount || 0)
+        const lineSubtotal = lineItems.reduce(
+          (sum, row) => sum + Number(row.quantity || 0) * Number(row.price || 0),
+          0
         );
+        const nextBase = Math.max(0, lineSubtotal - Number(next.discount || 0));
         next.tax_amount = Number(((nextBase * Number(value || 0)) / 100).toFixed(2));
       }
       return next;
@@ -222,7 +242,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
         }));
       }
 
-      setNewCustomer({ name: "", company: "", phone: "", email: "", status: "Active" });
+      setNewCustomer({ name: "", company: "", phone: "", email: "", address: "", status: "Active" });
       setShowCustomerModal(false);
       toast.success("Customer added successfully");
     } catch (error) {
@@ -253,13 +273,19 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
 
       const created = updatedItems.find((item) => (item.product_name || item.name) === payload.product_name);
       if (created) {
-        setSelectedItemId(String(created.id || created._id));
         setForm((prev) => ({
           ...prev,
           item: created.product_name || created.name || "",
-          price: Number(created.selling_price || created.price || 0),
-          description: prev.description || created.description || "",
         }));
+
+        setLineItems([
+          {
+            name: created.product_name || created.name || "",
+            description: created.description || "",
+            quantity: 1,
+            price: Number(created.selling_price || created.price || 0),
+          },
+        ]);
       }
 
       setShowItemModal(false);
@@ -293,14 +319,33 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
       toast.error("Due date is required");
       return;
     }
-    if (!form.item) {
-      toast.error("Please select an item");
+    const normalizedItems = lineItems
+      .map((item) => ({
+        name: String(item.name || "").trim(),
+        description: item.description || "",
+        quantity: Number(item.quantity || 0),
+        price: Number(item.price || 0),
+      }))
+      .filter((item) => item.name && item.quantity > 0);
+
+    if (!normalizedItems.length) {
+      toast.error("Please add at least one item");
       return;
     }
 
+    const firstItem = normalizedItems[0];
+
     setLoading(true);
     try {
-      await onSave(form);
+      await onSave({
+        ...form,
+        item: firstItem.name,
+        description: firstItem.description,
+        quantity: firstItem.quantity,
+        price: firstItem.price,
+        items: [firstItem],
+        items_json: JSON.stringify([firstItem]),
+      });
     } catch (err) {
       console.error("Form submission error:", err);
     } finally {
@@ -322,6 +367,17 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
       .filter(Boolean)
       .some((value) => String(value).toLowerCase().includes(searchValue));
   });
+
+  const itemOptions = useMemo(
+    () =>
+      items.map((inv) => ({
+        id: inv.id || inv._id,
+        label: inv.product_name || inv.name || "",
+        price: Number(inv.selling_price || inv.price || 0),
+        description: inv.description || "",
+      })),
+    [items]
+  );
 
   return (
     <>
@@ -423,85 +479,88 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
             {/* Items */}
             <div>
               <h3 className={`text-md font-medium mb-4 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Items</h3>
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className={`text-sm block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Item *</label>
-                    <button
-                      type="button"
-                      onClick={() => setShowItemModal(true)}
-                      className="text-xs inline-flex items-center gap-1 px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
-                    >
-                      <Plus size={12} /> Create item
-                    </button>
-                  </div>
+              <div className={`grid grid-cols-1 md:grid-cols-12 gap-3 p-4 rounded-xl border ${darkMode ? "border-gray-700 bg-gray-800" : "border-gray-200 bg-gray-50"}`}>
+                <div className="md:col-span-3">
+                  <label className={`text-sm block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Item *</label>
                   <select
-                    value={selectedItemId}
-                    onChange={handleItemChange}
+                    value={lineItems[0]?.name || ""}
+                    onChange={(e) => {
+                      const selectedName = e.target.value;
+                      const selected = itemOptions.find((option) => option.label === selectedName);
+                      updateLineItem(0, "name", selectedName);
+                      if (selected) {
+                        if (!lineItems[0]?.description) {
+                          updateLineItem(0, "description", selected.description);
+                        }
+                        if (!Number(lineItems[0]?.price || 0)) {
+                          updateLineItem(0, "price", selected.price);
+                        }
+                      }
+                    }}
                     required
                     disabled={loading}
                     className={inputClass}
                   >
                     <option value="">Select Item</option>
-                    {items.length > 0 ? (
-                      items.map(i => (
-                        <option key={i.id || i._id} value={String(i.id || i._id)}>
-                          {i.product_name} - ₦{(i.selling_price || i.price || 0).toLocaleString()}
+                    {itemOptions.length > 0 ? (
+                      itemOptions.map((option) => (
+                        <option key={String(option.id)} value={option.label}>
+                          {option.label}
                         </option>
                       ))
                     ) : (
                       <option value="" disabled>No items available</option>
                     )}
                   </select>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowItemModal(true)}
+                      className="text-xs inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-700 text-white hover:bg-slate-800"
+                    >
+                      <Plus size={12} /> Create item
+                    </button>
+                  </div>
                   {items.length === 0 && (
                     <p className="text-xs text-red-500 mt-1">No inventory items found. Please add items in inventory first.</p>
                   )}
                 </div>
 
-                <div className="md:col-span-2">
+                <div className="md:col-span-4">
                   <label className={`text-sm mb-1 block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Description</label>
                   <input
-                    name="description"
-                    value={form.description}
-                    onChange={handleChange}
+                    value={lineItems[0]?.description || ""}
+                    onChange={(e) => updateLineItem(0, "description", e.target.value)}
                     placeholder="Item description"
                     disabled={loading}
                     className={inputClass}
                   />
                 </div>
 
-                <div>
+                <div className="md:col-span-2">
                   <label className={`text-sm mb-1 block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Quantity</label>
                   <input
                     type="number"
                     min="1"
-                    name="quantity"
-                    value={form.quantity}
-                    onChange={handleChange}
+                    value={lineItems[0]?.quantity || 1}
+                    onChange={(e) => updateLineItem(0, "quantity", e.target.value)}
                     placeholder="Enter quantity"
                     disabled={loading}
                     className={inputClass}
                   />
                 </div>
 
-                <div>
+                <div className="md:col-span-3">
                   <label className={`text-sm mb-1 block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Unit Price (₦)</label>
                   <input
                     type="number"
                     min="0"
-                    name="price"
-                    value={form.price}
-                    onChange={handleChange}
-                    placeholder="Auto-filled from item"
+                    value={lineItems[0]?.price || 0}
+                    onChange={(e) => updateLineItem(0, "price", e.target.value)}
+                    placeholder="Unit price"
                     disabled={loading}
-                    readOnly
-                    className={`${inputClass} ${darkMode ? 'bg-gray-600' : 'bg-gray-100'}`}
+                    className={inputClass}
                   />
-                  {form.price > 0 && (
-                    <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                      Auto-filled from inventory
-                    </p>
-                  )}
                 </div>
               </div>
             </div>
@@ -675,6 +734,13 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
               <input className={inputClass} placeholder="Company *" value={newCustomer.company} onChange={(e) => setNewCustomer((prev) => ({ ...prev, company: e.target.value }))} />
               <input className={inputClass} placeholder="Phone" value={newCustomer.phone} onChange={(e) => setNewCustomer((prev) => ({ ...prev, phone: e.target.value }))} />
               <input className={inputClass} placeholder="Email" value={newCustomer.email} onChange={(e) => setNewCustomer((prev) => ({ ...prev, email: e.target.value }))} />
+              <textarea
+                className={`md:col-span-2 ${inputClass}`}
+                placeholder="Address"
+                rows={3}
+                value={newCustomer.address}
+                onChange={(e) => setNewCustomer((prev) => ({ ...prev, address: e.target.value }))}
+              />
             </div>
 
             <div className="mt-4 flex justify-end gap-2">
