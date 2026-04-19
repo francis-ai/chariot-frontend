@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
+  Download,
   Eye,
   Edit3,
   Plus,
   Package,
   AlertTriangle,
+  Upload,
   X,
   Trash2,
   TrendingUp,
 } from "lucide-react";
+import * as XLSX from "xlsx";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -35,10 +38,26 @@ const InventoryDashboard = () => {
   const [viewItem, setViewItem] = useState(null);
   const [deleteItem, setDeleteItem] = useState(null);
   const [editItem, setEditItem] = useState(null);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [bulkRows, setBulkRows] = useState([]);
+  const [bulkErrors, setBulkErrors] = useState([]);
+  const [bulkUploading, setBulkUploading] = useState(false);
+  const [bulkFileName, setBulkFileName] = useState("");
 
   const [currentPage, setCurrentPage] = useState(1);
   const [searchParams] = useSearchParams();
   const focusInventoryId = searchParams.get("view");
+
+  const bulkTemplateColumns = [
+    "product_name",
+    "sku",
+    "category",
+    "current_stock",
+    "min_stock",
+    "purchase_price",
+    "selling_price",
+    "description",
+  ];
 
   // ----------------- Fetch Data -----------------
   const fetchInventory = async () => {
@@ -222,6 +241,124 @@ const InventoryDashboard = () => {
     setIsEditModalOpen(true);
   };
 
+  const normalizeBulkHeader = (header) => String(header || "").trim().toLowerCase().replace(/\s+/g, "_");
+
+  const parseBulkFile = async (file) => {
+    if (!file) return;
+
+    try {
+      const fileBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(fileBuffer, { type: "array" });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+
+      const rawRows = XLSX.utils.sheet_to_json(firstSheet, {
+        defval: "",
+        raw: false,
+      });
+
+      const mappedRows = rawRows.map((row, index) => {
+        const normalized = Object.keys(row).reduce((acc, key) => {
+          acc[normalizeBulkHeader(key)] = row[key];
+          return acc;
+        }, {});
+
+        const productName = String(normalized.product_name || normalized.product || normalized.name || "").trim();
+        const category = String(normalized.category || "General").trim() || "General";
+        const sku = String(normalized.sku || `SKU-${Date.now()}-${index + 1}`).trim();
+
+        return {
+          product_name: productName,
+          sku,
+          category,
+          current_stock: Number(normalized.current_stock || normalized.stock || 0),
+          min_stock: Number(normalized.min_stock || normalized.min || 10),
+          purchase_price: Number(normalized.purchase_price || normalized.cost_price || 0),
+          selling_price: Number(normalized.selling_price || normalized.price || 0),
+          description: String(normalized.description || "").trim(),
+          __row: index + 2,
+        };
+      });
+
+      const cleanedRows = mappedRows.filter((row) => row.product_name || row.category || row.sku);
+
+      const errors = cleanedRows
+        .filter((row) => !row.product_name || !row.category || row.purchase_price < 0 || row.selling_price < 0)
+        .map((row) => `Row ${row.__row}: product_name, category and non-negative prices are required`);
+
+      setBulkRows(cleanedRows);
+      setBulkErrors(errors);
+      setBulkFileName(file.name);
+
+      if (!cleanedRows.length) {
+        toast.error("No valid rows found in spreadsheet");
+        return;
+      }
+
+      if (errors.length) {
+        toast.warn(`Found ${errors.length} row issue(s). Please fix and re-upload.`);
+      } else {
+        toast.success(`Loaded ${cleanedRows.length} row(s) from spreadsheet`);
+      }
+    } catch (error) {
+      console.error("Bulk parse error:", error);
+      toast.error("Failed to read spreadsheet. Upload .xlsx, .xls, or .csv file.");
+      setBulkRows([]);
+      setBulkErrors([]);
+      setBulkFileName("");
+    }
+  };
+
+  const handleBulkUpload = async () => {
+    if (!bulkRows.length) {
+      toast.error("Upload and preview a spreadsheet first");
+      return;
+    }
+
+    if (bulkErrors.length) {
+      toast.error("Fix spreadsheet errors before uploading");
+      return;
+    }
+
+    setBulkUploading(true);
+    try {
+      await API.post("/inventory/bulk", {
+        items: bulkRows.map(({ __row, ...row }) => row),
+      });
+
+      toast.success(`Uploaded ${bulkRows.length} inventory item(s) successfully`);
+      setBulkRows([]);
+      setBulkErrors([]);
+      setBulkFileName("");
+      setIsBulkModalOpen(false);
+      await fetchInventory();
+    } catch (error) {
+      console.error("Bulk upload error:", error);
+      toast.error(error.response?.data?.message || "Bulk upload failed");
+    } finally {
+      setBulkUploading(false);
+    }
+  };
+
+  const downloadBulkTemplate = () => {
+    const sampleRows = [
+      {
+        product_name: "Cable",
+        sku: "SKU-EXAMPLE-1001",
+        category: "Electronics",
+        current_stock: 120,
+        min_stock: 20,
+        purchase_price: 800,
+        selling_price: 1200,
+        description: "2m HDMI cable",
+      },
+    ];
+
+    const worksheet = XLSX.utils.json_to_sheet(sampleRows, { header: bulkTemplateColumns });
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "InventoryTemplate");
+    XLSX.writeFile(workbook, "inventory-bulk-template.xlsx");
+  };
+
   const getStatusStyle = (status) => {
     const base = "px-3 py-1 rounded-full text-[10px] font-bold uppercase";
     if (status === "In Stock") return `${base} bg-emerald-100 text-emerald-700`;
@@ -280,6 +417,13 @@ const InventoryDashboard = () => {
             <div className="flex gap-2 flex-wrap">
               <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold">
                 <Plus size={18} /> Add Item
+              </button>
+
+              <button
+                onClick={() => setIsBulkModalOpen(true)}
+                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-bold"
+              >
+                <Upload size={18} /> Bulk Upload
               </button>
 
               <button onClick={() => setIsCategoryModalOpen(true)} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold border ${darkMode ? "bg-slate-800 border-slate-700 hover:bg-slate-700" : "bg-white border-slate-200 hover:bg-slate-50"}`}>
@@ -426,6 +570,112 @@ const InventoryDashboard = () => {
         {isCategoryModalOpen && (
           <Modal title="Add Category" onClose={() => setIsCategoryModalOpen(false)} darkMode={darkMode}>
             <AddCategoryForm onSave={handleAddCategory} />
+          </Modal>
+        )}
+
+        {isBulkModalOpen && (
+          <Modal title="Bulk Inventory Upload" onClose={() => setIsBulkModalOpen(false)} darkMode={darkMode}>
+            <div className="space-y-4">
+              <div className={`rounded-lg border p-3 ${darkMode ? "border-slate-700 bg-slate-900" : "border-slate-200 bg-slate-50"}`}>
+                <p className="text-sm font-semibold mb-2">Spreadsheet columns required</p>
+                <p className="text-xs opacity-70 mb-2">Use these exact headers on row 1:</p>
+                <div className="flex flex-wrap gap-2">
+                  {bulkTemplateColumns.map((column) => (
+                    <span key={column} className={`text-xs px-2 py-1 rounded ${darkMode ? "bg-slate-800" : "bg-white border"}`}>
+                      {column}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className={`rounded-lg border p-3 ${darkMode ? "border-slate-700" : "border-slate-200"}`}>
+                <p className="text-sm font-semibold mb-2">Sample Layout</p>
+                <img
+                  src="/inventory-bulk-template.svg"
+                  alt="Inventory spreadsheet sample columns"
+                  className="w-full rounded border"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={downloadBulkTemplate}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
+                >
+                  <Download size={16} /> Download Template
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Upload spreadsheet (.xlsx, .xls, .csv)</label>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={(e) => parseBulkFile(e.target.files?.[0])}
+                  className={`w-full p-2 border rounded ${darkMode ? "bg-slate-700 border-slate-600" : "bg-white border-slate-300"}`}
+                />
+                {bulkFileName && <p className="text-xs mt-1 opacity-70">Loaded file: {bulkFileName}</p>}
+              </div>
+
+              {bulkErrors.length > 0 && (
+                <div className="rounded-lg border border-red-300 bg-red-50 text-red-700 p-3 text-xs max-h-28 overflow-auto">
+                  {bulkErrors.map((error) => (
+                    <p key={error}>{error}</p>
+                  ))}
+                </div>
+              )}
+
+              {bulkRows.length > 0 && (
+                <div>
+                  <p className="text-sm font-semibold mb-2">Preview ({bulkRows.length} row(s))</p>
+                  <div className="max-h-52 overflow-auto border rounded">
+                    <table className="w-full text-xs">
+                      <thead className={darkMode ? "bg-slate-700" : "bg-slate-100"}>
+                        <tr>
+                          <th className="px-2 py-2 text-left">Product</th>
+                          <th className="px-2 py-2 text-left">SKU</th>
+                          <th className="px-2 py-2 text-left">Category</th>
+                          <th className="px-2 py-2 text-left">Stock</th>
+                          <th className="px-2 py-2 text-left">Price</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bulkRows.slice(0, 20).map((row) => (
+                          <tr key={`${row.sku}-${row.__row}`} className="border-t">
+                            <td className="px-2 py-2">{row.product_name}</td>
+                            <td className="px-2 py-2">{row.sku}</td>
+                            <td className="px-2 py-2">{row.category}</td>
+                            <td className="px-2 py-2">{row.current_stock}</td>
+                            <td className="px-2 py-2">₦{Number(row.selling_price || 0).toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {bulkRows.length > 20 && <p className="text-xs mt-1 opacity-70">Showing first 20 rows</p>}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsBulkModalOpen(false)}
+                  className="px-4 py-2 rounded border hover:bg-slate-100 dark:hover:bg-slate-700"
+                  disabled={bulkUploading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBulkUpload}
+                  disabled={bulkUploading || !bulkRows.length || bulkErrors.length > 0}
+                  className="px-4 py-2 rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {bulkUploading ? "Uploading..." : "Upload Rows"}
+                </button>
+              </div>
+            </div>
           </Modal>
         )}
 

@@ -31,6 +31,7 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
     company: "",
     phone: "",
     email: "",
+    address: "",
     status: "Active",
   });
   const [newItem, setNewItem] = useState({
@@ -150,7 +151,7 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
         }));
       }
 
-      setNewCustomer({ name: "", company: "", phone: "", email: "", status: "Active" });
+      setNewCustomer({ name: "", company: "", phone: "", email: "", address: "", status: "Active" });
       setShowCustomerModal(false);
       toast.success("Customer added successfully");
     } catch (error) {
@@ -359,24 +360,6 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
         <div className="md:col-span-2 space-y-4">
           <div className="flex items-center justify-between gap-4">
             <h3 className={`text-sm font-semibold ${darkMode ? "text-gray-200" : "text-gray-700"}`}>Quotation Items</h3>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setShowItemModal(true)}
-                disabled={loading}
-                className="px-3 py-2 rounded-lg bg-slate-700 text-white text-sm font-medium hover:bg-slate-800"
-              >
-                Create Item
-              </button>
-              <button
-                type="button"
-                onClick={addItem}
-                disabled={loading}
-                className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
-              >
-                Add Item
-              </button>
-            </div>
           </div>
 
           <div className="space-y-4">
@@ -452,6 +435,25 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowItemModal(true)}
+              disabled={loading}
+              className="px-3 py-2 rounded-lg bg-slate-700 text-white text-sm font-medium hover:bg-slate-800"
+            >
+              Create Item
+            </button>
+            <button
+              type="button"
+              onClick={addItem}
+              disabled={loading}
+              className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
+            >
+              Add Item
+            </button>
           </div>
 
           <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl border ${darkMode ? "border-gray-700 bg-gray-900" : "border-gray-200 bg-white"}`}>
@@ -552,6 +554,13 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
                 placeholder="Email"
                 value={newCustomer.email}
                 onChange={(e) => setNewCustomer((prev) => ({ ...prev, email: e.target.value }))}
+                className={inputClass}
+              />
+              <textarea
+                placeholder="Address"
+                rows={3}
+                value={newCustomer.address}
+                onChange={(e) => setNewCustomer((prev) => ({ ...prev, address: e.target.value }))}
                 className={inputClass}
               />
             </div>

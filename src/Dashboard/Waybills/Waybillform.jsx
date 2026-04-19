@@ -16,6 +16,7 @@ const WaybillForm = ({ onCancel, onSave, waybillData, submitting, customers = []
     company: "",
     phone: "",
     email: "",
+    address: "",
     status: "Active",
   });
   const [form, setForm] = useState({
@@ -121,7 +122,7 @@ const WaybillForm = ({ onCancel, onSave, waybillData, submitting, customers = []
         setForm((prev) => ({ ...prev, customer: formatCustomerLabel(created) }));
       }
 
-      setNewCustomer({ name: "", company: "", phone: "", email: "", status: "Active" });
+      setNewCustomer({ name: "", company: "", phone: "", email: "", address: "", status: "Active" });
       setShowCustomerModal(false);
       toast.success("Customer added successfully");
     } catch (error) {
@@ -436,6 +437,13 @@ const WaybillForm = ({ onCancel, onSave, waybillData, submitting, customers = []
                 placeholder="Email"
                 value={newCustomer.email}
                 onChange={(e) => setNewCustomer((prev) => ({ ...prev, email: e.target.value }))}
+                className={inputClass}
+              />
+              <textarea
+                placeholder="Address"
+                rows={3}
+                value={newCustomer.address}
+                onChange={(e) => setNewCustomer((prev) => ({ ...prev, address: e.target.value }))}
                 className={inputClass}
               />
             </div>

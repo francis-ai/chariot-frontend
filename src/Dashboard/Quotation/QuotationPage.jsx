@@ -11,7 +11,7 @@ import "react-toastify/dist/ReactToastify.css";
 import { downloadQuotationPdf } from "../../utils/documentPdf";
 
 // Modal Component for Viewing/Editing
-const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode, customers = [] }) => {
+const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode, customers = [], inventoryItems = [] }) => {
   const [form, setForm] = useState({ ...quotation });
   const [saving, setSaving] = useState(false);
 
@@ -26,10 +26,70 @@ const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode
     setForm({ ...form, [name]: value });
   };
 
+  const normalizeItems = (rawForm) => {
+    const sourceItems = Array.isArray(rawForm.items)
+      ? rawForm.items
+      : (() => {
+          try {
+            return rawForm.items_json ? JSON.parse(rawForm.items_json) : [];
+          } catch (error) {
+            return [];
+          }
+        })();
+
+    return sourceItems.map((item) => ({
+      name: item.name || item.item || "",
+      description: item.description || "",
+      quantity: Number(item.quantity ?? item.qty ?? 0) || 0,
+      price: Number(item.price || 0) || 0,
+    }));
+  };
+
+  const handleItemChange = (index, field, value) => {
+    setForm((prev) => {
+      const updatedItems = normalizeItems(prev);
+      updatedItems[index] = {
+        ...updatedItems[index],
+        [field]: field === "quantity" || field === "price" ? Number(value || 0) : value,
+      };
+      return { ...prev, items: updatedItems };
+    });
+  };
+
+  const handleAddItem = () => {
+    setForm((prev) => ({
+      ...prev,
+      items: [...normalizeItems(prev), { name: "", description: "", quantity: 1, price: 0 }],
+    }));
+  };
+
+  const handleRemoveItem = (index) => {
+    setForm((prev) => {
+      const updatedItems = normalizeItems(prev).filter((_, itemIndex) => itemIndex !== index);
+      return {
+        ...prev,
+        items: updatedItems.length ? updatedItems : [{ name: "", description: "", quantity: 1, price: 0 }],
+      };
+    });
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
-      await onSave(form);
+      const normalizedItems = normalizeItems(form).filter((item) => item.name && Number(item.quantity) > 0);
+      const subtotalValue = normalizedItems.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.price || 0), 0);
+      const vatRateValue = Number(form.vat_rate || 0);
+      const vatAmountValue = Number((subtotalValue * vatRateValue) / 100);
+      const amountValue = Number(subtotalValue + vatAmountValue);
+
+      await onSave({
+        ...form,
+        items: normalizedItems,
+        items_json: JSON.stringify(normalizedItems),
+        subtotal: subtotalValue,
+        vat_amount: vatAmountValue,
+        amount: amountValue,
+      });
     } finally {
       setSaving(false);
     }
@@ -45,20 +105,19 @@ const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode
     return '';
   };
 
-  const items = Array.isArray(form.items)
-    ? form.items
-    : (() => {
-        try {
-          return form.items_json ? JSON.parse(form.items_json) : [];
-        } catch (error) {
-          return [];
-        }
-      })();
+  const items = normalizeItems(form);
 
-  const subtotal = Number(form.subtotal || 0) || items.reduce((sum, item) => sum + (Number(item.quantity || item.qty || 0) * Number(item.price || 0)), 0);
+  const itemOptions = inventoryItems.map((inv) => ({
+    id: inv.id,
+    label: inv.product_name || inv.name || `Item ${inv.id}`,
+    price: Number(inv.selling_price || inv.price || 0),
+    description: inv.description || "",
+  }));
+
+  const subtotal = items.reduce((sum, item) => sum + (Number(item.quantity || 0) * Number(item.price || 0)), 0);
   const vatRate = Number(form.vat_rate || 0);
-  const vatAmount = Number(form.vat_amount || (subtotal * vatRate) / 100);
-  const total = Number(form.amount || subtotal + vatAmount);
+  const vatAmount = Number((subtotal * vatRate) / 100);
+  const total = Number(subtotal + vatAmount);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-start sm:items-center justify-center p-4 overflow-y-auto z-50">
@@ -176,22 +235,9 @@ const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode
 
           <div className="flex flex-col">
             <label className="text-sm font-medium mb-1">Amount</label>
-            {editable ? (
-              <input
-                type="number"
-                name="amount"
-                value={form.amount}
-                onChange={handleChange}
-                disabled={saving}
-                className={`px-3 py-2 border rounded-lg outline-none w-full ${
-                  darkMode ? 'bg-gray-700 border-gray-600 text-gray-200' : 'bg-gray-100 border-gray-300 text-gray-800'
-                }`}
-              />
-            ) : (
-              <span className={`px-3 py-2 border rounded-lg w-full font-bold ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-100 border-gray-300'}`}>
-                ₦{Number(total || 0).toLocaleString()}
-              </span>
-            )}
+            <span className={`px-3 py-2 border rounded-lg w-full font-bold ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-100 border-gray-300'}`}>
+              ₦{Number(total || 0).toLocaleString()}
+            </span>
           </div>
 
           <div className="flex flex-col">
@@ -244,12 +290,101 @@ const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode
           <div className="md:col-span-2">
             <label className="text-sm font-medium mb-1">Items</label>
             <div className={`rounded-lg border p-3 ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-100 border-gray-300'}`}>
-              {items.length > 0 ? (
+              {editable ? (
+                <div className="space-y-3">
+                  {items.map((item, index) => (
+                    <div key={`editable-item-${index}`} className="grid grid-cols-1 md:grid-cols-12 gap-2">
+                      <div className="md:col-span-4">
+                        <label className="text-xs font-medium opacity-70">Item</label>
+                        <select
+                          value={item.name}
+                          disabled={saving}
+                          onChange={(e) => {
+                            const selectedName = e.target.value;
+                            const selected = itemOptions.find((opt) => opt.label === selectedName);
+                            handleItemChange(index, "name", selectedName);
+                            if (selected) {
+                              if (!item.description) handleItemChange(index, "description", selected.description);
+                              if (!Number(item.price)) handleItemChange(index, "price", selected.price);
+                            }
+                          }}
+                          className={`px-3 py-2 border rounded-lg outline-none w-full ${
+                            darkMode ? 'bg-gray-800 border-gray-600 text-gray-200' : 'bg-white border-gray-300 text-gray-800'
+                          }`}
+                        >
+                          <option value="">Select Item</option>
+                          {itemOptions.map((option) => (
+                            <option key={option.id} value={option.label}>{option.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="md:col-span-3">
+                        <label className="text-xs font-medium opacity-70">Description</label>
+                        <input
+                          type="text"
+                          value={item.description}
+                          disabled={saving}
+                          onChange={(e) => handleItemChange(index, "description", e.target.value)}
+                          className={`px-3 py-2 border rounded-lg outline-none w-full ${
+                            darkMode ? 'bg-gray-800 border-gray-600 text-gray-200' : 'bg-white border-gray-300 text-gray-800'
+                          }`}
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="text-xs font-medium opacity-70">Qty</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={item.quantity}
+                          disabled={saving}
+                          onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
+                          className={`px-3 py-2 border rounded-lg outline-none w-full ${
+                            darkMode ? 'bg-gray-800 border-gray-600 text-gray-200' : 'bg-white border-gray-300 text-gray-800'
+                          }`}
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="text-xs font-medium opacity-70">Price</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={item.price}
+                          disabled={saving}
+                          onChange={(e) => handleItemChange(index, "price", e.target.value)}
+                          className={`px-3 py-2 border rounded-lg outline-none w-full ${
+                            darkMode ? 'bg-gray-800 border-gray-600 text-gray-200' : 'bg-white border-gray-300 text-gray-800'
+                          }`}
+                        />
+                      </div>
+                      <div className="md:col-span-1 flex items-end justify-end">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItem(index)}
+                          disabled={saving || items.length === 1}
+                          className="px-2 py-2 rounded-lg bg-red-600 text-white text-xs hover:bg-red-700 disabled:opacity-50"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={handleAddItem}
+                    disabled={saving}
+                    className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    Add Item
+                  </button>
+                </div>
+              ) : items.length > 0 ? (
                 <div className="space-y-2">
                   {items.map((item, index) => (
                     <div key={`${item.name || item.item || index}`} className="flex flex-col md:flex-row md:justify-between gap-1 text-sm">
-                      <span className="font-medium">{item.name || item.item || `Item ${index + 1}`}</span>
-                      <span>{item.quantity || item.qty || 0} x ₦{Number(item.price || 0).toLocaleString()} = ₦{Number((item.quantity || item.qty || 0) * (item.price || 0)).toLocaleString()}</span>
+                      <span className="font-medium">{item.name || `Item ${index + 1}`}</span>
+                      <span>{item.quantity || 0} x ₦{Number(item.price || 0).toLocaleString()} = ₦{Number((item.quantity || 0) * (item.price || 0)).toLocaleString()}</span>
                     </div>
                   ))}
                 </div>
@@ -867,6 +1002,7 @@ const QuotationManagement = () => {
               onSave={handleSaveQuotation}
               darkMode={darkMode}
               customers={customers}
+              inventoryItems={inventoryItems}
             />
           )}
 

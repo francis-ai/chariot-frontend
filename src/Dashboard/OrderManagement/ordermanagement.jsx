@@ -928,8 +928,8 @@ const FormModal = ({ title, onClose, data, create, onSave, darkMode }) => {
             })}
           </div>
 
-          <button type="button" onClick={addLineItem} className="text-sm font-semibold text-blue-500">
-            + Add Line Item
+          <button type="button" onClick={addLineItem} className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">
+            + Add New Item
           </button>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

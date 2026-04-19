@@ -78,18 +78,18 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
         ];
       }
 
-      const firstItem = parsedItems.length
-        ? parsedItems[0]
-        : { name: "", description: "", quantity: 1, price: 0 };
+      const nextItems = parsedItems.length
+        ? parsedItems.map((item) => ({
+            name: item.name || item.item || item.product_name || "",
+            description: item.description || "",
+            quantity: Number(item.quantity || item.qty || 1),
+            price: Number(item.price || item.unit_price || 0),
+          }))
+        : [{ name: "", description: "", quantity: 1, price: 0 }];
 
-      setLineItems([
-        {
-          name: firstItem.name || firstItem.item || firstItem.product_name || "",
-          description: firstItem.description || "",
-          quantity: Number(firstItem.quantity || firstItem.qty || 1),
-          price: Number(firstItem.price || firstItem.unit_price || 0),
-        },
-      ]);
+      const firstItem = nextItems[0];
+
+      setLineItems(nextItems);
 
       setForm({
         customer: invoiceData.customer || "",
@@ -165,6 +165,14 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
       next[index] = { ...next[index], [field]: value };
       return next;
     });
+  };
+
+  const addLineItem = () => {
+    setLineItems((prev) => [...prev, { name: "", description: "", quantity: 1, price: 0 }]);
+  };
+
+  const removeLineItem = (index) => {
+    setLineItems((prev) => (prev.length > 1 ? prev.filter((_, itemIndex) => itemIndex !== index) : prev));
   };
 
   const handleCustomerChange = (e) => {
@@ -278,14 +286,26 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
           item: created.product_name || created.name || "",
         }));
 
-        setLineItems([
-          {
+        setLineItems((prev) => {
+          const next = [...prev];
+          if (next.length === 0) {
+            return [{
+              name: created.product_name || created.name || "",
+              description: created.description || "",
+              quantity: 1,
+              price: Number(created.selling_price || created.price || 0),
+            }];
+          }
+
+          next[0] = {
+            ...next[0],
             name: created.product_name || created.name || "",
-            description: created.description || "",
-            quantity: 1,
+            description: created.description || next[0].description || "",
             price: Number(created.selling_price || created.price || 0),
-          },
-        ]);
+          };
+
+          return next;
+        });
       }
 
       setShowItemModal(false);
@@ -343,8 +363,8 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
         description: firstItem.description,
         quantity: firstItem.quantity,
         price: firstItem.price,
-        items: [firstItem],
-        items_json: JSON.stringify([firstItem]),
+        items: normalizedItems,
+        items_json: JSON.stringify(normalizedItems),
       });
     } catch (err) {
       console.error("Form submission error:", err);
@@ -479,88 +499,116 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
             {/* Items */}
             <div>
               <h3 className={`text-md font-medium mb-4 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Items</h3>
-              <div className={`grid grid-cols-1 md:grid-cols-12 gap-3 p-4 rounded-xl border ${darkMode ? "border-gray-700 bg-gray-800" : "border-gray-200 bg-gray-50"}`}>
-                <div className="md:col-span-3">
-                  <label className={`text-sm block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Item *</label>
-                  <select
-                    value={lineItems[0]?.name || ""}
-                    onChange={(e) => {
-                      const selectedName = e.target.value;
-                      const selected = itemOptions.find((option) => option.label === selectedName);
-                      updateLineItem(0, "name", selectedName);
-                      if (selected) {
-                        if (!lineItems[0]?.description) {
-                          updateLineItem(0, "description", selected.description);
-                        }
-                        if (!Number(lineItems[0]?.price || 0)) {
-                          updateLineItem(0, "price", selected.price);
-                        }
-                      }
-                    }}
-                    required
-                    disabled={loading}
-                    className={inputClass}
-                  >
-                    <option value="">Select Item</option>
-                    {itemOptions.length > 0 ? (
-                      itemOptions.map((option) => (
-                        <option key={String(option.id)} value={option.label}>
-                          {option.label}
-                        </option>
-                      ))
-                    ) : (
-                      <option value="" disabled>No items available</option>
-                    )}
-                  </select>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowItemModal(true)}
-                      className="text-xs inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-700 text-white hover:bg-slate-800"
-                    >
-                      <Plus size={12} /> Create item
-                    </button>
+              <div className="space-y-4">
+                {lineItems.map((item, index) => (
+                  <div key={index} className={`grid grid-cols-1 md:grid-cols-12 gap-3 p-4 rounded-xl border ${darkMode ? "border-gray-700 bg-gray-800" : "border-gray-200 bg-gray-50"}`}>
+                    <div className="md:col-span-3">
+                      <label className={`text-sm block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Item *</label>
+                      <select
+                        value={item.name || ""}
+                        onChange={(e) => {
+                          const selectedName = e.target.value;
+                          const selected = itemOptions.find((option) => option.label === selectedName);
+                          updateLineItem(index, "name", selectedName);
+                          if (selected) {
+                            if (!item.description) {
+                              updateLineItem(index, "description", selected.description);
+                            }
+                            if (!Number(item.price || 0)) {
+                              updateLineItem(index, "price", selected.price);
+                            }
+                          }
+                        }}
+                        required
+                        disabled={loading}
+                        className={inputClass}
+                      >
+                        <option value="">Select Item</option>
+                        {itemOptions.length > 0 ? (
+                          itemOptions.map((option) => (
+                            <option key={String(option.id)} value={option.label}>
+                              {option.label}
+                            </option>
+                          ))
+                        ) : (
+                          <option value="" disabled>No items available</option>
+                        )}
+                      </select>
+                      {index === 0 && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setShowItemModal(true)}
+                            className="text-xs inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-700 text-white hover:bg-slate-800"
+                          >
+                            <Plus size={12} /> Create item
+                          </button>
+                        </div>
+                      )}
+                      {index === 0 && items.length === 0 && (
+                        <p className="text-xs text-red-500 mt-1">No inventory items found. Please add items in inventory first.</p>
+                      )}
+                    </div>
+
+                    <div className="md:col-span-4">
+                      <label className={`text-sm mb-1 block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Description</label>
+                      <input
+                        value={item.description || ""}
+                        onChange={(e) => updateLineItem(index, "description", e.target.value)}
+                        placeholder="Item description"
+                        disabled={loading}
+                        className={inputClass}
+                      />
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className={`text-sm mb-1 block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Quantity</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={item.quantity || 1}
+                        onChange={(e) => updateLineItem(index, "quantity", e.target.value)}
+                        placeholder="Enter quantity"
+                        disabled={loading}
+                        className={inputClass}
+                      />
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className={`text-sm mb-1 block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Unit Price (₦)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={item.price || 0}
+                        onChange={(e) => updateLineItem(index, "price", e.target.value)}
+                        placeholder="Unit price"
+                        disabled={loading}
+                        className={inputClass}
+                      />
+                    </div>
+
+                    <div className="md:col-span-1 flex items-end justify-end">
+                      <button
+                        type="button"
+                        onClick={() => removeLineItem(index)}
+                        disabled={loading || lineItems.length === 1}
+                        className="px-3 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-50"
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </div>
-                  {items.length === 0 && (
-                    <p className="text-xs text-red-500 mt-1">No inventory items found. Please add items in inventory first.</p>
-                  )}
-                </div>
+                ))}
 
-                <div className="md:col-span-4">
-                  <label className={`text-sm mb-1 block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Description</label>
-                  <input
-                    value={lineItems[0]?.description || ""}
-                    onChange={(e) => updateLineItem(0, "description", e.target.value)}
-                    placeholder="Item description"
+                <div className="flex justify-start">
+                  <button
+                    type="button"
+                    onClick={addLineItem}
                     disabled={loading}
-                    className={inputClass}
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className={`text-sm mb-1 block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Quantity</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={lineItems[0]?.quantity || 1}
-                    onChange={(e) => updateLineItem(0, "quantity", e.target.value)}
-                    placeholder="Enter quantity"
-                    disabled={loading}
-                    className={inputClass}
-                  />
-                </div>
-
-                <div className="md:col-span-3">
-                  <label className={`text-sm mb-1 block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Unit Price (₦)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={lineItems[0]?.price || 0}
-                    onChange={(e) => updateLineItem(0, "price", e.target.value)}
-                    placeholder="Unit price"
-                    disabled={loading}
-                    className={inputClass}
-                  />
+                    className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
+                  >
+                    Add Item
+                  </button>
                 </div>
               </div>
             </div>
