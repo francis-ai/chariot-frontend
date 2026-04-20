@@ -74,7 +74,7 @@ const ReportsAnalytics = () => {
           if (item.invoice_date) {
             const date = new Date(item.invoice_date);
             const monthYear = `${date.toLocaleString('default', { month: 'short' })} ${date.getFullYear()}`;
-            monthlySales[monthYear] = (monthlySales[monthYear] || 0) + (item.total || 0);
+            monthlySales[monthYear] = (monthlySales[monthYear] || 0) + Number(item.total || 0);
           }
         });
         processed = Object.entries(monthlySales).map(([name, value]) => ({ 
@@ -210,18 +210,81 @@ const ReportsAnalytics = () => {
     setDownloading(prev => ({ ...prev, excel: true }));
 
     try {
+      // Normalize rows so SheetJS receives plain serializable values.
+      const amountLikeKeys = ['amount', 'total', 'price', 'subtotal', 'tax', 'vat', 'quantity'];
+      const excludedExportKeys = new Set(['signature_image', 'items_json']);
+      const headers = Array.from(
+        reportData.reduce((acc, row) => {
+          Object.keys(row || {}).forEach((key) => {
+            if (!excludedExportKeys.has(key)) acc.add(key);
+          });
+          return acc;
+        }, new Set())
+      );
+
+      const normalizedRows = reportData.map((row) => {
+        const normalized = {};
+
+        headers.forEach((key) => {
+          const rawValue = row?.[key];
+
+          if (rawValue === null || rawValue === undefined) {
+            normalized[key] = '';
+            return;
+          }
+
+          if (rawValue instanceof Date) {
+            normalized[key] = rawValue.toLocaleDateString();
+            return;
+          }
+
+          if (typeof rawValue === 'object') {
+            normalized[key] = JSON.stringify(rawValue);
+            return;
+          }
+
+          const keyLower = key.toLowerCase();
+          const looksNumeric = amountLikeKeys.some((token) => keyLower.includes(token));
+          if (looksNumeric) {
+            const numericValue = Number(rawValue);
+            normalized[key] = Number.isFinite(numericValue) ? numericValue : rawValue;
+            return;
+          }
+
+          if (typeof rawValue === 'string' && rawValue.length > 32767) {
+            normalized[key] = `${rawValue.slice(0, 32764)}...`;
+            return;
+          }
+
+          normalized[key] = rawValue;
+        });
+
+        return normalized;
+      });
+
       // Create worksheet
-      const ws = XLSX.utils.json_to_sheet(reportData);
+      const ws = XLSX.utils.json_to_sheet(normalizedRows, { header: headers });
       
       // Create workbook
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Report");
       
       // Generate filename
-      const filename = `${reportType}_report_${dateFrom}_to_${dateTo}.xlsx`;
+      const filename = `${reportType}_report_${dateFrom.replace(/\//g, '-')}_to_${dateTo.replace(/\//g, '-')}.xlsx`;
       
-      // Save file
-      XLSX.writeFile(wb, filename);
+      // Save file through blob URL for better browser compatibility.
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const excelBlob = new Blob([excelBuffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      });
+      const blobUrl = URL.createObjectURL(excelBlob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
       
       toast.success("Excel file downloaded successfully!");
     } catch (err) {
@@ -284,7 +347,7 @@ const ReportsAnalytics = () => {
       
       // Add summary for invoice report
       if (reportType === 'invoice' && reportData.length > 0) {
-        const totalAmount = reportData.reduce((sum, item) => sum + (item.total || 0), 0);
+        const totalAmount = reportData.reduce((sum, item) => sum + Number(item.total || 0), 0);
         const finalY = doc.lastAutoTable.finalY + 10;
         doc.setFontSize(10);
         doc.text(`Total Sales Amount: ₦${totalAmount.toLocaleString()}`, 14, finalY);
@@ -424,8 +487,8 @@ const ReportsAnalytics = () => {
     if (reportData.length === 0) return null;
 
     if (reportType === 'invoice') {
-      const totalAmount = reportData.reduce((sum, item) => sum + (item.total || 0), 0);
-      const totalQuantity = reportData.reduce((sum, item) => sum + (item.quantity || 0), 0);
+      const totalAmount = reportData.reduce((sum, item) => sum + Number(item.total || 0), 0);
+      const totalQuantity = reportData.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
       const avgAmount = totalAmount / reportData.length;
       
       // Group by month for trend
@@ -449,7 +512,7 @@ const ReportsAnalytics = () => {
 
     if (reportType === 'inventory') {
       const totalValue = reportData.reduce((sum, item) => 
-        sum + ((item.selling_price || 0) * (item.current_stock || 0)), 0
+        sum + (Number(item.selling_price || 0) * Number(item.current_stock || 0)), 0
       );
       return { totalItems: reportData.length, totalValue };
     }
