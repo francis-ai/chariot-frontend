@@ -9,6 +9,7 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
     customer: "",
     quotation_date: new Date().toISOString().split('T')[0],
     valid_until: "",
+    discount_rate: 0,
     vat_rate: 7.5,
     status: "Pending",
     notes: "",
@@ -75,15 +76,46 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
     setLoading(true);
     try {
       const subtotal = formData.items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.price) || 0), 0);
-      const vatAmount = subtotal * (Number(formData.vat_rate) || 0) / 100;
-      const total = subtotal + vatAmount;
+      const discountRate = Math.max(0, Math.min(100, Number(formData.discount_rate || 0)));
+      const discountAmount = (subtotal * discountRate) / 100;
+      const taxableSubtotal = Math.max(0, subtotal - discountAmount);
+      const vatAmount = taxableSubtotal * (Number(formData.vat_rate) || 0) / 100;
+      const total = taxableSubtotal + vatAmount;
+
+      const lowStockRows = formData.items
+        .map((item) => {
+          const selected = inventoryItems.find((inv) => (inv.product_name || inv.name || "") === item.name);
+          const available = Number(selected?.current_stock || 0);
+          return {
+            ...item,
+            available,
+            isLow: Number(item.quantity || 0) > available,
+          };
+        })
+        .filter((item) => item.name && item.isLow);
+
+      if (lowStockRows.length > 0) {
+        const message = lowStockRows
+          .map((item) => `${item.name}: requested ${item.quantity}, available ${item.available}`)
+          .join(" | ");
+        toast.error(`Low stock detected. ${message}`);
+        return;
+      }
 
       await onSave({
         ...formData,
         subtotal,
+        discount_rate: discountRate,
+        discount_amount: discountAmount,
+        taxable_subtotal: taxableSubtotal,
         vat_amount: vatAmount,
         amount: total,
-        items_json: JSON.stringify(formData.items),
+        items_json: JSON.stringify({
+          items: formData.items,
+          discount_rate: discountRate,
+          discount_amount: discountAmount,
+          subtotal_before_discount: subtotal,
+        }),
       });
       
       // Reset form on success
@@ -91,6 +123,7 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
         customer: "",
         quotation_date: new Date().toISOString().split('T')[0],
         valid_until: "",
+        discount_rate: 0,
         vat_rate: 7.5,
         status: "Pending",
         notes: "",
@@ -190,8 +223,16 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
   };
 
   const subtotal = formData.items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.price) || 0), 0);
-  const vatAmount = subtotal * (Number(formData.vat_rate) || 0) / 100;
-  const total = subtotal + vatAmount;
+  const discountRate = Math.max(0, Math.min(100, Number(formData.discount_rate || 0)));
+  const discountAmount = (subtotal * discountRate) / 100;
+  const taxableSubtotal = Math.max(0, subtotal - discountAmount);
+  const vatAmount = taxableSubtotal * (Number(formData.vat_rate) || 0) / 100;
+  const total = taxableSubtotal + vatAmount;
+
+  const getAvailableStock = (itemName) => {
+    const selected = inventoryItems.find((inv) => (inv.product_name || inv.name || "") === itemName);
+    return Number(selected?.current_stock || 0);
+  };
 
   const itemOptions = useMemo(() => {
     return inventoryItems.map((inv) => ({
@@ -327,6 +368,23 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
 
         <div>
           <label className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-300" : "text-gray-600"}`}>
+            Discount (%)
+          </label>
+          <input
+            type="number"
+            name="discount_rate"
+            value={formData.discount_rate}
+            onChange={handleChange}
+            min="0"
+            max="100"
+            step="0.1"
+            className={inputClass}
+            disabled={loading}
+          />
+        </div>
+
+        <div>
+          <label className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-300" : "text-gray-600"}`}>
             VAT Rate (%)
           </label>
           <input
@@ -410,6 +468,11 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
                     className={inputClass}
                     disabled={loading}
                   />
+                  {item.name && Number(item.quantity || 0) > getAvailableStock(item.name) ? (
+                    <p className="text-xs text-red-500 mt-1">
+                      Low stock: requested {Number(item.quantity || 0)}, available {getAvailableStock(item.name)}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="md:col-span-2">
                   <label className={`block text-xs font-medium mb-1 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>Price</label>
@@ -462,8 +525,16 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
               <p className="text-lg font-semibold">₦{subtotal.toLocaleString()}</p>
             </div>
             <div>
+              <p className="text-sm opacity-70">Discount</p>
+              <p className="text-lg font-semibold">₦{discountAmount.toLocaleString()}</p>
+            </div>
+            <div>
               <p className="text-sm opacity-70">VAT</p>
               <p className="text-lg font-semibold">₦{vatAmount.toLocaleString()}</p>
+            </div>
+            <div>
+              <p className="text-sm opacity-70">Taxable Subtotal</p>
+              <p className="text-lg font-semibold">₦{taxableSubtotal.toLocaleString()}</p>
             </div>
             <div>
               <p className="text-sm opacity-70">Total</p>

@@ -940,11 +940,11 @@ const FormModal = ({ title, onClose, data, create, onSave, darkMode }) => {
               <label className="text-sm font-semibold">Terms & Conditions</label>
               <textarea name="terms" value={form.terms} onChange={handleChange} rows={3} className={inputStyle} placeholder="Terms and conditions" />
 
-              <label className="text-sm font-semibold">Signature Image</label>
+              {/* <label className="text-sm font-semibold">Signature Image</label>
               <input type="file" accept="image/*" onChange={handleSignatureUpload} className={inputStyle} />
               {form.signature_image ? (
                 <img src={form.signature_image} alt="PO signature" className="h-16 w-auto object-contain border border-slate-300 p-1 rounded" />
-              ) : null}
+              ) : null} */}
             </div>
 
             <div className="md:pl-8">

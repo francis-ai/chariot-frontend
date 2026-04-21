@@ -176,8 +176,9 @@ const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefr
         (sum, row) => sum + Number(row.quantity || 0) * Number(row.price || 0),
         0
       );
-      const discount = Number(updatedData.discount || 0);
-      const taxableBase = Math.max(0, subtotal - discount);
+      const discount = Math.max(0, Math.min(100, Number(updatedData.discount || 0)));
+      const discountAmount = (subtotal * discount) / 100;
+      const taxableBase = Math.max(0, subtotal - discountAmount);
       const taxRate = Number(updatedData.tax_rate || updatedData.vat_rate || 0);
       const explicitTaxAmount = Number(updatedData.tax_amount || updatedData.vat_amount);
       const taxAmount = Number.isFinite(explicitTaxAmount) ? explicitTaxAmount : (taxableBase * taxRate) / 100;

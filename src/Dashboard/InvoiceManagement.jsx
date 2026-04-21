@@ -161,8 +161,9 @@ export default function InvoiceManagement() {
         (sum, row) => sum + Number(row.quantity || 0) * Number(row.price || 0),
         0
       );
-      const discount = Number(invoiceData.discount || 0);
-      const taxableBase = Math.max(0, subtotal - discount);
+      const discount = Math.max(0, Math.min(100, Number(invoiceData.discount || 0)));
+      const discountAmount = (subtotal * discount) / 100;
+      const taxableBase = Math.max(0, subtotal - discountAmount);
       const taxRate = Number(invoiceData.tax_rate || invoiceData.vat_rate || 0);
       const explicitTaxAmount = Number(invoiceData.tax_amount || invoiceData.vat_amount);
       const taxAmount = Number.isFinite(explicitTaxAmount) ? explicitTaxAmount : (taxableBase * taxRate) / 100;

@@ -167,6 +167,11 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
     });
   };
 
+  const getAvailableStock = (itemName) => {
+    const selected = items.find((inv) => (inv.product_name || inv.name || "") === itemName);
+    return Number(selected?.current_stock || 0);
+  };
+
   const addLineItem = () => {
     setLineItems((prev) => [...prev, { name: "", description: "", quantity: 1, price: 0 }]);
   };
@@ -200,7 +205,9 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
     (sum, item) => sum + Number(item.quantity || 0) * Number(item.price || 0),
     0
   );
-  const taxableBase = Math.max(0, subtotal - Number(form.discount || 0));
+  const discountRate = Math.max(0, Math.min(100, Number(form.discount || 0)));
+  const discountAmount = (subtotal * discountRate) / 100;
+  const taxableBase = Math.max(0, subtotal - discountAmount);
   const computedTaxAmount = (taxableBase * Number(form.tax_rate || 0)) / 100;
   const effectiveTaxAmount = Number.isFinite(Number(form.tax_amount))
     ? Number(form.tax_amount)
@@ -216,7 +223,9 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
           (sum, row) => sum + Number(row.quantity || 0) * Number(row.price || 0),
           0
         );
-        const nextBase = Math.max(0, lineSubtotal - Number(next.discount || 0));
+        const nextDiscountRate = Math.max(0, Math.min(100, Number(next.discount || 0)));
+        const nextDiscountAmount = (lineSubtotal * nextDiscountRate) / 100;
+        const nextBase = Math.max(0, lineSubtotal - nextDiscountAmount);
         next.tax_amount = Number(((nextBase * Number(value || 0)) / 100).toFixed(2));
       }
       return next;
@@ -350,6 +359,25 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
 
     if (!normalizedItems.length) {
       toast.error("Please add at least one item");
+      return;
+    }
+
+    const lowStockRows = normalizedItems
+      .map((row) => {
+        const available = getAvailableStock(row.name);
+        return {
+          ...row,
+          available,
+          isLow: row.quantity > available,
+        };
+      })
+      .filter((row) => row.isLow);
+
+    if (lowStockRows.length > 0) {
+      const message = lowStockRows
+        .map((row) => `${row.name}: requested ${row.quantity}, available ${row.available}`)
+        .join(" | ");
+      toast.error(`Low stock detected. ${message}`);
       return;
     }
 
@@ -572,6 +600,11 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
                         disabled={loading}
                         className={inputClass}
                       />
+                      {item.name && Number(item.quantity || 0) > getAvailableStock(item.name) ? (
+                        <p className="text-xs text-red-500 mt-1">
+                          Low stock: requested {Number(item.quantity || 0)}, available {getAvailableStock(item.name)}
+                        </p>
+                      ) : null}
                     </div>
 
                     <div className="md:col-span-2">
@@ -662,13 +695,14 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
                 </div>
 
                 <div className="flex justify-between items-center">
-                  <span>Discount</span>
+                  <span>Discount (%)</span>
                   <input
                     type="number"
                     name="discount"
                     value={form.discount}
                     onChange={handleChange}
                     min="0"
+                    max="100"
                     disabled={loading}
                     className={`w-32 rounded px-2 py-1 text-right ${
                       darkMode 
@@ -712,6 +746,11 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
                         : 'bg-white text-gray-900 border border-gray-300'
                     }`}
                   />
+                </div>
+
+                <div className="flex justify-between">
+                  <span>Discount Amount</span>
+                  <span>₦{discountAmount.toLocaleString()}</span>
                 </div>
 
                 <div className="flex justify-between">

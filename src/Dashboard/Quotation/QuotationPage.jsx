@@ -31,7 +31,10 @@ const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode
       ? rawForm.items
       : (() => {
           try {
-            return rawForm.items_json ? JSON.parse(rawForm.items_json) : [];
+            const parsed = rawForm.items_json ? JSON.parse(rawForm.items_json) : [];
+            if (Array.isArray(parsed)) return parsed;
+            if (parsed && Array.isArray(parsed.items)) return parsed.items;
+            return [];
           } catch (error) {
             return [];
           }
@@ -78,14 +81,25 @@ const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode
     try {
       const normalizedItems = normalizeItems(form).filter((item) => item.name && Number(item.quantity) > 0);
       const subtotalValue = normalizedItems.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.price || 0), 0);
+      const discountRate = Math.max(0, Math.min(100, Number(form.discount_rate || 0)));
+      const discountAmount = (subtotalValue * discountRate) / 100;
+      const taxableSubtotalValue = Math.max(0, subtotalValue - discountAmount);
       const vatRateValue = Number(form.vat_rate || 0);
-      const vatAmountValue = Number((subtotalValue * vatRateValue) / 100);
-      const amountValue = Number(subtotalValue + vatAmountValue);
+      const vatAmountValue = Number((taxableSubtotalValue * vatRateValue) / 100);
+      const amountValue = Number(taxableSubtotalValue + vatAmountValue);
 
       await onSave({
         ...form,
         items: normalizedItems,
-        items_json: JSON.stringify(normalizedItems),
+        discount_rate: discountRate,
+        discount_amount: discountAmount,
+        taxable_subtotal: taxableSubtotalValue,
+        items_json: JSON.stringify({
+          items: normalizedItems,
+          discount_rate: discountRate,
+          discount_amount: discountAmount,
+          subtotal_before_discount: subtotalValue,
+        }),
         subtotal: subtotalValue,
         vat_amount: vatAmountValue,
         amount: amountValue,
@@ -115,9 +129,12 @@ const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode
   }));
 
   const subtotal = items.reduce((sum, item) => sum + (Number(item.quantity || 0) * Number(item.price || 0)), 0);
+  const discountRate = Math.max(0, Math.min(100, Number(form.discount_rate || 0)));
+  const discountAmount = (subtotal * discountRate) / 100;
+  const taxableSubtotal = Math.max(0, subtotal - discountAmount);
   const vatRate = Number(form.vat_rate || 0);
-  const vatAmount = Number((subtotal * vatRate) / 100);
-  const total = Number(subtotal + vatAmount);
+  const vatAmount = Number((taxableSubtotal * vatRate) / 100);
+  const total = Number(taxableSubtotal + vatAmount);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-start sm:items-center justify-center p-4 overflow-y-auto z-50">
@@ -568,11 +585,22 @@ const QuotationManagement = () => {
         items_json: q.items_json || "",
         items: (() => {
           try {
-            return q.items_json ? JSON.parse(q.items_json) : [];
+            const parsed = q.items_json ? JSON.parse(q.items_json) : [];
+            if (Array.isArray(parsed)) return parsed;
+            if (parsed && Array.isArray(parsed.items)) return parsed.items;
+            return [];
           } catch (error) {
             return [];
           }
         })(),
+        discount_rate: Number(q.discount_rate || (() => {
+          try {
+            const parsed = q.items_json ? JSON.parse(q.items_json) : null;
+            return Number(parsed?.discount_rate || 0);
+          } catch (error) {
+            return 0;
+          }
+        })()),
         formatted_amount: `₦${Number(q.amount || 0).toLocaleString()}`,
         status: q.status || "Pending",
         notes: q.notes || "",
@@ -672,9 +700,12 @@ const QuotationManagement = () => {
         }
       })();
       const subtotal = Number(quotationData.subtotal || items.reduce((sum, item) => sum + (Number(item.quantity || item.qty || 0) * Number(item.price || 0)), 0));
+      const discountRate = Math.max(0, Math.min(100, Number(quotationData.discount_rate || 0)));
+      const discountAmount = (subtotal * discountRate) / 100;
+      const taxableSubtotal = Math.max(0, subtotal - discountAmount);
       const vatRate = Number(quotationData.vat_rate || 0);
-      const vatAmount = Number(quotationData.vat_amount || (subtotal * vatRate) / 100);
-      const amount = Number(quotationData.amount || subtotal + vatAmount);
+      const vatAmount = Number(quotationData.vat_amount || (taxableSubtotal * vatRate) / 100);
+      const amount = Number(quotationData.amount || taxableSubtotal + vatAmount);
       
       const payload = {
         quotation_number: quotation_number,
@@ -682,6 +713,7 @@ const QuotationManagement = () => {
         quotation_date: quotationData.quotation_date,
         valid_until: quotationData.valid_until,
         subtotal,
+        discount_rate: discountRate,
         vat_rate: vatRate,
         vat_amount: vatAmount,
         amount,
@@ -689,7 +721,12 @@ const QuotationManagement = () => {
         notes: quotationData.notes || "",
         terms: quotationData.terms || "",
         signature_name: quotationData.signature_name || "",
-        items_json: JSON.stringify(items),
+        items_json: JSON.stringify({
+          items,
+          discount_rate: discountRate,
+          discount_amount: discountAmount,
+          subtotal_before_discount: subtotal,
+        }),
       };
 
       console.log("Saving quotation with payload:", payload);
