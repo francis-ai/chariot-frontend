@@ -10,6 +10,19 @@ import API from "../utils/api";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
+const formatMoney = (amount, currencyCode) => {
+  const code = String(currencyCode || "NGN").toUpperCase();
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: code,
+      maximumFractionDigits: 2,
+    }).format(Number(amount || 0));
+  } catch (error) {
+    return `${code} ${Number(amount || 0).toLocaleString()}`;
+  }
+};
+
 export default function InvoiceManagement() {
   const [showInvoice, setShowInvoice] = useState(false);
   const { darkMode } = useTheme();
@@ -70,8 +83,9 @@ export default function InvoiceManagement() {
         discount: parseFloat(inv.discount) || 0,
         tax_rate: parseFloat(inv.vat_rate ?? inv.tax_rate) || 0,
         tax_amount: parseFloat(inv.vat_amount ?? inv.tax_amount) || 0,
+        currency: String(inv.currency || "NGN").toUpperCase(),
         total: parseFloat(inv.total) || 0,  // Ensure this is a number
-        formatted_total: `₦${(parseFloat(inv.total) || 0).toLocaleString()}`,
+        formatted_total: formatMoney(parseFloat(inv.total) || 0, inv.currency || "NGN"),
         notes: inv.notes || "",
         status: inv.status || getInvoiceStatus(inv.due_date, inv.total)
       }));
@@ -187,6 +201,7 @@ export default function InvoiceManagement() {
         vat_rate: taxRate,
         vat_amount: taxAmount,
         total: total,
+        currency: String(invoiceData.currency || "NGN").toUpperCase(),
         status: invoiceData.status || "Unpaid",
         signature_image: invoiceData.signature_image || "",
         notes: invoiceData.notes || ""
@@ -263,31 +278,31 @@ export default function InvoiceManagement() {
                 <div className={`rounded-lg p-5 transition-colors ${darkMode ? "bg-gray-700 text-gray-100" : "bg-gray-50 text-gray-800"}`}>
                   <p className={`text-sm mb-1 ${darkMode ? "text-gray-300" : "text-gray-500"}`}>Total Invoices</p>
                   <h2 className="text-3xl font-bold">{stats.total}</h2>
-                  <p className="text-xs mt-2 opacity-80">₦{Number(stats.totalAmount || 0).toLocaleString()}</p>
+                  <p className="text-xs mt-2 opacity-80">{Number(stats.totalAmount || 0).toLocaleString()} (mixed currencies)</p>
                 </div>
 
                 <div className={`rounded-lg p-5 transition-colors ${darkMode ? "bg-gray-700 text-gray-100" : "bg-gray-50 text-gray-800"}`}>
                   <p className={`text-sm mb-1 ${darkMode ? "text-gray-300" : "text-gray-500"}`}>Paid</p>
                   <h2 className="text-3xl font-bold text-green-600 dark:text-green-400">{stats.paid}</h2>
-                  <p className="text-xs mt-2 opacity-80">₦{Number(stats.paidAmount || 0).toLocaleString()}</p>
+                  <p className="text-xs mt-2 opacity-80">{Number(stats.paidAmount || 0).toLocaleString()} (mixed currencies)</p>
                 </div>
 
                 <div className={`rounded-lg p-5 transition-colors ${darkMode ? "bg-gray-700 text-gray-100" : "bg-gray-50 text-gray-800"}`}>
                   <p className={`text-sm mb-1 ${darkMode ? "text-gray-300" : "text-gray-500"}`}>Unpaid</p>
                   <h2 className="text-3xl font-bold text-orange-600 dark:text-orange-400">{stats.unpaid}</h2>
-                  <p className="text-xs mt-2 opacity-80">₦{Number(stats.unpaidAmount || 0).toLocaleString()}</p>
+                  <p className="text-xs mt-2 opacity-80">{Number(stats.unpaidAmount || 0).toLocaleString()} (mixed currencies)</p>
                 </div>
 
                 <div className={`rounded-lg p-5 transition-colors ${darkMode ? "bg-gray-700 text-gray-100" : "bg-gray-50 text-gray-800"}`}>
                   <p className={`text-sm mb-1 ${darkMode ? "text-gray-300" : "text-gray-500"}`}>Pending</p>
                   <h2 className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">{stats.pending}</h2>
-                  <p className="text-xs mt-2 opacity-80">₦{Number(stats.pendingAmount || 0).toLocaleString()}</p>
+                  <p className="text-xs mt-2 opacity-80">{Number(stats.pendingAmount || 0).toLocaleString()} (mixed currencies)</p>
                 </div>
 
                 <div className={`rounded-lg p-5 transition-colors sm:col-span-2 xl:col-span-4 ${darkMode ? "bg-gray-700 text-gray-100" : "bg-gray-50 text-gray-800"}`}>
                   <p className={`text-sm mb-1 ${darkMode ? "text-gray-300" : "text-gray-500"}`}>Total Amount</p>
                   <h2 className="text-3xl font-bold">
-                    {stats.totalAmount ? `₦${stats.totalAmount.toLocaleString()}` : '₦0'}
+                    {stats.totalAmount ? `${stats.totalAmount.toLocaleString()} (mixed currencies)` : '0 (mixed currencies)'}
                   </h2>
                 </div>
               </div>

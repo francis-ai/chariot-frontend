@@ -3,11 +3,12 @@ import { useContext } from "react";
 import Navigation from "../../component/navigation";
 import Sidebar from "../../component/sidebar";
 import { useSearch } from "../../context/searchcontex";
-import { Eye, X, Plus, Edit, Trash2 } from "lucide-react";
+import { Eye, X, Plus, Edit, Trash2, Upload, Download } from "lucide-react";
 import { useTheme } from "../../context/ThemeContext";
 import { AuthContext } from "../../context/authContext";
 import API from "../../utils/api";
 import { toast, ToastContainer } from "react-toastify";
+import * as XLSX from "xlsx";
 import "react-toastify/dist/ReactToastify.css";
 
 export default function CustomersDashboard() {
@@ -26,6 +27,15 @@ export default function CustomersDashboard() {
   const { user } = useContext(AuthContext);
   const canDeleteCustomer = ["super-admin", "admin"].includes(String(user?.role || "").toLowerCase());
 
+  // Bulk upload states
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkRows, setBulkRows] = useState([]);
+  const [bulkErrors, setBulkErrors] = useState([]);
+  const [bulkUploading, setBulkUploading] = useState(false);
+  const [bulkFileName, setBulkFileName] = useState("");
+
+  const bulkTemplateColumns = ["name", "company", "phone", "email", "address", "status"];
+
   // Fetch customers
   const fetchCustomers = async () => {
     try {
@@ -42,6 +52,114 @@ export default function CustomersDashboard() {
   useEffect(() => {
     fetchCustomers();
   }, []);
+
+  // Bulk upload functions
+  const handleBulkFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setBulkFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+        if (jsonData.length < 2) {
+          toast.error("Spreadsheet must have at least a header row and one data row");
+          return;
+        }
+
+        const headers = jsonData[0].map(h => String(h || "").trim().toLowerCase());
+        const rows = jsonData.slice(1).map((row, index) => {
+          const obj = { __row: index + 2 };
+          headers.forEach((header, colIndex) => {
+            obj[header] = row[colIndex] || "";
+          });
+          return obj;
+        });
+
+        // Validate rows
+        const errors = [];
+        const validRows = rows.filter((row, index) => {
+          const rowNum = row.__row;
+          const name = String(row.name || "").trim();
+          const company = String(row.company || "").trim();
+          const email = String(row.email || "").trim();
+          const status = String(row.status || "Active").trim();
+
+          if (!name && !company) {
+            errors.push(`Row ${rowNum}: At least name or company is required`);
+            return false;
+          }
+          if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            errors.push(`Row ${rowNum}: Invalid email format`);
+            return false;
+          }
+          if (status && !["Active", "Inactive"].includes(status)) {
+            errors.push(`Row ${rowNum}: Status must be 'Active' or 'Inactive'`);
+            return false;
+          }
+          return true;
+        });
+
+        setBulkRows(validRows);
+        setBulkErrors(errors);
+        if (errors.length) {
+          toast.warn(`Found ${errors.length} row issue(s). Please fix and re-upload.`);
+        } else {
+          toast.success(`Loaded ${validRows.length} valid row(s)`);
+        }
+      } catch (error) {
+        console.error("File read error:", error);
+        toast.error("Failed to read spreadsheet. Upload .xlsx, .xls, or .csv file.");
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const handleBulkUpload = async () => {
+    if (!bulkRows.length) {
+      toast.error("No valid rows to upload");
+      return;
+    }
+    if (bulkErrors.length) {
+      toast.error("Fix spreadsheet errors before uploading");
+      return;
+    }
+
+    setBulkUploading(true);
+    try {
+      await API.post("/customers/bulk", {
+        customers: bulkRows.map(({ __row, ...row }) => row),
+      });
+      toast.success(`Uploaded ${bulkRows.length} customer(s) successfully`);
+      setShowBulkModal(false);
+      setBulkRows([]);
+      setBulkErrors([]);
+      setBulkFileName("");
+      fetchCustomers();
+    } catch (error) {
+      console.error("Bulk upload error:", error);
+      toast.error(error.response?.data?.message || "Bulk upload failed");
+    } finally {
+      setBulkUploading(false);
+    }
+  };
+
+  const downloadBulkTemplate = () => {
+    const sampleRows = [
+      { name: "John Doe", company: "ABC Corp", phone: "1234567890", email: "john@abc.com", address: "123 Main St", status: "Active" },
+      { name: "", company: "XYZ Ltd", phone: "0987654321", email: "info@xyz.com", address: "456 Oak Ave", status: "Active" },
+    ];
+    const worksheet = XLSX.utils.json_to_sheet(sampleRows, { header: bulkTemplateColumns });
+    const workbook = XLSX.new_workbook();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Customers");
+    XLSX.writeFile(workbook, "customers-bulk-template.xlsx");
+  };
 
   // Filtered customers
   const filteredCustomers = useMemo(() => {
@@ -131,6 +249,12 @@ export default function CustomersDashboard() {
                 className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold"
               >
                 <Plus size={16} /> New Customer
+              </button>
+              <button
+                onClick={() => setShowBulkModal(true)}
+                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold"
+              >
+                <Upload size={16} /> Bulk Upload
               </button>
             </div>
           </div>
@@ -292,6 +416,110 @@ export default function CustomersDashboard() {
             />
           )}
 
+          {/* Bulk Upload Modal */}
+          {showBulkModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className={`w-full max-w-4xl mx-4 rounded-2xl shadow-2xl ${darkMode ? "bg-gray-800" : "bg-white"}`}>
+                <div className="flex items-center justify-between p-6 border-b">
+                  <h2 className="text-xl font-bold">Bulk Upload Customers</h2>
+                  <button
+                    onClick={() => setShowBulkModal(false)}
+                    className="p-2 hover:bg-gray-100 rounded-lg"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                <div className="p-6 space-y-4">
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={downloadBulkTemplate}
+                      className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+                    >
+                      <Download size={16} /> Download Template
+                    </button>
+                    <div className="text-sm text-gray-600">
+                      <p>Template includes columns: {bulkTemplateColumns.join(", ")}</p>
+                      <p>Status should be 'Active' or 'Inactive'</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Upload spreadsheet (.xlsx, .xls, .csv)</label>
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      onChange={handleBulkFileUpload}
+                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                    />
+                    {bulkFileName && <p className="text-xs mt-1 opacity-70">Loaded file: {bulkFileName}</p>}
+                  </div>
+
+                  {bulkErrors.length > 0 && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                      <h3 className="text-sm font-medium text-red-800 mb-2">Errors Found:</h3>
+                      <ul className="text-sm text-red-700 space-y-1">
+                        {bulkErrors.map((error, index) => (
+                          <li key={index}>• {error}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {bulkRows.length > 0 && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <p className="text-sm font-semibold mb-2">Preview ({bulkRows.length} row(s))</p>
+                      <div className="overflow-x-auto max-h-60">
+                        <table className="w-full text-sm">
+                          <thead className="bg-green-100">
+                            <tr>
+                              {bulkTemplateColumns.map((column) => (
+                                <th key={column} className="px-2 py-1 text-left font-medium capitalize">
+                                  {column.replace("_", " ")}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {bulkRows.slice(0, 20).map((row, index) => (
+                              <tr key={index} className="border-t">
+                                {bulkTemplateColumns.map((column) => (
+                                  <td key={column} className="px-2 py-1">
+                                    {String(row[column] || "")}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {bulkRows.length > 20 && <p className="text-xs mt-1 opacity-70">Showing first 20 rows</p>}
+                    </div>
+                  )}
+
+                  <div className="flex justify-end gap-3">
+                    <button
+                      onClick={() => setShowBulkModal(false)}
+                      className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleBulkUpload}
+                      disabled={bulkUploading || !bulkRows.length || bulkErrors.length > 0}
+                      className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {bulkUploading && (
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      )}
+                      {bulkUploading ? "Uploading..." : "Upload Rows"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Delete Confirmation Modal */}
           {deleteModal && canDeleteCustomer && (
             <DeleteConfirmationModal
@@ -320,8 +548,8 @@ const AddCustomerModal = ({ onClose, onSave, darkMode, editCustomer }) => {
   const validate = () => {
     const errs = {};
     if (!form.name?.trim()) errs.name = "Name is required";
-    if (!form.email?.trim()) errs.email = "Email is required";
-    if (!form.phone?.trim()) errs.phone = "Phone is required";
+    if (form.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errs.email = "Enter a valid email";
+    if (form.phone?.trim() && !/^\+?\d{8,15}$/.test(form.phone)) errs.phone = "Enter a valid phone number";
     if (!form.company?.trim()) errs.company = "Company is required";
     if (!form.address?.trim()) errs.address = "Address is required";
     setErrors(errs);

@@ -72,6 +72,33 @@ const parseAmountText = (value) => {
   return getNumeric(normalized);
 };
 
+const parseWaybillProductList = (productList) => {
+  const raw = String(productList || "").trim();
+  if (!raw) return { productText: "", totalQuantity: 0 };
+
+  const items = raw
+    .split(",")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
+  const parsedItems = items.map((item) => {
+    const qtyMatch = item.match(/^(.*?)\s*\(Qty:\s*([0-9]+)\)\s*$/i)
+      || item.match(/^(.*?)\s*\(x\s*([0-9]+)\)\s*$/i)
+      || item.match(/^(.*?)\s*-\s*qty\s*[:]?\s*([0-9]+)\s*$/i);
+
+    if (qtyMatch) {
+      return { name: String(qtyMatch[1]).trim(), qty: Number(qtyMatch[2]) };
+    }
+
+    return { name: item, qty: 0 };
+  });
+
+  const productText = parsedItems.map((item) => item.name).filter(Boolean).join(", ");
+  const totalQuantity = parsedItems.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
+
+  return { productText: productText || raw, totalQuantity };
+};
+
 const NUMBER_WORDS = {
   ones: ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"],
   teens: ["Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"],
@@ -152,10 +179,11 @@ const drawSummaryOnRight = ({ doc, finalY, lines }) => {
 const drawManagerBlock = async ({ doc, startY, signatureImage }) => {
   const pageHeight = doc.internal.pageSize.getHeight();
   const fixedTopY = pageHeight - 52;
-  let cursorY = fixedTopY;
+  let cursorY = typeof startY === "number" ? startY : fixedTopY;
 
-  // Keep signature block fixed near page bottom on all documents.
-  if (typeof startY === "number" && startY > fixedTopY - 8) {
+  // Place signature immediately after the current section when space allows,
+  // otherwise render near the bottom or on a new page.
+  if (cursorY > fixedTopY - 20) {
     doc.addPage();
     cursorY = fixedTopY;
   }
@@ -235,11 +263,12 @@ const addCompanyHeader = async (doc, title, numberLabel, numberValue, metaLines 
   let metaY = cursorY + 10;
   metaLines.forEach((line) => {
     doc.setFont("helvetica", "normal");
-    doc.text(line, 126, metaY);
-    metaY += 5;
+    const wrapped = doc.splitTextToSize(line, 60); // Limit width to prevent overflow
+    doc.text(wrapped, 126, metaY);
+    metaY += wrapped.length * 5;
   });
 
-  return cursorY + 22;
+  return Math.max(cursorY + 22, metaY + 2);
 };
 
 export const downloadInvoicePdf = async (invoice) => {
@@ -276,14 +305,15 @@ export const downloadInvoicePdf = async (invoice) => {
         },
       ].filter((row) => row.item && row.quantity > 0);
 
-  const discount = getNumeric(invoice.discount);
+  const discountRate = Math.max(0, Math.min(100, getNumeric(invoice.discount)));
   const subtotalBeforeDiscount = normalizedItems.reduce(
     (sum, row) => sum + row.quantity * row.price,
     0
   );
-  const subtotal = Math.max(0, subtotalBeforeDiscount - discount);
+  const discountAmount = (subtotalBeforeDiscount * discountRate) / 100;
+  const subtotal = Math.max(0, subtotalBeforeDiscount - discountAmount);
   const tax = resolveTaxVat(invoice, subtotal);
-  const grandTotal = getNumeric(invoice.total || subtotal + tax.taxAmount + tax.vatAmount);
+  const grandTotal = subtotal + tax.taxAmount + tax.vatAmount;
 
   const headerEndY = await addCompanyHeader(doc, "INVOICE", "Invoice No", invoice.invoice_number || invoice.id, [
     `Customer: ${invoice.customer || ""}`,
@@ -305,7 +335,7 @@ export const downloadInvoicePdf = async (invoice) => {
     finalY,
     lines: [
       { label: "Subtotal", value: money(tax.subtotal) },
-      { label: "Discount", value: money(discount) },
+      { label: `Discount (${discountRate.toFixed(2)}%)`, value: money(discountAmount) },
       { label: `Tax (${tax.taxRate.toFixed(2)}%)`, value: money(tax.taxAmount) },
       { label: `VAT (${tax.vatRate.toFixed(2)}%)`, value: money(tax.vatAmount) },
       { label: "Total", value: money(grandTotal) },
@@ -395,7 +425,7 @@ export const downloadQuotationPdf = async (quotation) => {
 
   await drawManagerBlock({
     doc,
-    startY: summaryEndY + 40,
+    startY: summaryEndY + 18,
     signatureImage: quotation.signature_image,
   });
 
@@ -414,26 +444,30 @@ export const downloadWaybillPdf = async (waybill) => {
     `Status: ${waybill.status || "Pending"}`,
   ]);
 
-  const products = String(waybill.product_list || "").trim();
+  const deliveredByName = waybill.driver || waybill.delivered_by || "";
+  const modeOfDelivery = waybill.vehicle || waybill.mode_of_delivery || "";
+  const { productText, totalQuantity } = parseWaybillProductList(waybill.product_list || waybill.items || "");
 
   autoTable(doc, {
     startY: headerEndY,
-    head: [["Pickup", "Delivery", "Driver", "Vehicle", "Products Conveyed"]],
+    head: [["Pickup Location", "Delivery Location", "Delivered By", "Mode of Delivery", "Item(s)", "Qty"]],
     body: [[
       waybill.pickup_location || "",
       waybill.delivery_location || "",
-      waybill.driver || "",
-      waybill.vehicle || "",
-      products || "-",
+      deliveredByName,
+      modeOfDelivery,
+      productText || "-",
+      totalQuantity > 0 ? String(totalQuantity) : (waybill.qty !== undefined ? String(waybill.qty) : ""),
     ]],
     styles: { fontSize: 9, cellPadding: 2.5, valign: "top" },
     headStyles: { fillColor: [15, 23, 42] },
     columnStyles: {
-      0: { cellWidth: 32 },
-      1: { cellWidth: 32 },
-      2: { cellWidth: 26 },
-      3: { cellWidth: 26 },
-      4: { cellWidth: 66 },
+      0: { cellWidth: 28 },
+      1: { cellWidth: 28 },
+      2: { cellWidth: 24 },
+      3: { cellWidth: 24 },
+      4: { cellWidth: 50 },
+      5: { cellWidth: 20 },
     },
   });
 
@@ -441,12 +475,12 @@ export const downloadWaybillPdf = async (waybill) => {
 
   if (waybill.notes) {
     const wrapped = doc.splitTextToSize(`Notes: ${waybill.notes}`, 180);
-    doc.text(wrapped, 14, finalY + 42);
+    doc.text(wrapped, 14, finalY + 28);
   }
 
   await drawManagerBlock({
     doc,
-    startY: finalY + 56,
+    startY: finalY + 30,
     signatureImage: waybill.signature_image,
   });
 
@@ -558,7 +592,7 @@ export const downloadPurchaseOrderPdf = async (purchaseOrder) => {
 
   await drawManagerBlock({
     doc,
-    startY: notesStartY + 18,
+    startY: notesStartY + 10,
     signatureImage: purchaseOrder.signature_image,
   });
 

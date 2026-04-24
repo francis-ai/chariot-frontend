@@ -12,7 +12,6 @@ const AddSupplier = ({ onSave }) => {
     address: "",
     city: "",
     country: "",
-    contact_person: "",
   });
   const [loading, setLoading] = useState(false);
 
@@ -33,11 +32,7 @@ const AddSupplier = ({ onSave }) => {
     e.preventDefault();
 
     if (!formData.name?.trim()) {
-      toast.error("Supplier name is required");
-      return;
-    }
-    if (!formData.phone?.trim()) {
-      toast.error("Phone number is required");
+      toast.error("Contact person is required");
       return;
     }
 
@@ -52,7 +47,6 @@ const AddSupplier = ({ onSave }) => {
         address: "",
         city: "",
         country: "",
-        contact_person: "",
       });
     } catch (err) {
       console.error("Error in AddSupplier:", err);
@@ -70,7 +64,7 @@ const AddSupplier = ({ onSave }) => {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="flex flex-col gap-1">
           <label className={labelClass}>
-            Supplier Name <span className="text-red-500">*</span>
+            Contact Person <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
@@ -78,18 +72,6 @@ const AddSupplier = ({ onSave }) => {
             value={formData.name}
             onChange={handleChange}
             required
-            placeholder="Enter supplier name"
-            className={inputClass}
-          />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label className={labelClass}>Contact Person</label>
-          <input
-            type="text"
-            name="contact_person"
-            value={formData.contact_person}
-            onChange={handleChange}
             placeholder="Enter contact person name"
             className={inputClass}
           />
@@ -108,15 +90,12 @@ const AddSupplier = ({ onSave }) => {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className={labelClass}>
-            Phone Number <span className="text-red-500">*</span>
-          </label>
+          <label className={labelClass}>Phone Number</label>
           <input
             type="tel"
             name="phone"
             value={formData.phone}
             onChange={handleChange}
-            required
             placeholder="Enter phone number"
             className={inputClass}
           />

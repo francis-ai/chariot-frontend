@@ -42,11 +42,11 @@ const WaybillForm = ({ onCancel, onSave, waybillData, submitting, customers = []
         customer: waybillData.customer || "",
         pickup_location: waybillData.pickup_location || "",
         delivery_location: waybillData.delivery_location || "",
-        driver: waybillData.driver || "",
-        vehicle: waybillData.vehicle || "",
-        quotation_ids: waybillData.quotation_ids || "",
-        invoice_ids: waybillData.invoice_ids || "",
-        product_list: waybillData.product_list || "",
+        driver: waybillData.driver || waybillData.delivered_by || "",
+        vehicle: waybillData.vehicle || waybillData.mode_of_delivery || "",
+        quotation_ids: waybillData.quotation_ids || waybillData.quotation_id || "",
+        invoice_ids: waybillData.invoice_ids || waybillData.invoice_id || "",
+        product_list: waybillData.product_list || waybillData.items || "",
         waybill_date: waybillData.waybill_date || new Date().toISOString().split('T')[0],
         status: waybillData.status || "Pending",
         notes: waybillData.notes || "",
@@ -138,26 +138,7 @@ const WaybillForm = ({ onCancel, onSave, waybillData, submitting, customers = []
       toast.error("Customer name is required");
       return;
     }
-    if (!form.pickup_location?.trim()) {
-      toast.error("Pickup location is required");
-      return;
-    }
-    if (!form.delivery_location?.trim()) {
-      toast.error("Delivery location is required");
-      return;
-    }
-    if (!form.driver?.trim()) {
-      toast.error("Driver name is required");
-      return;
-    }
-    if (!form.vehicle?.trim()) {
-      toast.error("Vehicle details are required");
-      return;
-    }
-    if (!form.waybill_date) {
-      toast.error("Waybill date is required");
-      return;
-    }
+    // Removed validation for pickup_location, delivery_location, driver, vehicle, waybill_date to make them optional
 
     setLoading(true);
     try {
@@ -226,7 +207,7 @@ const WaybillForm = ({ onCancel, onSave, waybillData, submitting, customers = []
 
         {/* Waybill Date */}
         <div>
-          <label className="text-sm font-medium mb-1 block">Waybill Date *</label>
+          <label className="text-sm font-medium mb-1 block">Waybill Date</label>
           <input
             type="date"
             name="waybill_date"
@@ -240,7 +221,7 @@ const WaybillForm = ({ onCancel, onSave, waybillData, submitting, customers = []
 
         {/* Pickup Location */}
         <div>
-          <label className="text-sm font-medium mb-1 block">Pickup Location *</label>
+          <label className="text-sm font-medium mb-1 block">Pickup Location</label>
           <input
             type="text"
             name="pickup_location"
@@ -255,7 +236,7 @@ const WaybillForm = ({ onCancel, onSave, waybillData, submitting, customers = []
 
         {/* Delivery Location */}
         <div>
-          <label className="text-sm font-medium mb-1 block">Delivery Location *</label>
+          <label className="text-sm font-medium mb-1 block">Delivery Location</label>
           <input
             type="text"
             name="delivery_location"
@@ -270,7 +251,7 @@ const WaybillForm = ({ onCancel, onSave, waybillData, submitting, customers = []
 
         {/* Driver */}
         <div>
-          <label className="text-sm font-medium mb-1 block">Driver Name *</label>
+          <label className="text-sm font-medium mb-1 block">Driver Name</label>
           <input
             type="text"
             name="driver"
@@ -285,7 +266,7 @@ const WaybillForm = ({ onCancel, onSave, waybillData, submitting, customers = []
 
         {/* Vehicle */}
         <div>
-          <label className="text-sm font-medium mb-1 block">Vehicle *</label>
+          <label className="text-sm font-medium mb-1 block">Vehicle</label>
           <input
             type="text"
             name="vehicle"

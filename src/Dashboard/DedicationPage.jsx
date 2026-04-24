@@ -27,7 +27,7 @@ export default function DedicationPage() {
       setLoading(true);
       const [invoiceRes, quotationRes] = await Promise.all([
         API.get("/invoices"),
-        API.get("/quoation"),
+        API.get("/quotation"),
       ]);
 
       setInvoices(invoiceRes.data || []);

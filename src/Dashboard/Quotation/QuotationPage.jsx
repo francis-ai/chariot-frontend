@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Eye, Download, Edit3, Plus, Trash2, X } from 'lucide-react';
+import { ArrowRight, Eye, Download, Edit3, Plus, Trash2, X } from 'lucide-react';
 import CreateQuotation from "../Quotation/createquoation";
 import NavBar from '../../component/navigation';
 import Sidebar from '../../component/sidebar';
@@ -536,6 +536,7 @@ const QuotationManagement = () => {
   ]);
   const [searchParams] = useSearchParams();
   const focusQuotationId = searchParams.get("view");
+  const [convertingQuotationId, setConvertingQuotationId] = useState(null);
 
   const tabs = ['All Quotations', 'Pending', 'Accepted', 'Paid', 'Unpaid', 'Expired'];
 
@@ -568,7 +569,7 @@ const QuotationManagement = () => {
   const fetchQuotations = async () => {
     try {
       setLoading(true);
-      const res = await API.get("/quoation");
+      const res = await API.get("/quotation");
       console.log("Fetched quotations:", res.data);
       
       // Map API response to component format
@@ -733,11 +734,11 @@ const QuotationManagement = () => {
 
       if (quotationData.id) {
         // Update existing
-        await API.put(`/quoation/${quotationData.id}`, payload);
+        await API.put(`/quotation/${quotationData.id}`, payload);
         toast.success("Quotation updated successfully!");
       } else {
         // Create new
-        await API.post("/quoation", payload);
+        await API.post("/quotation", payload);
         toast.success("Quotation created successfully!");
       }
       
@@ -757,7 +758,7 @@ const QuotationManagement = () => {
     
     setDeleting(true);
     try {
-      await API.delete(`/quoation/${deleteModal.id}`);
+      await API.delete(`/quotation/${deleteModal.id}`);
       
       setQuotations(prev => prev.filter(q => q.id !== deleteModal.id));
       setDeleteModal(null);
@@ -774,6 +775,21 @@ const QuotationManagement = () => {
     downloadQuotationPdf(quotation)
       .then(() => toast.success("Quotation downloaded successfully!"))
       .catch(() => toast.error("Failed to download quotation PDF"));
+  };
+
+  const handleConvertQuotation = async (quotation) => {
+    if (!quotation?.id) return;
+    setConvertingQuotationId(quotation.id);
+    try {
+      await API.post(`/quotation/${quotation.id}/convert`, { convert_to: "invoice" });
+      toast.success("Quotation converted to invoice successfully!");
+      await fetchQuotations();
+    } catch (err) {
+      console.error("Convert quotation error:", err);
+      toast.error(err.response?.data?.message || "Failed to convert quotation to invoice");
+    } finally {
+      setConvertingQuotationId(null);
+    }
   };
 
   const getStatusStyles = (status) => {
@@ -981,6 +997,14 @@ const QuotationManagement = () => {
                                 title="Download"
                               >
                                 <Download size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleConvertQuotation(q)}
+                                disabled={convertingQuotationId === q.id}
+                                className="p-2 rounded-md transition-colors bg-slate-50 text-slate-600 hover:bg-slate-600 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Convert to Invoice"
+                              >
+                                <ArrowRight size={16} />
                               </button>
                               <button
                                 onClick={() => { setModalData(q); setIsEditable(true); }}

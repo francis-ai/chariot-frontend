@@ -4,6 +4,21 @@ import { X, Save, Plus } from "lucide-react";
 import "react-toastify/dist/ReactToastify.css";
 import API from "../utils/api";
 
+const CURRENCY_OPTIONS = ["NGN", "USD", "EUR", "GBP", "CAD", "AUD", "INR", "JPY", "CNY"];
+
+const formatMoney = (amount, currencyCode) => {
+  const code = String(currencyCode || "NGN").toUpperCase();
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: code,
+      maximumFractionDigits: 2,
+    }).format(Number(amount || 0));
+  } catch (error) {
+    return `${code} ${Number(amount || 0).toLocaleString()}`;
+  }
+};
+
 export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) {
   const [form, setForm] = useState({
     customer: "",
@@ -17,7 +32,9 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
     discount: 0,
     tax_rate: 0,
     tax_amount: 0,
-    notes: ""
+    notes: "",
+    currency: "NGN",
+    custom_currency: "",
   });
   const [customers, setCustomers] = useState([]);
   const [items, setItems] = useState([]);
@@ -103,7 +120,13 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
         discount: invoiceData.discount || 0,
         tax_rate: Number(invoiceData.vat_rate ?? invoiceData.tax_rate ?? 0),
         tax_amount: Number(invoiceData.vat_amount ?? invoiceData.tax_amount ?? 0),
-        notes: invoiceData.notes || ""
+        notes: invoiceData.notes || "",
+        currency: CURRENCY_OPTIONS.includes(String(invoiceData.currency || "NGN").toUpperCase())
+          ? String(invoiceData.currency || "NGN").toUpperCase()
+          : "OTHER",
+        custom_currency: CURRENCY_OPTIONS.includes(String(invoiceData.currency || "NGN").toUpperCase())
+          ? ""
+          : String(invoiceData.currency || "").toUpperCase(),
       });
     }
   }, [invoiceData]);
@@ -334,6 +357,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const selectedCurrency = (form.currency === "OTHER" ? form.custom_currency : form.currency).trim().toUpperCase();
 
     // Validation
     if (!form.customer) {
@@ -344,10 +368,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
       toast.error("Invoice date is required");
       return;
     }
-    if (!form.due_date) {
-      toast.error("Due date is required");
-      return;
-    }
+    // Due date is now optional
     const normalizedItems = lineItems
       .map((item) => ({
         name: String(item.name || "").trim(),
@@ -359,6 +380,11 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
 
     if (!normalizedItems.length) {
       toast.error("Please add at least one item");
+      return;
+    }
+
+    if (!selectedCurrency) {
+      toast.error("Please choose a currency");
       return;
     }
 
@@ -387,6 +413,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
     try {
       await onSave({
         ...form,
+        currency: selectedCurrency,
         item: firstItem.name,
         description: firstItem.description,
         quantity: firstItem.quantity,
@@ -455,7 +482,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
             {/* Invoice Details */}
             <div>
               <h3 className={`text-md font-medium mb-4 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Invoice Details</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className={`block text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Customer *</label>
@@ -510,16 +537,42 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
                 </div>
 
                 <div>
-                  <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Due Date *</label>
+                  <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Due Date</label>
                   <input
                     type="date"
                     name="due_date"
                     value={form.due_date}
                     onChange={handleChange}
-                    required
                     disabled={loading}
                     className={inputClass}
                   />
+                </div>
+
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Currency *</label>
+                  <select
+                    name="currency"
+                    value={form.currency}
+                    onChange={handleChange}
+                    disabled={loading}
+                    className={inputClass}
+                  >
+                    {CURRENCY_OPTIONS.map((currency) => (
+                      <option key={currency} value={currency}>{currency}</option>
+                    ))}
+                    <option value="OTHER">Other</option>
+                  </select>
+                  {form.currency === "OTHER" ? (
+                    <input
+                      type="text"
+                      name="custom_currency"
+                      value={form.custom_currency}
+                      onChange={handleChange}
+                      placeholder="Enter code, e.g. ZAR"
+                      disabled={loading}
+                      className={`${inputClass} mt-2`}
+                    />
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -608,7 +661,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
                     </div>
 
                     <div className="md:col-span-2">
-                      <label className={`text-sm mb-1 block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Unit Price (₦)</label>
+                      <label className={`text-sm mb-1 block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Unit Price ({(form.currency === "OTHER" ? form.custom_currency : form.currency) || "NGN"})</label>
                       <input
                         type="number"
                         min="0"
@@ -691,7 +744,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
               }`}>
                 <div className="flex justify-between">
                   <span>Subtotal</span>
-                  <span>₦{subtotal.toLocaleString()}</span>
+                  <span>{formatMoney(subtotal, form.currency === "OTHER" ? form.custom_currency : form.currency)}</span>
                 </div>
 
                 <div className="flex justify-between items-center">
@@ -750,19 +803,19 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
 
                 <div className="flex justify-between">
                   <span>Discount Amount</span>
-                  <span>₦{discountAmount.toLocaleString()}</span>
+                  <span>{formatMoney(discountAmount, form.currency === "OTHER" ? form.custom_currency : form.currency)}</span>
                 </div>
 
                 <div className="flex justify-between">
                   <span>Taxable Base</span>
-                  <span>₦{taxableBase.toLocaleString()}</span>
+                  <span>{formatMoney(taxableBase, form.currency === "OTHER" ? form.custom_currency : form.currency)}</span>
                 </div>
 
                 <hr className={`${darkMode ? 'border-gray-600' : 'border-gray-300'}`} />
 
                 <div className="flex justify-between font-bold text-lg">
                   <span>Total</span>
-                  <span>₦{total.toLocaleString()}</span>
+                  <span>{formatMoney(total, form.currency === "OTHER" ? form.custom_currency : form.currency)}</span>
                 </div>
               </div>
             </div>

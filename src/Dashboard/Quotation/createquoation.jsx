@@ -4,11 +4,28 @@ import { Plus, Save, X } from "lucide-react";
 import "react-toastify/dist/ReactToastify.css";
 import API from "../../utils/api";
 
+const CURRENCY_OPTIONS = ["NGN", "USD", "EUR", "GBP", "CAD", "AUD", "INR", "JPY", "CNY"];
+
+const formatMoney = (amount, currencyCode) => {
+  const code = String(currencyCode || "NGN").toUpperCase();
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: code,
+      maximumFractionDigits: 2,
+    }).format(Number(amount || 0));
+  } catch (error) {
+    return `${code} ${Number(amount || 0).toLocaleString()}`;
+  }
+};
+
 const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inventoryItems = [], onCustomerCreated }) => {
   const [formData, setFormData] = useState({
     customer: "",
     quotation_date: new Date().toISOString().split('T')[0],
     valid_until: "",
+    currency: "NGN",
+    custom_currency: "",
     discount_rate: 0,
     vat_rate: 7.5,
     status: "Pending",
@@ -75,6 +92,7 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
 
     setLoading(true);
     try {
+      const selectedCurrency = (formData.currency === "OTHER" ? formData.custom_currency : formData.currency).trim().toUpperCase();
       const subtotal = formData.items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.price) || 0), 0);
       const discountRate = Math.max(0, Math.min(100, Number(formData.discount_rate || 0)));
       const discountAmount = (subtotal * discountRate) / 100;
@@ -104,6 +122,7 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
 
       await onSave({
         ...formData,
+        currency: selectedCurrency,
         subtotal,
         discount_rate: discountRate,
         discount_amount: discountAmount,
@@ -123,6 +142,8 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
         customer: "",
         quotation_date: new Date().toISOString().split('T')[0],
         valid_until: "",
+        currency: "NGN",
+        custom_currency: "",
         discount_rate: 0,
         vat_rate: 7.5,
         status: "Pending",
@@ -399,6 +420,35 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
           />
         </div>
 
+        <div>
+          <label className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-300" : "text-gray-600"}`}>
+            Currency *
+          </label>
+          <select
+            name="currency"
+            value={formData.currency}
+            onChange={handleChange}
+            className={inputClass}
+            disabled={loading}
+          >
+            {CURRENCY_OPTIONS.map((currency) => (
+              <option key={currency} value={currency}>{currency}</option>
+            ))}
+            <option value="OTHER">Other</option>
+          </select>
+          {formData.currency === "OTHER" ? (
+            <input
+              type="text"
+              name="custom_currency"
+              value={formData.custom_currency}
+              onChange={handleChange}
+              placeholder="Enter code, e.g. ZAR"
+              className={`${inputClass} mt-2`}
+              disabled={loading}
+            />
+          ) : null}
+        </div>
+
         {/* Notes */}
         <div className="md:col-span-2">
           <label className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-300" : "text-gray-600"}`}>
@@ -475,7 +525,7 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
                   ) : null}
                 </div>
                 <div className="md:col-span-2">
-                  <label className={`block text-xs font-medium mb-1 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>Price</label>
+                  <label className={`block text-xs font-medium mb-1 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>Price ({(formData.currency === "OTHER" ? formData.custom_currency : formData.currency) || "NGN"})</label>
                   <input
                     type="number"
                     min="0"
@@ -522,23 +572,23 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
           <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl border ${darkMode ? "border-gray-700 bg-gray-900" : "border-gray-200 bg-white"}`}>
             <div>
               <p className="text-sm opacity-70">Subtotal</p>
-              <p className="text-lg font-semibold">₦{subtotal.toLocaleString()}</p>
+              <p className="text-lg font-semibold">{formatMoney(subtotal, formData.currency === "OTHER" ? formData.custom_currency : formData.currency)}</p>
             </div>
             <div>
               <p className="text-sm opacity-70">Discount</p>
-              <p className="text-lg font-semibold">₦{discountAmount.toLocaleString()}</p>
+              <p className="text-lg font-semibold">{formatMoney(discountAmount, formData.currency === "OTHER" ? formData.custom_currency : formData.currency)}</p>
             </div>
             <div>
               <p className="text-sm opacity-70">VAT</p>
-              <p className="text-lg font-semibold">₦{vatAmount.toLocaleString()}</p>
+              <p className="text-lg font-semibold">{formatMoney(vatAmount, formData.currency === "OTHER" ? formData.custom_currency : formData.currency)}</p>
             </div>
             <div>
               <p className="text-sm opacity-70">Taxable Subtotal</p>
-              <p className="text-lg font-semibold">₦{taxableSubtotal.toLocaleString()}</p>
+              <p className="text-lg font-semibold">{formatMoney(taxableSubtotal, formData.currency === "OTHER" ? formData.custom_currency : formData.currency)}</p>
             </div>
             <div>
               <p className="text-sm opacity-70">Total</p>
-              <p className="text-lg font-semibold">₦{total.toLocaleString()}</p>
+              <p className="text-lg font-semibold">{formatMoney(total, formData.currency === "OTHER" ? formData.custom_currency : formData.currency)}</p>
             </div>
           </div>
         </div>

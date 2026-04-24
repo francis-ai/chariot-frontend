@@ -24,8 +24,8 @@ const AddCustomer = ({ onSave, onClose }) => {
     const newErrors = {};
     if (!formData.name.trim()) newErrors.name = "Customer name is required";
     if (!formData.company.trim()) newErrors.company = "Company name is required";
-    if (!/^\+?\d{8,15}$/.test(formData.phone)) newErrors.phone = "Enter a valid phone number";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = "Enter a valid email";
+    if (formData.phone && !/^\+?\d{8,15}$/.test(formData.phone)) newErrors.phone = "Enter a valid phone number";
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = "Enter a valid email";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };

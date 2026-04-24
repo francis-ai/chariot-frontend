@@ -17,6 +17,19 @@ import { downloadInvoicePdf } from "../utils/documentPdf";
 
 const TABS = ["All Invoices", "Paid", "Unpaid", "Pending", "Overdue"];
 
+const formatMoney = (amount, currencyCode) => {
+  const code = String(currencyCode || "NGN").toUpperCase();
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: code,
+      maximumFractionDigits: 2,
+    }).format(Number(amount || 0));
+  } catch (error) {
+    return `${code} ${Number(amount || 0).toLocaleString()}`;
+  }
+};
+
 const parseInvoiceItems = (invoice) => {
   if (Array.isArray(invoice?.items) && invoice.items.length > 0) return invoice.items;
   if (typeof invoice?.items_json === "string" && invoice.items_json.trim()) {
@@ -200,6 +213,7 @@ const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefr
         vat_rate: taxRate,
         vat_amount: taxAmount,
         total,
+        currency: String(updatedData.currency || selectedInvoice?.currency || "NGN").toUpperCase(),
         status: updatedData.status || "Unpaid",
         signature_name: updatedData.signature_name || "",
         signature_image: updatedData.signature_image || "",
@@ -301,7 +315,7 @@ const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefr
                     <td className="px-4 py-2">{inv.invoice_date}</td>
                     <td className="px-4 py-2">{inv.due_date}</td>
                     <td className="px-4 py-2">{getItemSummary(inv)}</td>
-                    <td className="px-4 py-2 font-bold">₦{Number(inv.total).toLocaleString()}</td>
+                    <td className="px-4 py-2 font-bold">{formatMoney(inv.total, inv.currency)}</td>
                     <td className="px-4 py-2">
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusStyles(inv.status)}`}>
                         {inv.status}
@@ -423,11 +437,11 @@ const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefr
                 </div>
                 <div>
                   <label className="text-xs uppercase opacity-60">Price</label>
-                  <p>₦{Number(selectedInvoice.price).toLocaleString()}</p>
+                  <p>{formatMoney(selectedInvoice.price, selectedInvoice.currency)}</p>
                 </div>
                 <div>
                   <label className="text-xs uppercase opacity-60">Discount</label>
-                  <p>₦{Number(selectedInvoice.discount || 0).toLocaleString()}</p>
+                  <p>{formatMoney(selectedInvoice.discount || 0, selectedInvoice.currency)}</p>
                 </div>
                 <div>
                   <label className="text-xs uppercase opacity-60">VAT / Tax Rate</label>
@@ -435,11 +449,11 @@ const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefr
                 </div>
                 <div>
                   <label className="text-xs uppercase opacity-60">VAT / Tax Amount</label>
-                  <p>₦{Number(selectedInvoice.vat_amount ?? selectedInvoice.tax_amount ?? 0).toLocaleString()}</p>
+                  <p>{formatMoney(selectedInvoice.vat_amount ?? selectedInvoice.tax_amount ?? 0, selectedInvoice.currency)}</p>
                 </div>
                 <div>
                   <label className="text-xs uppercase opacity-60">Total</label>
-                  <p className="font-bold">₦{Number(selectedInvoice.total).toLocaleString()}</p>
+                  <p className="font-bold">{formatMoney(selectedInvoice.total, selectedInvoice.currency)}</p>
                 </div>
                 <div>
                   <label className="text-xs uppercase opacity-60">Added By</label>
@@ -520,7 +534,7 @@ const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefr
               }`}>
                 <p className="font-bold">{deleteModal.invoice_number}</p>
                 <p className="text-sm mt-2">Customer: {deleteModal.customer}</p>
-                <p className="text-sm">Amount: ₦{Number(deleteModal.total).toLocaleString()}</p>
+                <p className="text-sm">Amount: {formatMoney(deleteModal.total, deleteModal.currency)}</p>
               </div>
               
               <p className="text-sm text-red-600 font-medium">
