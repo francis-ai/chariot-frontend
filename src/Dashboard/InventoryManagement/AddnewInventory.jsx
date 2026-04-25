@@ -4,6 +4,7 @@ const AddNewInventory = ({ categories, onSave, onClose, initialData, isEdit = fa
   const [form, setForm] = useState({
     product_name: "",
     sku: `SKU-${Date.now()}`,
+    item_code: "",
     category: "",
     current_stock: 0,
     min_stock: 10,
@@ -20,6 +21,7 @@ const AddNewInventory = ({ categories, onSave, onClose, initialData, isEdit = fa
       setForm({
         product_name: initialData.name || initialData.product_name || "",
         sku: initialData.sku || `SKU-${Date.now()}`,
+        item_code: initialData.item_code || "",
         category: initialData.category || "",
         current_stock: initialData.current_stock || initialData.stock || 0,
         min_stock: initialData.min_stock || initialData.min || 10,
@@ -99,6 +101,9 @@ const AddNewInventory = ({ categories, onSave, onClose, initialData, isEdit = fa
           <div className="grid grid-cols-2 gap-2 text-sm">
             <span className="font-medium">Product Name:</span>
             <span>{form.product_name}</span>
+            
+            <span className="font-medium">Item Code:</span>
+            <span>{form.item_code || 'N/A'}</span>
             
             <span className="font-medium">SKU:</span>
             <span className="text-blue-600 font-mono">{form.sku}</span>
@@ -194,26 +199,39 @@ const AddNewInventory = ({ categories, onSave, onClose, initialData, isEdit = fa
       </div>
 
       {/* Category */}
-      <div>
-        <label className="block text-sm font-medium mb-1">
-          Category <span className="text-red-500">*</span>
-        </label>
-        <select
-          name="category"
-          value={form.category}
-          onChange={handleChange}
-          className={`w-full p-2 border rounded ${
-            errors.category ? 'border-red-500' : ''
-          }`}
-        >
-          <option value="">Select Category</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.name}>{c.name}</option>
-          ))}
-        </select>
-        {errors.category && (
-          <p className="text-red-500 text-xs mt-1">{errors.category}</p>
-        )}
+      <div className="grid grid-cols-1 gap-2">
+        <div>
+          <label className="block text-sm font-medium mb-1">Item Code</label>
+          <input
+            type="text"
+            name="item_code"
+            value={form.item_code}
+            onChange={handleChange}
+            className="w-full p-2 border rounded"
+            placeholder="Optional item code"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">
+            Category <span className="text-red-500">*</span>
+          </label>
+          <select
+            name="category"
+            value={form.category}
+            onChange={handleChange}
+            className={`w-full p-2 border rounded ${
+              errors.category ? 'border-red-500' : ''
+            }`}
+          >
+            <option value="">Select Category</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.name}>{c.name}</option>
+            ))}
+          </select>
+          {errors.category && (
+            <p className="text-red-500 text-xs mt-1">{errors.category}</p>
+          )}
+        </div>
       </div>
 
       {/* Stock Information */}

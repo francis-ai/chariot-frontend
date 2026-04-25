@@ -152,6 +152,7 @@ export default function InvoiceManagement() {
         ? invoiceData.items
             .map((row) => ({
               name: String(row.name || row.item || row.product_name || "").trim(),
+              item_code: String(row.item_code || row.code || "").trim(),
               description: row.description || "",
               quantity: Number(row.quantity || row.qty || 0),
               price: Number(row.price || 0),
@@ -164,6 +165,7 @@ export default function InvoiceManagement() {
         : [
             {
               name: invoiceData.item,
+              item_code: invoiceData.item_code || "",
               description: invoiceData.description || "",
               quantity: Number(invoiceData.quantity || 0),
               price: Number(invoiceData.price || 0),
@@ -203,6 +205,7 @@ export default function InvoiceManagement() {
         total: total,
         currency: String(invoiceData.currency || "NGN").toUpperCase(),
         status: invoiceData.status || "Unpaid",
+        signature_name: invoiceData.signature_name || "",
         signature_image: invoiceData.signature_image || "",
         notes: invoiceData.notes || ""
       };

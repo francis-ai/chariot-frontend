@@ -47,9 +47,11 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
   const [lineItems, setLineItems] = useState([
     {
       name: "",
+      item_code: "",
       description: "",
       quantity: 1,
       price: 0,
+      manual: true,
     },
   ]);
   const [newCustomer, setNewCustomer] = useState({
@@ -62,6 +64,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
   });
   const [newItem, setNewItem] = useState({
     product_name: "",
+    item_code: "",
     category: "General",
     current_stock: "",
     min_stock: "",
@@ -98,11 +101,13 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
       const nextItems = parsedItems.length
         ? parsedItems.map((item) => ({
             name: item.name || item.item || item.product_name || "",
+            item_code: item.item_code || item.code || "",
             description: item.description || "",
             quantity: Number(item.quantity || item.qty || 1),
             price: Number(item.price || item.unit_price || 0),
+            manual: false,
           }))
-        : [{ name: "", description: "", quantity: 1, price: 0 }];
+        : [{ name: "", item_code: "", description: "", quantity: 1, price: 0, manual: true }];
 
       const firstItem = nextItems[0];
 
@@ -196,7 +201,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
   };
 
   const addLineItem = () => {
-    setLineItems((prev) => [...prev, { name: "", description: "", quantity: 1, price: 0 }]);
+    setLineItems((prev) => [...prev, { name: "", item_code: "", description: "", quantity: 1, price: 0, manual: true }]);
   };
 
   const removeLineItem = (index) => {
@@ -343,6 +348,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
       setShowItemModal(false);
       setNewItem({
         product_name: "",
+        item_code: "",
         category: "General",
         current_stock: "",
         min_stock: "",
@@ -372,6 +378,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
     const normalizedItems = lineItems
       .map((item) => ({
         name: String(item.name || "").trim(),
+        item_code: String(item.item_code || "").trim(),
         description: item.description || "",
         quantity: Number(item.quantity || 0),
         price: Number(item.price || 0),
@@ -448,6 +455,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
       items.map((inv) => ({
         id: inv.id || inv._id,
         label: inv.product_name || inv.name || "",
+        item_code: inv.item_code || "",
         price: Number(inv.selling_price || inv.price || 0),
         description: inv.description || "",
       })),
@@ -584,37 +592,58 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
                 {lineItems.map((item, index) => (
                   <div key={index} className={`grid grid-cols-1 md:grid-cols-12 gap-3 p-4 rounded-xl border ${darkMode ? "border-gray-700 bg-gray-800" : "border-gray-200 bg-gray-50"}`}>
                     <div className="md:col-span-3">
-                      <label className={`text-sm block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Item *</label>
-                      <select
-                        value={item.name || ""}
-                        onChange={(e) => {
-                          const selectedName = e.target.value;
-                          const selected = itemOptions.find((option) => option.label === selectedName);
-                          updateLineItem(index, "name", selectedName);
-                          if (selected) {
-                            if (!item.description) {
-                              updateLineItem(index, "description", selected.description);
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <label className={`text-sm block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Item *</label>
+                        <button
+                          type="button"
+                          onClick={() => updateLineItem(index, "manual", !item.manual)}
+                          className="text-xs px-2 py-1 rounded bg-slate-600 text-white hover:bg-slate-700"
+                        >
+                          {item.manual ? "Select from inventory" : "Manual entry"}
+                        </button>
+                      </div>
+                      {item.manual ? (
+                        <input
+                          value={item.name || ""}
+                          onChange={(e) => updateLineItem(index, "name", e.target.value)}
+                          placeholder="Enter item name"
+                          disabled={loading}
+                          className={inputClass}
+                        />
+                      ) : (
+                        <select
+                          value={item.name || ""}
+                          onChange={(e) => {
+                            const selectedName = e.target.value;
+                            const selected = itemOptions.find((option) => option.label === selectedName);
+                            updateLineItem(index, "name", selectedName);
+                            updateLineItem(index, "manual", false);
+                            if (selected) {
+                              if (!item.description) {
+                                updateLineItem(index, "description", selected.description);
+                              }
+                              if (!Number(item.price || 0)) {
+                                updateLineItem(index, "price", selected.price);
+                              }
+                              updateLineItem(index, "item_code", selected.item_code || "");
                             }
-                            if (!Number(item.price || 0)) {
-                              updateLineItem(index, "price", selected.price);
-                            }
-                          }
-                        }}
-                        required
-                        disabled={loading}
-                        className={inputClass}
-                      >
-                        <option value="">Select Item</option>
-                        {itemOptions.length > 0 ? (
-                          itemOptions.map((option) => (
-                            <option key={String(option.id)} value={option.label}>
-                              {option.label}
-                            </option>
-                          ))
-                        ) : (
-                          <option value="" disabled>No items available</option>
-                        )}
-                      </select>
+                          }}
+                          required
+                          disabled={loading}
+                          className={inputClass}
+                        >
+                          <option value="">Select Item</option>
+                          {itemOptions.length > 0 ? (
+                            itemOptions.map((option) => (
+                              <option key={String(option.id)} value={option.label}>
+                                {option.label}
+                              </option>
+                            ))
+                          ) : (
+                            <option value="" disabled>No items available</option>
+                          )}
+                        </select>
+                      )}
                       {index === 0 && (
                         <div className="mt-2 flex flex-wrap gap-2">
                           <button
@@ -631,7 +660,18 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
                       )}
                     </div>
 
-                    <div className="md:col-span-4">
+                    <div className="md:col-span-3">
+                      <label className={`text-sm mb-1 block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Item Code</label>
+                      <input
+                        value={item.item_code || ""}
+                        onChange={(e) => updateLineItem(index, "item_code", e.target.value)}
+                        placeholder="Optional item code"
+                        disabled={loading}
+                        className={inputClass}
+                      />
+                    </div>
+
+                    <div className="md:col-span-3">
                       <label className={`text-sm mb-1 block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Description</label>
                       <input
                         value={item.description || ""}
@@ -642,18 +682,18 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
                       />
                     </div>
 
-                    <div className="md:col-span-2">
+                    <div className="md:col-span-1">
                       <label className={`text-sm mb-1 block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Quantity</label>
                       <input
                         type="number"
                         min="1"
                         value={item.quantity || 1}
                         onChange={(e) => updateLineItem(index, "quantity", e.target.value)}
-                        placeholder="Enter quantity"
+                        placeholder="Qty"
                         disabled={loading}
                         className={inputClass}
                       />
-                      {item.name && Number(item.quantity || 0) > getAvailableStock(item.name) ? (
+                      {item.name && !item.manual && Number(item.quantity || 0) > getAvailableStock(item.name) ? (
                         <p className="text-xs text-red-500 mt-1">
                           Low stock: requested {Number(item.quantity || 0)}, available {getAvailableStock(item.name)}
                         </p>
@@ -903,6 +943,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <input className={inputClass} placeholder="Item name *" value={newItem.product_name} onChange={(e) => setNewItem((prev) => ({ ...prev, product_name: e.target.value }))} />
+              <input className={inputClass} placeholder="Item code" value={newItem.item_code} onChange={(e) => setNewItem((prev) => ({ ...prev, item_code: e.target.value }))} />
               <input className={inputClass} placeholder="Category" value={newItem.category} onChange={(e) => setNewItem((prev) => ({ ...prev, category: e.target.value }))} />
               <input className={inputClass} type="number" placeholder="Opening stock" value={newItem.current_stock} onChange={(e) => setNewItem((prev) => ({ ...prev, current_stock: e.target.value }))} />
               <input className={inputClass} type="number" placeholder="Min stock" value={newItem.min_stock} onChange={(e) => setNewItem((prev) => ({ ...prev, min_stock: e.target.value }))} />

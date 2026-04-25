@@ -166,6 +166,7 @@ const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefr
         ? updatedData.items
             .map((row) => ({
               name: String(row.name || row.item || row.product_name || "").trim(),
+              item_code: String(row.item_code || row.code || "").trim(),
               description: row.description || "",
               quantity: Number(row.quantity || row.qty || 0),
               price: Number(row.price || 0),
@@ -178,6 +179,7 @@ const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefr
         : [
             {
               name: updatedData.item,
+              item_code: updatedData.item_code || "",
               description: updatedData.description || "",
               quantity: Number(updatedData.quantity || 0),
               price: Number(updatedData.price || 0),
@@ -444,11 +446,11 @@ const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefr
                   <p>{formatMoney(selectedInvoice.discount || 0, selectedInvoice.currency)}</p>
                 </div>
                 <div>
-                  <label className="text-xs uppercase opacity-60">VAT / Tax Rate</label>
+                  <label className="text-xs uppercase opacity-60">VAT Rate</label>
                   <p>{Number(selectedInvoice.vat_rate ?? selectedInvoice.tax_rate ?? 0).toLocaleString()}%</p>
                 </div>
                 <div>
-                  <label className="text-xs uppercase opacity-60">VAT / Tax Amount</label>
+                  <label className="text-xs uppercase opacity-60">VAT Amount</label>
                   <p>{formatMoney(selectedInvoice.vat_amount ?? selectedInvoice.tax_amount ?? 0, selectedInvoice.currency)}</p>
                 </div>
                 <div>
@@ -469,6 +471,7 @@ const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefr
                   <div className={`text-sm p-2 rounded space-y-1 ${darkMode ? "bg-slate-700 text-slate-100" : "bg-slate-100 text-slate-800"}`}>
                     {parseInvoiceItems(selectedInvoice).map((row, index) => (
                       <p key={`${row.name || row.item}-${index}`}>
+                        {row.item_code ? `${row.item_code} - ` : ""}
                         {(row.name || row.item || row.product_name || "Item")} x {Number(row.quantity || row.qty || 0)}
                       </p>
                     ))}

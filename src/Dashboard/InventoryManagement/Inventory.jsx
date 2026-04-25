@@ -51,6 +51,7 @@ const InventoryDashboard = () => {
   const bulkTemplateColumns = [
     "product_name",
     "sku",
+    "item_code",
     "category",
     "current_stock",
     "min_stock",
@@ -142,6 +143,7 @@ const InventoryDashboard = () => {
       const payload = {
         product_name: item.name || item.product_name,
         sku: item.sku || `SKU-${Date.now()}`,
+        item_code: item.item_code || "",
         category: item.category,
         current_stock: Number(item.current_stock || item.stock || 0),
         min_stock: Number(item.min_stock || item.min || 10),
@@ -155,6 +157,7 @@ const InventoryDashboard = () => {
       const newItem = {
         id: res.data.id || res.data._id || res.data.itemId, // Store the ID from response
         sku: payload.sku,
+        item_code: payload.item_code,
         name: payload.product_name,
         category: payload.category,
         stock: payload.current_stock,
@@ -178,6 +181,7 @@ const InventoryDashboard = () => {
       const payload = {
         product_name: item.name || item.product_name,
         sku: item.sku,
+        item_code: item.item_code || "",
         category: item.category,
         current_stock: Number(item.current_stock || item.stock || 0),
         min_stock: Number(item.min_stock || item.min || 10),
@@ -193,6 +197,7 @@ const InventoryDashboard = () => {
         prev.map(i => i.id === item.id ? {
           ...i,
           name: payload.product_name,
+          item_code: payload.item_code,
           category: payload.category,
           stock: payload.current_stock,
           min: payload.min_stock,
@@ -269,6 +274,7 @@ const InventoryDashboard = () => {
         return {
           product_name: productName,
           sku,
+          item_code: String(normalized.item_code || "").trim(),
           category,
           current_stock: Number(normalized.current_stock || normalized.stock || 0),
           min_stock: Number(normalized.min_stock || normalized.min || 10),
@@ -344,6 +350,7 @@ const InventoryDashboard = () => {
       {
         product_name: "Cable",
         sku: "SKU-EXAMPLE-1001",
+        item_code: "IC-EXAMPLE-1001",
         category: "Electronics",
         current_stock: 120,
         min_stock: 20,
@@ -633,8 +640,9 @@ const InventoryDashboard = () => {
                     <table className="w-full text-xs">
                       <thead className={darkMode ? "bg-slate-700" : "bg-slate-100"}>
                         <tr>
-                          <th className="px-2 py-2 text-left">Product</th>
+                              <th className="px-2 py-2 text-left">Product</th>
                           <th className="px-2 py-2 text-left">SKU</th>
+                          <th className="px-2 py-2 text-left">Item Code</th>
                           <th className="px-2 py-2 text-left">Category</th>
                           <th className="px-2 py-2 text-left">Stock</th>
                           <th className="px-2 py-2 text-left">Price</th>
@@ -645,6 +653,7 @@ const InventoryDashboard = () => {
                           <tr key={`${row.sku}-${row.__row}`} className="border-t">
                             <td className="px-2 py-2">{row.product_name}</td>
                             <td className="px-2 py-2">{row.sku}</td>
+                            <td className="px-2 py-2">{row.item_code || ""}</td>
                             <td className="px-2 py-2">{row.category}</td>
                             <td className="px-2 py-2">{row.current_stock}</td>
                             <td className="px-2 py-2">₦{Number(row.selling_price || 0).toLocaleString()}</td>

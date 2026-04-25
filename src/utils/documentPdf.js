@@ -54,7 +54,7 @@ const resolveTaxVat = (record = {}, subtotalInput = 0) => {
   const computedVatAmount = vatRate > 0 ? (subtotal * vatRate) / 100 : 0;
 
   const taxAmount = hasTaxAmount ? taxAmountInput : computedTaxAmount;
-  const vatAmount = hasVatAmount ? vatAmountInput : computedVatAmount;
+  const vatAmount = hasVatAmount ? vatAmountInput : (hasTaxAmount ? taxAmountInput : computedVatAmount);
 
   return {
     subtotal,
@@ -290,6 +290,7 @@ export const downloadInvoicePdf = async (invoice) => {
   const normalizedItems = invoiceItems.length
     ? invoiceItems
         .map((row) => ({
+          item_code: row.item_code || row.code || row.sku || "",
           item: row.name || row.item || row.product_name || "",
           description: row.description || "",
           quantity: getNumeric(row.quantity || row.qty || 0),
@@ -298,6 +299,7 @@ export const downloadInvoicePdf = async (invoice) => {
         .filter((row) => row.item && row.quantity > 0)
     : [
         {
+          item_code: invoice.item_code || "",
           item: invoice.item || "",
           description: invoice.description || "",
           quantity: getNumeric(invoice.quantity),
@@ -313,7 +315,8 @@ export const downloadInvoicePdf = async (invoice) => {
   const discountAmount = (subtotalBeforeDiscount * discountRate) / 100;
   const subtotal = Math.max(0, subtotalBeforeDiscount - discountAmount);
   const tax = resolveTaxVat(invoice, subtotal);
-  const grandTotal = subtotal + tax.taxAmount + tax.vatAmount;
+  const vatAmountValue = tax.vatAmount || tax.taxAmount || 0;
+  const grandTotal = subtotal + vatAmountValue;
 
   const headerEndY = await addCompanyHeader(doc, "INVOICE", "Invoice No", invoice.invoice_number || invoice.id, [
     `Customer: ${invoice.customer || ""}`,
@@ -323,8 +326,8 @@ export const downloadInvoicePdf = async (invoice) => {
 
   autoTable(doc, {
     startY: headerEndY,
-    head: [["Item", "Description", "Qty", "Unit Price", "Total"]],
-    body: normalizedItems.map((row) => [row.item, row.description, row.quantity, money(row.price), money(row.quantity * row.price)]),
+    head: [["Item Code", "Item", "Description", "Qty", "Unit Price", "Total"]],
+    body: normalizedItems.map((row) => [row.item_code || "", row.item, row.description, row.quantity, money(row.price), money(row.quantity * row.price)]),
     styles: { fontSize: 9 },
     headStyles: { fillColor: [30, 41, 59] },
   });
@@ -335,9 +338,8 @@ export const downloadInvoicePdf = async (invoice) => {
     finalY,
     lines: [
       { label: "Subtotal", value: money(tax.subtotal) },
-      { label: `Discount (${discountRate.toFixed(2)}%)`, value: money(discountAmount) },
-      { label: `Tax (${tax.taxRate.toFixed(2)}%)`, value: money(tax.taxAmount) },
-      { label: `VAT (${tax.vatRate.toFixed(2)}%)`, value: money(tax.vatAmount) },
+      { label: "DISCOUNT", value: money(discountAmount) },
+      { label: "VAT", value: money(vatAmountValue) },
       { label: "Total", value: money(grandTotal) },
       { label: "Status", value: invoice.status || "Unpaid" },
     ],

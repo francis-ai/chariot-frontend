@@ -42,9 +42,11 @@ const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode
 
     return sourceItems.map((item) => ({
       name: item.name || item.item || "",
+      item_code: item.item_code || item.code || "",
       description: item.description || "",
       quantity: Number(item.quantity ?? item.qty ?? 0) || 0,
       price: Number(item.price || 0) || 0,
+      manual: item.manual !== undefined ? item.manual : false,
     }));
   };
 
@@ -62,7 +64,7 @@ const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode
   const handleAddItem = () => {
     setForm((prev) => ({
       ...prev,
-      items: [...normalizeItems(prev), { name: "", description: "", quantity: 1, price: 0 }],
+      items: [...normalizeItems(prev), { name: "", item_code: "", description: "", quantity: 1, price: 0, manual: true }],
     }));
   };
 
@@ -71,7 +73,7 @@ const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode
       const updatedItems = normalizeItems(prev).filter((_, itemIndex) => itemIndex !== index);
       return {
         ...prev,
-        items: updatedItems.length ? updatedItems : [{ name: "", description: "", quantity: 1, price: 0 }],
+        items: updatedItems.length ? updatedItems : [{ name: "", item_code: "", description: "", quantity: 1, price: 0, manual: true }],
       };
     });
   };
@@ -124,6 +126,7 @@ const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode
   const itemOptions = inventoryItems.map((inv) => ({
     id: inv.id,
     label: inv.product_name || inv.name || `Item ${inv.id}`,
+    item_code: inv.item_code || "",
     price: Number(inv.selling_price || inv.price || 0),
     description: inv.description || "",
   }));
@@ -311,31 +314,69 @@ const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode
                 <div className="space-y-3">
                   {items.map((item, index) => (
                     <div key={`editable-item-${index}`} className="grid grid-cols-1 md:grid-cols-12 gap-2">
-                      <div className="md:col-span-4">
-                        <label className="text-xs font-medium opacity-70">Item</label>
-                        <select
-                          value={item.name}
+                      <div className="md:col-span-3">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <label className="text-xs font-medium opacity-70">Item *</label>
+                          <button
+                            type="button"
+                            onClick={() => handleItemChange(index, "manual", !item.manual)}
+                            className="text-xs px-2 py-1 rounded bg-slate-600 text-white hover:bg-slate-700"
+                          >
+                            {item.manual ? "Select from inventory" : "Manual entry"}
+                          </button>
+                        </div>
+                        {item.manual ? (
+                          <input
+                            type="text"
+                            value={item.name}
+                            disabled={saving}
+                            onChange={(e) => handleItemChange(index, "name", e.target.value)}
+                            placeholder="Enter item name"
+                            className={`px-3 py-2 border rounded-lg outline-none w-full ${
+                              darkMode ? 'bg-gray-800 border-gray-600 text-gray-200' : 'bg-white border-gray-300 text-gray-800'
+                            }`}
+                          />
+                        ) : (
+                          <select
+                            value={item.name}
+                            disabled={saving}
+                            onChange={(e) => {
+                              const selectedName = e.target.value;
+                              const selected = itemOptions.find((opt) => opt.label === selectedName);
+                              handleItemChange(index, "name", selectedName);
+                              if (selected) {
+                                if (!item.description) handleItemChange(index, "description", selected.description);
+                                if (!Number(item.price)) handleItemChange(index, "price", selected.price);
+                                handleItemChange(index, "item_code", selected.item_code || "");
+                              }
+                            }}
+                            className={`px-3 py-2 border rounded-lg outline-none w-full ${
+                              darkMode ? 'bg-gray-800 border-gray-600 text-gray-200' : 'bg-white border-gray-300 text-gray-800'
+                            }`}
+                          >
+                            <option value="">Select Item</option>
+                            {itemOptions.map((option) => (
+                              <option key={option.id} value={option.label}>{option.label}</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="text-xs font-medium opacity-70">Item Code</label>
+                        <input
+                          type="text"
+                          value={item.item_code || ""}
                           disabled={saving}
-                          onChange={(e) => {
-                            const selectedName = e.target.value;
-                            const selected = itemOptions.find((opt) => opt.label === selectedName);
-                            handleItemChange(index, "name", selectedName);
-                            if (selected) {
-                              if (!item.description) handleItemChange(index, "description", selected.description);
-                              if (!Number(item.price)) handleItemChange(index, "price", selected.price);
-                            }
-                          }}
+                          onChange={(e) => handleItemChange(index, "item_code", e.target.value)}
+                          placeholder="Optional item code"
                           className={`px-3 py-2 border rounded-lg outline-none w-full ${
                             darkMode ? 'bg-gray-800 border-gray-600 text-gray-200' : 'bg-white border-gray-300 text-gray-800'
                           }`}
-                        >
-                          <option value="">Select Item</option>
-                          {itemOptions.map((option) => (
-                            <option key={option.id} value={option.label}>{option.label}</option>
-                          ))}
-                        </select>
+                        />
                       </div>
-                      <div className="md:col-span-3">
+
+                      <div className="md:col-span-2">
                         <label className="text-xs font-medium opacity-70">Description</label>
                         <input
                           type="text"
@@ -347,7 +388,8 @@ const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode
                           }`}
                         />
                       </div>
-                      <div className="md:col-span-2">
+
+                      <div className="md:col-span-1">
                         <label className="text-xs font-medium opacity-70">Qty</label>
                         <input
                           type="number"
@@ -360,6 +402,7 @@ const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode
                           }`}
                         />
                       </div>
+
                       <div className="md:col-span-2">
                         <label className="text-xs font-medium opacity-70">Price</label>
                         <input
@@ -374,6 +417,7 @@ const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode
                           }`}
                         />
                       </div>
+
                       <div className="md:col-span-1 flex items-end justify-end">
                         <button
                           type="button"

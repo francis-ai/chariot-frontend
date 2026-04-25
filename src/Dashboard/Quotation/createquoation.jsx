@@ -34,9 +34,11 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
     items: [
       {
         name: "",
+        item_code: "",
         description: "",
         quantity: 1,
         price: 0,
+        manual: true,
       },
     ],
   });
@@ -85,8 +87,8 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
       toast.error("Valid until date is required");
       return;
     }
-    if (!formData.items.length || formData.items.some((item) => !item.name || Number(item.quantity) <= 0 || Number(item.price) <= 0)) {
-      toast.error("Add at least one valid item");
+    if (!formData.items.length || formData.items.some((item) => !item.name || Number(item.quantity) <= 0 || Number(item.price) < 0)) {
+      toast.error("Add at least one valid item with price");
       return;
     }
 
@@ -152,9 +154,11 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
         items: [
           {
             name: "",
+            item_code: "",
             description: "",
             quantity: 1,
             price: 0,
+            manual: true,
           },
         ],
       });
@@ -259,6 +263,7 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
     return inventoryItems.map((inv) => ({
       id: inv.id,
       label: inv.product_name || inv.name || `Item ${inv.id}`,
+      item_code: inv.item_code || "",
       price: Number(inv.selling_price || inv.price || 0),
       description: inv.description || "",
     }));
@@ -275,7 +280,7 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
   const addItem = () => {
     setFormData((prev) => ({
       ...prev,
-      items: [...prev.items, { name: "", description: "", quantity: 1, price: 0 }],
+      items: [...prev.items, { name: "", item_code: "", description: "", quantity: 1, price: 0, manual: true }],
     }));
   };
 
@@ -474,30 +479,63 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
             {formData.items.map((item, index) => (
               <div key={index} className={`grid grid-cols-1 md:grid-cols-12 gap-3 p-4 rounded-xl border ${darkMode ? "border-gray-700 bg-gray-800" : "border-gray-200 bg-gray-50"}`}>
                 <div className="md:col-span-3">
-                  <label className={`block text-xs font-medium mb-1 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>Item name</label>
-                  <select
-                    value={item.name}
-                    onChange={(e) => {
-                      const selectedName = e.target.value;
-                      const selected = itemOptions.find((opt) => opt.label === selectedName);
-                      updateItem(index, "name", selectedName);
-                      if (selected) {
-                        if (!item.description) updateItem(index, "description", selected.description);
-                        if (!Number(item.price)) updateItem(index, "price", selected.price);
-                      }
-                    }}
-                    className={inputClass}
-                    disabled={loading}
-                  >
-                    <option value="">Select Item</option>
-                    {itemOptions.map((option) => (
-                      <option key={option.id} value={option.label}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <label className={`block text-xs font-medium ${darkMode ? "text-gray-400" : "text-gray-600"}`}>Item *</label>
+                    <button
+                      type="button"
+                      onClick={() => updateItem(index, "manual", !item.manual)}
+                      className="text-xs px-2 py-1 rounded bg-slate-600 text-white hover:bg-slate-700"
+                    >
+                      {item.manual ? "Select from inventory" : "Manual entry"}
+                    </button>
+                  </div>
+                  {item.manual ? (
+                    <input
+                      value={item.name || ""}
+                      onChange={(e) => updateItem(index, "name", e.target.value)}
+                      placeholder="Enter item name"
+                      disabled={loading}
+                      className={inputClass}
+                    />
+                  ) : (
+                    <select
+                      value={item.name || ""}
+                      onChange={(e) => {
+                        const selectedName = e.target.value;
+                        const selected = itemOptions.find((opt) => opt.label === selectedName);
+                        updateItem(index, "name", selectedName);
+                        if (selected) {
+                          if (!item.description) updateItem(index, "description", selected.description);
+                          if (!Number(item.price)) updateItem(index, "price", selected.price);
+                          updateItem(index, "item_code", selected.item_code || "");
+                        }
+                      }}
+                      className={inputClass}
+                      disabled={loading}
+                    >
+                      <option value="">Select Item</option>
+                      {itemOptions.map((option) => (
+                        <option key={option.id} value={option.label}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
-                <div className="md:col-span-4">
+
+                <div className="md:col-span-2">
+                  <label className={`block text-xs font-medium mb-1 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>Item Code</label>
+                  <input
+                    type="text"
+                    value={item.item_code || ""}
+                    onChange={(e) => updateItem(index, "item_code", e.target.value)}
+                    placeholder="Optional item code"
+                    disabled={loading}
+                    className={inputClass}
+                  />
+                </div>
+
+                <div className="md:col-span-2">
                   <label className={`block text-xs font-medium mb-1 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>Description</label>
                   <input
                     type="text"
@@ -508,7 +546,8 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
                     disabled={loading}
                   />
                 </div>
-                <div className="md:col-span-2">
+
+                <div className="md:col-span-1">
                   <label className={`block text-xs font-medium mb-1 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>Qty</label>
                   <input
                     type="number"
@@ -518,14 +557,15 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
                     className={inputClass}
                     disabled={loading}
                   />
-                  {item.name && Number(item.quantity || 0) > getAvailableStock(item.name) ? (
+                  {item.name && !item.manual && Number(item.quantity || 0) > getAvailableStock(item.name) ? (
                     <p className="text-xs text-red-500 mt-1">
                       Low stock: requested {Number(item.quantity || 0)}, available {getAvailableStock(item.name)}
                     </p>
                   ) : null}
                 </div>
+
                 <div className="md:col-span-2">
-                  <label className={`block text-xs font-medium mb-1 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>Price ({(formData.currency === "OTHER" ? formData.custom_currency : formData.currency) || "NGN"})</label>
+                  <label className={`block text-xs font-medium mb-1 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>Unit Price ({(formData.currency === "OTHER" ? formData.custom_currency : formData.currency) || "NGN"})</label>
                   <input
                     type="number"
                     min="0"
@@ -536,6 +576,7 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
                     disabled={loading}
                   />
                 </div>
+
                 <div className="md:col-span-1 flex items-end justify-end">
                   <button
                     type="button"
