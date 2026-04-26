@@ -273,6 +273,8 @@ const addCompanyHeader = async (doc, title, numberLabel, numberValue, metaLines 
 
 export const downloadInvoicePdf = async (invoice) => {
   const doc = new jsPDF();
+  const currency = invoice.currency || "NGN";
+  const formatMoney = (value) => `${currency}${formatNumber(value)}`;
   const invoiceItems = Array.isArray(invoice.items)
     ? invoice.items
     : (() => {
@@ -327,7 +329,7 @@ export const downloadInvoicePdf = async (invoice) => {
   autoTable(doc, {
     startY: headerEndY,
     head: [["Item Code", "Item", "Description", "Qty", "Unit Price", "Total"]],
-    body: normalizedItems.map((row) => [row.item_code || "", row.item, row.description, row.quantity, money(row.price), money(row.quantity * row.price)]),
+    body: normalizedItems.map((row) => [row.item_code || "", row.item, row.description, row.quantity, formatMoney(row.price), formatMoney(row.quantity * row.price)]),
     styles: { fontSize: 9 },
     headStyles: { fillColor: [30, 41, 59] },
   });
@@ -337,16 +339,16 @@ export const downloadInvoicePdf = async (invoice) => {
     doc,
     finalY,
     lines: [
-      { label: "Subtotal", value: money(tax.subtotal) },
-      { label: "DISCOUNT", value: money(discountAmount) },
-      { label: "VAT", value: money(vatAmountValue) },
-      { label: "Total", value: money(grandTotal) },
+      { label: "Subtotal", value: formatMoney(tax.subtotal) },
+      { label: "DISCOUNT", value: formatMoney(discountAmount) },
+      { label: "VAT", value: formatMoney(vatAmountValue) },
+      { label: "Total", value: formatMoney(grandTotal) },
       { label: "Status", value: invoice.status || "Unpaid" },
     ],
   });
 
   doc.setFont("helvetica", "bold");
-  doc.text(`NGN ${amountToWords(grandTotal)} Only`, 14, summaryEndY + 8);
+  doc.text(`${currency} ${amountToWords(grandTotal)} Only`, 14, summaryEndY + 8);
   doc.setFont("helvetica", "normal");
 
   await drawManagerBlock({
@@ -360,6 +362,8 @@ export const downloadInvoicePdf = async (invoice) => {
 
 export const downloadQuotationPdf = async (quotation) => {
   const doc = new jsPDF();
+  const currency = quotation.currency || "NGN";
+  const formatMoney = (value) => `${currency}${formatNumber(value)}`;
   const items = Array.isArray(quotation.items)
     ? quotation.items
     : (() => {
@@ -386,7 +390,7 @@ export const downloadQuotationPdf = async (quotation) => {
 
   autoTable(doc, {
     startY: headerEndY,
-    head: [["No.", "Item Code", "Description", "Qty", "Unit Price(NGN)", "Total(NGN)"]],
+    head: [["No.", "Item Code", "Description", "Qty", "Unit Price", "Total"]],
     body: items.length
       ? items.map((row, index) => {
           const qty = Number(row.quantity || row.qty || 0);
@@ -396,11 +400,11 @@ export const downloadQuotationPdf = async (quotation) => {
             row.item_code || row.code || "",
             row.description || row.name || row.item || "",
             qty,
-            formatNumber(price),
-            formatNumber(qty * price),
+            formatMoney(price),
+            formatMoney(qty * price),
           ];
         })
-      : [[1, "", quotation.notes || "Quotation summary", 1, formatNumber(quotation.subtotal || quotation.amount || 0), formatNumber(quotation.amount || 0)]],
+      : [[1, "", quotation.notes || "Quotation summary", 1, formatMoney(quotation.subtotal || quotation.amount || 0), formatMoney(quotation.amount || 0)]],
     styles: { fontSize: 9 },
     headStyles: { fillColor: [225, 225, 225], textColor: 30 },
   });
@@ -410,14 +414,14 @@ export const downloadQuotationPdf = async (quotation) => {
     doc,
     finalY,
     lines: [
-      { label: "Grand Total", value: `${formatNumber(tax.subtotal)} ${NAIRA}` },
-      { label: `VAT(${tax.vatRate.toFixed(1)}%)`, value: `${formatNumber(tax.vatAmount)} ${NAIRA}` },
-      { label: "Net Total", value: `${formatNumber(total)} ${NAIRA}` },
+      { label: "Grand Total", value: `${formatNumber(tax.subtotal)} ${currency}` },
+      { label: `VAT(${tax.vatRate.toFixed(1)}%)`, value: `${formatNumber(tax.vatAmount)} ${currency}` },
+      { label: "Net Total", value: `${formatNumber(total)} ${currency}` },
     ],
   });
 
   doc.setFont("helvetica", "bold");
-  doc.text(`NGN ${amountToWords(total)} Only`, 14, summaryEndY + 8);
+  doc.text(`${currency} ${amountToWords(total)} Only`, 14, summaryEndY + 8);
   doc.setFont("helvetica", "normal");
 
   if (quotation.terms) {

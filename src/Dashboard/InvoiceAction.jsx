@@ -17,6 +17,13 @@ import { downloadInvoicePdf } from "../utils/documentPdf";
 
 const TABS = ["All Invoices", "Paid", "Unpaid", "Pending", "Overdue"];
 
+const normalizeArrayPayload = (payload) => {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.rows)) return payload.rows;
+  return [];
+};
+
 const formatMoney = (amount, currencyCode) => {
   const code = String(currencyCode || "NGN").toUpperCase();
   try {
@@ -97,7 +104,7 @@ const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefr
   const fetchInvoices = async () => {
     try {
       const res = await API.get("/invoices");
-      setInvoices(res.data);
+      setInvoices(normalizeArrayPayload(res.data));
     } catch (err) {
       toast.error("Failed to fetch invoices");
     }

@@ -10,6 +10,13 @@ import API from "../utils/api";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
+const normalizeArrayPayload = (payload) => {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.rows)) return payload.rows;
+  return [];
+};
+
 const formatMoney = (amount, currencyCode) => {
   const code = String(currencyCode || "NGN").toUpperCase();
   try {
@@ -51,9 +58,10 @@ export default function InvoiceManagement() {
       setLoading(true);
       const res = await API.get("/invoices");
       console.log("Fetched invoices:", res.data);
+      const invoiceRows = normalizeArrayPayload(res.data);
       
       // Map API response to component format
-      const mappedInvoices = res.data.map(inv => ({
+      const mappedInvoices = invoiceRows.map(inv => ({
         id: inv.id || inv._id,
         invoice_number: inv.invoice_number,
         customer: inv.customer || "",
@@ -188,7 +196,6 @@ export default function InvoiceManagement() {
       const payload = {
         invoice_number: invoiceData.invoice_number || `CLTINV-${Date.now()}`,
         customer: invoiceData.customer,
-        signature_name: invoiceData.signature_name || "",
         invoice_date: invoiceData.invoice_date,
         due_date: invoiceData.due_date,
         item: firstItem.name,

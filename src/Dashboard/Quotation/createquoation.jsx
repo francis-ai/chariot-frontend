@@ -1,10 +1,31 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { toast, ToastContainer } from "react-toastify";
 import { Plus, Save, X } from "lucide-react";
 import "react-toastify/dist/ReactToastify.css";
 import API from "../../utils/api";
 
-const CURRENCY_OPTIONS = ["NGN", "USD", "EUR", "GBP", "CAD", "AUD", "INR", "JPY", "CNY"];
+const normalizeArrayPayload = (payload) => {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.rows)) return payload.rows;
+  return [];
+};
+
+const resolveRateToNgn = (currencyCode, currencies) => {
+  const code = String(currencyCode || "NGN").toUpperCase();
+  const matched = (Array.isArray(currencies) ? currencies : []).find(
+    (row) => String(row.code || "").toUpperCase() === code
+  );
+  const rate = Number(matched?.rate_to_ngn);
+  return Number.isFinite(rate) && rate > 0 ? rate : 1;
+};
+
+const convertAmount = (amount, fromCurrency, toCurrency, currencies) => {
+  const fromRate = resolveRateToNgn(fromCurrency, currencies);
+  const toRate = resolveRateToNgn(toCurrency, currencies);
+  const numericAmount = Number(amount || 0);
+  return Number.isFinite(numericAmount) ? (numericAmount * fromRate) / toRate : 0;
+};
 
 const formatMoney = (amount, currencyCode) => {
   const code = String(currencyCode || "NGN").toUpperCase();
@@ -25,7 +46,6 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
     quotation_date: new Date().toISOString().split('T')[0],
     valid_until: "",
     currency: "NGN",
-    custom_currency: "",
     discount_rate: 0,
     vat_rate: 7.5,
     status: "Pending",
@@ -62,6 +82,66 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
     purchase_price: "",
     selling_price: "",
   });
+  const [currencies, setCurrencies] = useState([]);
+  const [loadingCurrencies, setLoadingCurrencies] = useState(true);
+  const previousCurrencyRef = useRef("NGN");
+
+  const safeCurrencies = Array.isArray(currencies) ? currencies : [];
+
+  const currencyOptions = useMemo(() => {
+    const fromDb = safeCurrencies
+      .map((row) => String(row.code || "").toUpperCase())
+      .filter(Boolean);
+    return Array.from(new Set(["NGN", ...fromDb]));
+  }, [safeCurrencies]);
+
+  const selectedCurrencyRate = useMemo(
+    () => resolveRateToNgn(formData.currency, safeCurrencies),
+    [formData.currency, safeCurrencies]
+  );
+
+  useEffect(() => {
+    const fetchCurrencies = async () => {
+      try {
+        setLoadingCurrencies(true);
+        const res = await API.get("/currencies");
+        const rows = normalizeArrayPayload(res.data).map((row) => ({
+          ...row,
+          code: String(row.code || "").toUpperCase(),
+          rate_to_ngn: Number(row.rate_to_ngn || 1),
+        }));
+        setCurrencies(rows);
+      } catch (error) {
+        console.error("Fetch currencies error:", error);
+        toast.error("Failed to load currencies");
+        setCurrencies([{ code: "NGN", name: "Nigerian Naira", rate_to_ngn: 1 }]);
+      } finally {
+        setLoadingCurrencies(false);
+      }
+    };
+
+    fetchCurrencies();
+  }, []);
+
+  useEffect(() => {
+    previousCurrencyRef.current = String(formData.currency || "NGN").toUpperCase();
+  }, []);
+
+  useEffect(() => {
+    const prevCurrency = String(previousCurrencyRef.current || "NGN").toUpperCase();
+    const nextCurrency = String(formData.currency || "NGN").toUpperCase();
+    if (prevCurrency === nextCurrency) return;
+
+    setFormData((prev) => ({
+      ...prev,
+      items: prev.items.map((item) => ({
+        ...item,
+        price: Number(convertAmount(item.price, prevCurrency, nextCurrency, safeCurrencies).toFixed(2)),
+      })),
+    }));
+
+    previousCurrencyRef.current = nextCurrency;
+  }, [formData.currency, safeCurrencies]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -94,7 +174,7 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
 
     setLoading(true);
     try {
-      const selectedCurrency = (formData.currency === "OTHER" ? formData.custom_currency : formData.currency).trim().toUpperCase();
+      const selectedCurrency = String(formData.currency || "NGN").trim().toUpperCase();
       const subtotal = formData.items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.price) || 0), 0);
       const discountRate = Math.max(0, Math.min(100, Number(formData.discount_rate || 0)));
       const discountAmount = (subtotal * discountRate) / 100;
@@ -145,7 +225,6 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
         quotation_date: new Date().toISOString().split('T')[0],
         valid_until: "",
         currency: "NGN",
-        custom_currency: "",
         discount_rate: 0,
         vat_rate: 7.5,
         status: "Pending",
@@ -434,24 +513,13 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
             value={formData.currency}
             onChange={handleChange}
             className={inputClass}
-            disabled={loading}
+            disabled={loading || loadingCurrencies}
           >
-            {CURRENCY_OPTIONS.map((currency) => (
+            {currencyOptions.map((currency) => (
               <option key={currency} value={currency}>{currency}</option>
             ))}
-            <option value="OTHER">Other</option>
           </select>
-          {formData.currency === "OTHER" ? (
-            <input
-              type="text"
-              name="custom_currency"
-              value={formData.custom_currency}
-              onChange={handleChange}
-              placeholder="Enter code, e.g. ZAR"
-              className={`${inputClass} mt-2`}
-              disabled={loading}
-            />
-          ) : null}
+          <p className="text-xs mt-1 opacity-80">Rate: 1 {formData.currency} = {selectedCurrencyRate.toLocaleString()} NGN</p>
         </div>
 
         {/* Notes */}
@@ -506,7 +574,7 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
                         updateItem(index, "name", selectedName);
                         if (selected) {
                           if (!item.description) updateItem(index, "description", selected.description);
-                          if (!Number(item.price)) updateItem(index, "price", selected.price);
+                              if (!Number(item.price)) updateItem(index, "price", Number(selected.price || 0) / selectedCurrencyRate);
                           updateItem(index, "item_code", selected.item_code || "");
                         }
                       }}
@@ -529,9 +597,9 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
                     type="text"
                     value={item.item_code || ""}
                     onChange={(e) => updateItem(index, "item_code", e.target.value)}
+                    className={inputClass}
                     placeholder="Optional item code"
                     disabled={loading}
-                    className={inputClass}
                   />
                 </div>
 
@@ -539,7 +607,7 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
                   <label className={`block text-xs font-medium mb-1 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>Description</label>
                   <input
                     type="text"
-                    value={item.description}
+                    value={item.description || ""}
                     onChange={(e) => updateItem(index, "description", e.target.value)}
                     className={inputClass}
                     placeholder="Description"
@@ -565,7 +633,7 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className={`block text-xs font-medium mb-1 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>Unit Price ({(formData.currency === "OTHER" ? formData.custom_currency : formData.currency) || "NGN"})</label>
+                  <label className={`block text-xs font-medium mb-1 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>Unit Price ({formData.currency || "NGN"})</label>
                   <input
                     type="number"
                     min="0"
@@ -613,23 +681,23 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
           <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl border ${darkMode ? "border-gray-700 bg-gray-900" : "border-gray-200 bg-white"}`}>
             <div>
               <p className="text-sm opacity-70">Subtotal</p>
-              <p className="text-lg font-semibold">{formatMoney(subtotal, formData.currency === "OTHER" ? formData.custom_currency : formData.currency)}</p>
+              <p className="text-lg font-semibold">{formatMoney(subtotal, formData.currency)}</p>
             </div>
             <div>
               <p className="text-sm opacity-70">Discount</p>
-              <p className="text-lg font-semibold">{formatMoney(discountAmount, formData.currency === "OTHER" ? formData.custom_currency : formData.currency)}</p>
+              <p className="text-lg font-semibold">{formatMoney(discountAmount, formData.currency)}</p>
             </div>
             <div>
               <p className="text-sm opacity-70">VAT</p>
-              <p className="text-lg font-semibold">{formatMoney(vatAmount, formData.currency === "OTHER" ? formData.custom_currency : formData.currency)}</p>
+              <p className="text-lg font-semibold">{formatMoney(vatAmount, formData.currency)}</p>
             </div>
             <div>
               <p className="text-sm opacity-70">Taxable Subtotal</p>
-              <p className="text-lg font-semibold">{formatMoney(taxableSubtotal, formData.currency === "OTHER" ? formData.custom_currency : formData.currency)}</p>
+              <p className="text-lg font-semibold">{formatMoney(taxableSubtotal, formData.currency)}</p>
             </div>
             <div>
               <p className="text-sm opacity-70">Total</p>
-              <p className="text-lg font-semibold">{formatMoney(total, formData.currency === "OTHER" ? formData.custom_currency : formData.currency)}</p>
+              <p className="text-lg font-semibold">{formatMoney(total, formData.currency)}</p>
             </div>
           </div>
         </div>

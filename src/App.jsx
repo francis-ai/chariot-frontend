@@ -257,6 +257,19 @@ const AppWrapper = () => {
               <Settings />
             </ProtectedRoute>
           }/>
+          <Route path="/settings" element={
+            <ProtectedRoute>
+              <Settings />
+            </ProtectedRoute>
+          }/>
+          <Route path="/admin/settings" element={
+            <ProtectedRoute allowedRoles={["super-admin"]} loginPath="/admin/login" fallbackPath="/staff/dashboard">
+              <Settings />
+            </ProtectedRoute>
+          }/>
+          <Route path="/admin/Settings" element={
+            <Navigate to="/admin/settings" replace />
+          }/>
 
           {/* Catch-all */}
           <Route path="*" element={

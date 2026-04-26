@@ -18,6 +18,7 @@ import {
   FaBars,
   FaTimes,
   FaPercent,
+  FaCog,
 } from "react-icons/fa";
 import API from "../utils/api";
 
@@ -98,6 +99,7 @@ export default function Sidebar({
     { icon: <FaChartBar />, label: "Report", path: `${basePath}/Report` },
     { icon: <FaPercent />, label: "Tax / VAT", path: `${basePath}/tax-vat`, superAdminOnly: true },
     { icon: <FaChartBar />, label: "Staff Report", path: `${basePath}/staff-report`, superAdminOnly: true },
+    { icon: <FaCog />, label: "Settings", path: `${basePath}/settings` },
     { icon: <FaFileAlt />, label: "Dedication", path: isSuperAdmin ? "/admin/dedication" : "/staff/dedication" },
     { icon: <FaPlus  />, label: "Users", path: `${basePath}/user` },
     { icon: <FaClipboardList />, label: "Activity Logs", path: `${basePath}/activity-logs`, superAdminOnly: true },

@@ -1,10 +1,31 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useRef, useState, useEffect } from "react";
 import { toast, ToastContainer } from "react-toastify";
 import { X, Save, Plus } from "lucide-react";
 import "react-toastify/dist/ReactToastify.css";
 import API from "../utils/api";
 
-const CURRENCY_OPTIONS = ["NGN", "USD", "EUR", "GBP", "CAD", "AUD", "INR", "JPY", "CNY"];
+const normalizeArrayPayload = (payload) => {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.rows)) return payload.rows;
+  return [];
+};
+
+const resolveRateToNgn = (currencyCode, currencies) => {
+  const code = String(currencyCode || "NGN").toUpperCase();
+  const matched = (Array.isArray(currencies) ? currencies : []).find(
+    (row) => String(row.code || "").toUpperCase() === code
+  );
+  const rate = Number(matched?.rate_to_ngn);
+  return Number.isFinite(rate) && rate > 0 ? rate : 1;
+};
+
+const convertAmount = (amount, fromCurrency, toCurrency, currencies) => {
+  const fromRate = resolveRateToNgn(fromCurrency, currencies);
+  const toRate = resolveRateToNgn(toCurrency, currencies);
+  const numericAmount = Number(amount || 0);
+  return Number.isFinite(numericAmount) ? (numericAmount * fromRate) / toRate : 0;
+};
 
 const formatMoney = (amount, currencyCode) => {
   const code = String(currencyCode || "NGN").toUpperCase();
@@ -34,12 +55,11 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
     tax_amount: 0,
     notes: "",
     currency: "NGN",
-    custom_currency: "",
   });
   const [customers, setCustomers] = useState([]);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [fetching, setFetching] = useState({ customers: true, items: true });
+  const [fetching, setFetching] = useState({ customers: true, items: true, currencies: true });
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [customerSearch, setCustomerSearch] = useState("");
   const [showCustomerModal, setShowCustomerModal] = useState(false);
@@ -71,6 +91,25 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
     purchase_price: "",
     selling_price: "",
   });
+  const [currencies, setCurrencies] = useState([]);
+  const previousCurrencyRef = useRef("NGN");
+
+  const safeCustomers = Array.isArray(customers) ? customers : [];
+  const safeItems = Array.isArray(items) ? items : [];
+  const safeCurrencies = Array.isArray(currencies) ? currencies : [];
+
+  const currencyOptions = useMemo(() => {
+    const fromDb = safeCurrencies
+      .map((row) => String(row.code || "").toUpperCase())
+      .filter(Boolean);
+    const uniqueCodes = Array.from(new Set(["NGN", ...fromDb]));
+    return uniqueCodes;
+  }, [safeCurrencies]);
+
+  const selectedCurrencyRate = useMemo(
+    () => resolveRateToNgn(form.currency, safeCurrencies),
+    [form.currency, safeCurrencies]
+  );
 
   // Load invoice data if editing
   useEffect(() => {
@@ -126,15 +165,16 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
         tax_rate: Number(invoiceData.vat_rate ?? invoiceData.tax_rate ?? 0),
         tax_amount: Number(invoiceData.vat_amount ?? invoiceData.tax_amount ?? 0),
         notes: invoiceData.notes || "",
-        currency: CURRENCY_OPTIONS.includes(String(invoiceData.currency || "NGN").toUpperCase())
-          ? String(invoiceData.currency || "NGN").toUpperCase()
-          : "OTHER",
-        custom_currency: CURRENCY_OPTIONS.includes(String(invoiceData.currency || "NGN").toUpperCase())
-          ? ""
-          : String(invoiceData.currency || "").toUpperCase(),
+        currency: String(invoiceData.currency || "NGN").toUpperCase(),
       });
+
+      previousCurrencyRef.current = String(invoiceData.currency || "NGN").toUpperCase();
     }
   }, [invoiceData]);
+
+  useEffect(() => {
+    previousCurrencyRef.current = String(form.currency || "NGN").toUpperCase();
+  }, []);
 
   useEffect(() => {
     if (!customers.length) return;
@@ -156,7 +196,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
         setFetching(prev => ({ ...prev, customers: true }));
         const res = await API.get("/customers/catalog");
         console.log("Fetched customers:", res.data);
-        setCustomers(res.data || []);
+        setCustomers(normalizeArrayPayload(res.data));
       } catch (err) {
         console.error("Fetch customers error:", err);
         toast.error("Failed to load customers");
@@ -175,7 +215,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
         setFetching(prev => ({ ...prev, items: true }));
         const res = await API.get("/inventory/catalog");
         console.log("Fetched inventory items:", res.data);
-        setItems(res.data || []);
+        setItems(normalizeArrayPayload(res.data));
       } catch (err) {
         console.error("Fetch inventory error:", err);
         // Don't show error toast for inventory, just log it
@@ -186,6 +226,49 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
     };
     fetchItems();
   }, []);
+
+  // Fetch currencies configured in settings
+  useEffect(() => {
+    const fetchCurrencies = async () => {
+      try {
+        setFetching((prev) => ({ ...prev, currencies: true }));
+        const res = await API.get("/currencies");
+        const mapped = normalizeArrayPayload(res.data).map((row) => ({
+          ...row,
+          code: String(row.code || "").toUpperCase(),
+          rate_to_ngn: Number(row.rate_to_ngn || 1),
+        }));
+        setCurrencies(mapped);
+      } catch (err) {
+        console.error("Fetch currencies error:", err);
+        toast.error("Failed to load currencies");
+        setCurrencies([{ code: "NGN", name: "Nigerian Naira", rate_to_ngn: 1 }]);
+      } finally {
+        setFetching((prev) => ({ ...prev, currencies: false }));
+      }
+    };
+    fetchCurrencies();
+  }, []);
+
+  useEffect(() => {
+    const prevCurrency = String(previousCurrencyRef.current || "NGN").toUpperCase();
+    const nextCurrency = String(form.currency || "NGN").toUpperCase();
+    if (prevCurrency === nextCurrency) return;
+
+    setLineItems((prev) =>
+      prev.map((row) => ({
+        ...row,
+        price: Number(convertAmount(row.price, prevCurrency, nextCurrency, safeCurrencies).toFixed(2)),
+      }))
+    );
+
+    setForm((prev) => ({
+      ...prev,
+      tax_amount: Number(convertAmount(prev.tax_amount, prevCurrency, nextCurrency, safeCurrencies).toFixed(2)),
+    }));
+
+    previousCurrencyRef.current = nextCurrency;
+  }, [form.currency, safeCurrencies]);
 
   const updateLineItem = (index, field, value) => {
     setLineItems((prev) => {
@@ -212,7 +295,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
     const selectedId = e.target.value;
     setSelectedCustomerId(selectedId);
 
-    const selectedCustomer = customers.find(
+    const selectedCustomer = safeCustomers.find(
       (customer) => String(customer.id || customer._id) === String(selectedId)
     );
 
@@ -269,7 +352,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
     try {
       await API.post("/customers", newCustomer);
       const res = await API.get("/customers/catalog");
-      const updatedCustomers = res.data || [];
+      const updatedCustomers = normalizeArrayPayload(res.data);
       setCustomers(updatedCustomers);
 
       const created = updatedCustomers.find(
@@ -313,7 +396,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
 
       await API.post("/inventory", payload);
       const res = await API.get("/inventory/catalog");
-      const updatedItems = res.data || [];
+      const updatedItems = normalizeArrayPayload(res.data);
       setItems(updatedItems);
 
       const created = updatedItems.find((item) => (item.product_name || item.name) === payload.product_name);
@@ -330,7 +413,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
               name: created.product_name || created.name || "",
               description: created.description || "",
               quantity: 1,
-              price: Number(created.selling_price || created.price || 0),
+              price: Number(created.selling_price || created.price || 0) / selectedCurrencyRate,
             }];
           }
 
@@ -338,7 +421,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
             ...next[0],
             name: created.product_name || created.name || "",
             description: created.description || next[0].description || "",
-            price: Number(created.selling_price || created.price || 0),
+            price: Number(created.selling_price || created.price || 0) / selectedCurrencyRate,
           };
 
           return next;
@@ -363,7 +446,8 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const selectedCurrency = (form.currency === "OTHER" ? form.custom_currency : form.currency).trim().toUpperCase();
+    const selectedCurrency = String(form.currency || "NGN").trim().toUpperCase();
+    const selectedRate = resolveRateToNgn(selectedCurrency, safeCurrencies);
 
     // Validation
     if (!form.customer) {
@@ -384,6 +468,11 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
         price: Number(item.price || 0),
       }))
       .filter((item) => item.name && item.quantity > 0);
+
+    const normalizedItemsInNgn = normalizedItems.map((item) => ({
+      ...item,
+      price: Number((Number(item.price || 0) * selectedRate).toFixed(2)),
+    }));
 
     if (!normalizedItems.length) {
       toast.error("Please add at least one item");
@@ -421,12 +510,13 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
       await onSave({
         ...form,
         currency: selectedCurrency,
-        item: firstItem.name,
-        description: firstItem.description,
-        quantity: firstItem.quantity,
-        price: firstItem.price,
-        items: normalizedItems,
-        items_json: JSON.stringify(normalizedItems),
+        tax_amount: Number((Number(form.tax_amount || 0) * selectedRate).toFixed(2)),
+        item: normalizedItemsInNgn[0]?.name,
+        description: normalizedItemsInNgn[0]?.description,
+        quantity: normalizedItemsInNgn[0]?.quantity,
+        price: normalizedItemsInNgn[0]?.price,
+        items: normalizedItemsInNgn,
+        items_json: JSON.stringify(normalizedItemsInNgn),
       });
     } catch (err) {
       console.error("Form submission error:", err);
@@ -441,8 +531,8 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
       : "bg-white text-gray-900 border border-gray-300 focus:ring-blue-500"
   }`;
 
-  const isLoading = fetching.customers || fetching.items;
-  const filteredCustomers = customers.filter((customer) => {
+  const isLoading = fetching.customers || fetching.items || fetching.currencies;
+  const filteredCustomers = safeCustomers.filter((customer) => {
     const searchValue = customerSearch.trim().toLowerCase();
     if (!searchValue) return true;
     return [customer.name, customer.company, customer.email]
@@ -452,14 +542,14 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
 
   const itemOptions = useMemo(
     () =>
-      items.map((inv) => ({
+      safeItems.map((inv) => ({
         id: inv.id || inv._id,
         label: inv.product_name || inv.name || "",
         item_code: inv.item_code || "",
         price: Number(inv.selling_price || inv.price || 0),
         description: inv.description || "",
       })),
-    [items]
+    [safeItems]
   );
 
   return (
@@ -565,22 +655,11 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
                     disabled={loading}
                     className={inputClass}
                   >
-                    {CURRENCY_OPTIONS.map((currency) => (
+                    {currencyOptions.map((currency) => (
                       <option key={currency} value={currency}>{currency}</option>
                     ))}
-                    <option value="OTHER">Other</option>
                   </select>
-                  {form.currency === "OTHER" ? (
-                    <input
-                      type="text"
-                      name="custom_currency"
-                      value={form.custom_currency}
-                      onChange={handleChange}
-                      placeholder="Enter code, e.g. ZAR"
-                      disabled={loading}
-                      className={`${inputClass} mt-2`}
-                    />
-                  ) : null}
+                  <p className="text-xs mt-1 opacity-80">Rate: 1 {form.currency} = {selectedCurrencyRate.toLocaleString()} NGN</p>
                 </div>
               </div>
             </div>
@@ -623,7 +702,11 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
                                 updateLineItem(index, "description", selected.description);
                               }
                               if (!Number(item.price || 0)) {
-                                updateLineItem(index, "price", selected.price);
+                                updateLineItem(
+                                  index,
+                                  "price",
+                                  Number((Number(selected.price || 0) / selectedCurrencyRate).toFixed(2))
+                                );
                               }
                               updateLineItem(index, "item_code", selected.item_code || "");
                             }
@@ -655,7 +738,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
                           </button>
                         </div>
                       )}
-                      {index === 0 && items.length === 0 && (
+                      {index === 0 && safeItems.length === 0 && (
                         <p className="text-xs text-red-500 mt-1">No inventory items found. Please add items in inventory first.</p>
                       )}
                     </div>
@@ -701,7 +784,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
                     </div>
 
                     <div className="md:col-span-2">
-                      <label className={`text-sm mb-1 block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Unit Price ({(form.currency === "OTHER" ? form.custom_currency : form.currency) || "NGN"})</label>
+                      <label className={`text-sm mb-1 block ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Unit Price ({form.currency || "NGN"})</label>
                       <input
                         type="number"
                         min="0"
@@ -784,7 +867,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
               }`}>
                 <div className="flex justify-between">
                   <span>Subtotal</span>
-                  <span>{formatMoney(subtotal, form.currency === "OTHER" ? form.custom_currency : form.currency)}</span>
+                  <span>{formatMoney(subtotal, form.currency)}</span>
                 </div>
 
                 <div className="flex justify-between items-center">
@@ -843,19 +926,19 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
 
                 <div className="flex justify-between">
                   <span>Discount Amount</span>
-                  <span>{formatMoney(discountAmount, form.currency === "OTHER" ? form.custom_currency : form.currency)}</span>
+                  <span>{formatMoney(discountAmount, form.currency)}</span>
                 </div>
 
                 <div className="flex justify-between">
                   <span>Taxable Base</span>
-                  <span>{formatMoney(taxableBase, form.currency === "OTHER" ? form.custom_currency : form.currency)}</span>
+                  <span>{formatMoney(taxableBase, form.currency)}</span>
                 </div>
 
                 <hr className={`${darkMode ? 'border-gray-600' : 'border-gray-300'}`} />
 
                 <div className="flex justify-between font-bold text-lg">
                   <span>Total</span>
-                  <span>{formatMoney(total, form.currency === "OTHER" ? form.custom_currency : form.currency)}</span>
+                  <span>{formatMoney(total, form.currency)}</span>
                 </div>
               </div>
             </div>
@@ -878,7 +961,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
               <button
                 type="button"
                 onClick={(e) => handleSubmit(e)}
-                disabled={loading || items.length === 0 || customers.length === 0}
+                disabled={loading || safeItems.length === 0 || safeCustomers.length === 0}
                 className="px-6 py-2 rounded-lg font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors disabled:opacity-50 flex items-center gap-2"
               >
                 {loading ? (

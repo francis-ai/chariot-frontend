@@ -10,6 +10,35 @@ import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { downloadQuotationPdf } from "../../utils/documentPdf";
 
+const normalizeArrayPayload = (payload) => {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.rows)) return payload.rows;
+  return [];
+};
+
+const resolveRateToNgn = (currencyCode, currencies) => {
+  const code = String(currencyCode || "NGN").toUpperCase();
+  const matched = (Array.isArray(currencies) ? currencies : []).find(
+    (row) => String(row.code || "").toUpperCase() === code
+  );
+  const rate = Number(matched?.rate_to_ngn);
+  return Number.isFinite(rate) && rate > 0 ? rate : 1;
+};
+
+const formatMoney = (amount, currencyCode) => {
+  const code = String(currencyCode || "NGN").toUpperCase();
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: code,
+      maximumFractionDigits: 2,
+    }).format(Number(amount || 0));
+  } catch (error) {
+    return `${code} ${Number(amount || 0).toLocaleString()}`;
+  }
+};
+
 // Modal Component for Viewing/Editing
 const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode, customers = [], inventoryItems = [] }) => {
   const [form, setForm] = useState({ ...quotation });
@@ -256,7 +285,7 @@ const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode
           <div className="flex flex-col">
             <label className="text-sm font-medium mb-1">Amount</label>
             <span className={`px-3 py-2 border rounded-lg w-full font-bold ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-100 border-gray-300'}`}>
-              ₦{Number(total || 0).toLocaleString()}
+              {formatMoney(total, form.currency || "NGN")}
             </span>
           </div>
 
@@ -445,7 +474,7 @@ const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode
                   {items.map((item, index) => (
                     <div key={`${item.name || item.item || index}`} className="flex flex-col md:flex-row md:justify-between gap-1 text-sm">
                       <span className="font-medium">{item.name || `Item ${index + 1}`}</span>
-                      <span>{item.quantity || 0} x ₦{Number(item.price || 0).toLocaleString()} = ₦{Number((item.quantity || 0) * (item.price || 0)).toLocaleString()}</span>
+                      <span>{item.quantity || 0} x {formatMoney(item.price || 0, form.currency || "NGN")} = {formatMoney((item.quantity || 0) * (item.price || 0), form.currency || "NGN")}</span>
                     </div>
                   ))}
                 </div>
@@ -522,7 +551,7 @@ const DeleteConfirmationModal = ({ onClose, onConfirm, data, darkMode, deleting 
           <div className={`p-4 rounded-lg text-left mb-4 ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
             <p className="font-bold text-lg">{data.quotation_number || data.id}</p>
             <p className="text-sm mt-2">Customer: {data.customer}</p>
-            <p className="text-sm">Amount: ₦{Number(data.amount || 0).toLocaleString()}</p>
+            <p className="text-sm">Amount: {formatMoney(data.amount || 0, data.currency || "NGN")}</p>
             <p className="text-sm">Status: {data.status}</p>
           </div>
           
@@ -567,6 +596,7 @@ const QuotationManagement = () => {
   const [quotations, setQuotations] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [inventoryItems, setInventoryItems] = useState([]);
+  const [currencies, setCurrencies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -583,6 +613,21 @@ const QuotationManagement = () => {
   const [convertingQuotationId, setConvertingQuotationId] = useState(null);
 
   const tabs = ['All Quotations', 'Pending', 'Accepted', 'Paid', 'Unpaid', 'Expired'];
+
+  const fetchCurrencies = async () => {
+    try {
+      const res = await API.get("/currencies");
+      const rows = normalizeArrayPayload(res.data).map((row) => ({
+        ...row,
+        code: String(row.code || "").toUpperCase(),
+        rate_to_ngn: Number(row.rate_to_ngn || 1),
+      }));
+      setCurrencies(rows);
+    } catch (err) {
+      console.error("Fetch currencies error:", err);
+      setCurrencies([{ code: "NGN", name: "Nigerian Naira", rate_to_ngn: 1 }]);
+    }
+  };
 
   // Fetch customers on mount
   const fetchCustomers = async () => {
@@ -624,6 +669,7 @@ const QuotationManagement = () => {
         quotation_date: q.quotation_date ? q.quotation_date.split('T')[0] : "",
         valid_until: q.valid_until ? q.valid_until.split('T')[0] : "",
         amount: q.amount || 0,
+        currency: String(q.currency || "NGN").toUpperCase(),
         subtotal: q.subtotal || 0,
         vat_rate: q.vat_rate || 0,
         vat_amount: q.vat_amount || 0,
@@ -646,7 +692,7 @@ const QuotationManagement = () => {
             return 0;
           }
         })()),
-        formatted_amount: `₦${Number(q.amount || 0).toLocaleString()}`,
+        formatted_amount: formatMoney(Number(q.amount || 0), q.currency || "NGN"),
         status: q.status || "Pending",
         notes: q.notes || "",
         terms: q.terms || "",
@@ -724,6 +770,7 @@ const QuotationManagement = () => {
   // Initial data fetch
   useEffect(() => {
     const loadData = async () => {
+      await fetchCurrencies();
       await fetchCustomers();
       await fetchInventoryCatalog();
       await fetchQuotations();
@@ -737,20 +784,40 @@ const QuotationManagement = () => {
       
       // Generate quotation number if not exists
       const quotation_number = quotationData.quotation_number || `CLTQUO-${Date.now().toString().slice(-8)}`;
-      const items = Array.isArray(quotationData.items) ? quotationData.items : (() => {
+      const selectedCurrency = String(quotationData.currency || "NGN").toUpperCase();
+      const selectedRate = resolveRateToNgn(selectedCurrency, currencies);
+
+      const parsedItems = Array.isArray(quotationData.items) ? quotationData.items : (() => {
         try {
           return quotationData.items_json ? JSON.parse(quotationData.items_json) : [];
         } catch (error) {
           return [];
         }
       })();
-      const subtotal = Number(quotationData.subtotal || items.reduce((sum, item) => sum + (Number(item.quantity || item.qty || 0) * Number(item.price || 0)), 0));
+
+      const itemsInSelectedCurrency = Array.isArray(parsedItems)
+        ? parsedItems
+        : (Array.isArray(parsedItems?.items) ? parsedItems.items : []);
+
+      const itemsInNgn = itemsInSelectedCurrency.map((item) => ({
+        ...item,
+        price: Number((Number(item.price || 0) * selectedRate).toFixed(2)),
+      }));
+
+      const subtotalInSelectedCurrency = Number(
+        quotationData.subtotal || itemsInSelectedCurrency.reduce((sum, item) => sum + (Number(item.quantity || item.qty || 0) * Number(item.price || 0)), 0)
+      );
       const discountRate = Math.max(0, Math.min(100, Number(quotationData.discount_rate || 0)));
-      const discountAmount = (subtotal * discountRate) / 100;
-      const taxableSubtotal = Math.max(0, subtotal - discountAmount);
+      const discountAmountInSelectedCurrency = (subtotalInSelectedCurrency * discountRate) / 100;
+      const taxableSubtotalInSelectedCurrency = Math.max(0, subtotalInSelectedCurrency - discountAmountInSelectedCurrency);
       const vatRate = Number(quotationData.vat_rate || 0);
-      const vatAmount = Number(quotationData.vat_amount || (taxableSubtotal * vatRate) / 100);
-      const amount = Number(quotationData.amount || taxableSubtotal + vatAmount);
+      const vatAmountInSelectedCurrency = Number(quotationData.vat_amount || (taxableSubtotalInSelectedCurrency * vatRate) / 100);
+      const amountInSelectedCurrency = Number(quotationData.amount || taxableSubtotalInSelectedCurrency + vatAmountInSelectedCurrency);
+
+      const subtotal = Number((subtotalInSelectedCurrency * selectedRate).toFixed(2));
+      const discountAmount = Number((discountAmountInSelectedCurrency * selectedRate).toFixed(2));
+      const vatAmount = Number((vatAmountInSelectedCurrency * selectedRate).toFixed(2));
+      const amount = Number((amountInSelectedCurrency * selectedRate).toFixed(2));
       
       const payload = {
         quotation_number: quotation_number,
@@ -762,12 +829,13 @@ const QuotationManagement = () => {
         vat_rate: vatRate,
         vat_amount: vatAmount,
         amount,
+        currency: selectedCurrency,
         status: quotationData.status,
         notes: quotationData.notes || "",
         terms: quotationData.terms || "",
         signature_name: quotationData.signature_name || "",
         items_json: JSON.stringify({
-          items,
+          items: itemsInNgn,
           discount_rate: discountRate,
           discount_amount: discountAmount,
           subtotal_before_discount: subtotal,
