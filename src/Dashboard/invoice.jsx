@@ -4,6 +4,29 @@ import { X, Save, Plus } from "lucide-react";
 import "react-toastify/dist/ReactToastify.css";
 import API from "../utils/api";
 
+// Default VAT rates per currency
+const DEFAULT_VAT_RATES = {
+  "NGN": 7.5,
+  "USD": 0,
+  "EUR": 19,
+  "GBP": 20,
+  "AUD": 10,
+  "CAD": 5,
+  "JPY": 10,
+  "INR": 5,
+};
+
+const getDefaultVatRate = (currencyCode, currencies) => {
+  const code = String(currencyCode || "NGN").toUpperCase();
+  const matched = (Array.isArray(currencies) ? currencies : []).find(
+    (row) => String(row.code || "").toUpperCase() === code
+  );
+  if (matched && Number.isFinite(Number(matched.vat_rate))) {
+    return Number(matched.vat_rate);
+  }
+  return DEFAULT_VAT_RATES[code] || 0;
+};
+
 const normalizeArrayPayload = (payload) => {
   if (Array.isArray(payload)) return payload;
   if (Array.isArray(payload?.data)) return payload.data;
@@ -262,8 +285,12 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
       }))
     );
 
+    // Get the default VAT rate for the selected currency
+    const newVatRate = getDefaultVatRate(nextCurrency, safeCurrencies);
+
     setForm((prev) => ({
       ...prev,
+      tax_rate: newVatRate,
       tax_amount: Number(convertAmount(prev.tax_amount, prevCurrency, nextCurrency, safeCurrencies).toFixed(2)),
     }));
 

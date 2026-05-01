@@ -19,7 +19,27 @@ const CONTACT_LINES = [
 const MANAGER_NAME = "CHINEDU O. ORJI";
 const MANAGER_TITLE = "SALES DIRECTOR";
 
-const NAIRA = "NGN";
+// Currency code to symbol mapping
+const CURRENCY_SYMBOLS = {
+  "NGN": "₦",
+  "USD": "$",
+  "EUR": "€",
+  "GBP": "£",
+  "AUD": "A$",
+  "CAD": "C$",
+  "JPY": "¥",
+  "INR": "₹",
+  "CHF": "CHF",
+  "AED": "د.إ",
+  "SEK": "kr",
+  "NOK": "kr",
+  "DKK": "kr",
+};
+
+const getCurrencySign = (currencyCode) => {
+  const code = String(currencyCode || "NGN").toUpperCase();
+  return CURRENCY_SYMBOLS[code] || code;
+};
 
 const formatNumber = (value) => {
   const numericValue = Number(value || 0);
@@ -31,8 +51,6 @@ const formatNumber = (value) => {
   // Keep integers clean as 112,000 (without trailing .00)
   return decimalPart === "00" ? groupedInteger : `${groupedInteger}.${decimalPart}`;
 };
-
-const money = (value) => `${NAIRA}${formatNumber(value)}`;
 
 const getNumeric = (value) => {
   const parsed = Number(value);
@@ -274,7 +292,8 @@ const addCompanyHeader = async (doc, title, numberLabel, numberValue, metaLines 
 export const downloadInvoicePdf = async (invoice) => {
   const doc = new jsPDF();
   const currency = invoice.currency || "NGN";
-  const formatMoney = (value) => `${currency}${formatNumber(value)}`;
+  const currencySign = getCurrencySign(currency);
+  const formatMoney = (value) => `${currencySign}${formatNumber(value)}`;
   const invoiceItems = Array.isArray(invoice.items)
     ? invoice.items
     : (() => {
@@ -348,7 +367,7 @@ export const downloadInvoicePdf = async (invoice) => {
   });
 
   doc.setFont("helvetica", "bold");
-  doc.text(`${currency} ${amountToWords(grandTotal)} Only`, 14, summaryEndY + 8);
+  doc.text(`${currencySign} ${amountToWords(grandTotal)} Only`, 14, summaryEndY + 8);
   doc.setFont("helvetica", "normal");
 
   await drawManagerBlock({
@@ -363,7 +382,8 @@ export const downloadInvoicePdf = async (invoice) => {
 export const downloadQuotationPdf = async (quotation) => {
   const doc = new jsPDF();
   const currency = quotation.currency || "NGN";
-  const formatMoney = (value) => `${currency}${formatNumber(value)}`;
+  const currencySign = getCurrencySign(currency);
+  const formatMoney = (value) => `${currencySign}${formatNumber(value)}`;
   const items = Array.isArray(quotation.items)
     ? quotation.items
     : (() => {
@@ -378,9 +398,36 @@ export const downloadQuotationPdf = async (quotation) => {
         return [];
       })();
 
-  const fallbackSubtotal = getNumeric(quotation.subtotal || quotation.amount);
-  const tax = resolveTaxVat(quotation, fallbackSubtotal);
-  const total = getNumeric(quotation.amount || tax.subtotal + tax.taxAmount + tax.vatAmount);
+  const normalizedItems = items.length
+    ? items
+        .map((row) => ({
+          item_code: row.item_code || row.code || row.sku || "",
+          item: row.name || row.item || row.product_name || "",
+          description: row.description || "",
+          quantity: getNumeric(row.quantity || row.qty || 0),
+          price: getNumeric(row.price || 0),
+        }))
+        .filter((row) => row.item && row.quantity > 0)
+    : [
+        {
+          item_code: quotation.item_code || "",
+          item: quotation.item || quotation.notes || "",
+          description: quotation.description || "",
+          quantity: getNumeric(quotation.quantity || 1),
+          price: getNumeric(quotation.price || quotation.subtotal || quotation.amount || 0),
+        },
+      ].filter((row) => row.item && row.quantity > 0);
+
+  const discountRate = Math.max(0, Math.min(100, getNumeric(quotation.discount || quotation.discount_rate || 0)));
+  const subtotalBeforeDiscount = normalizedItems.reduce(
+    (sum, row) => sum + row.quantity * row.price,
+    0
+  );
+  const discountAmount = (subtotalBeforeDiscount * discountRate) / 100;
+  const subtotal = Math.max(0, subtotalBeforeDiscount - discountAmount);
+  const tax = resolveTaxVat(quotation, subtotal);
+  const vatAmountValue = tax.vatAmount || tax.taxAmount || 0;
+  const grandTotal = subtotal + vatAmountValue;
 
   const headerEndY = await addCompanyHeader(doc, "QUOTATION", "Quote Ref. No", quotation.quotation_number || quotation.id, [
     `Customer: ${quotation.customer || ""}`,
@@ -390,23 +437,10 @@ export const downloadQuotationPdf = async (quotation) => {
 
   autoTable(doc, {
     startY: headerEndY,
-    head: [["No.", "Item Code", "Description", "Qty", "Unit Price", "Total"]],
-    body: items.length
-      ? items.map((row, index) => {
-          const qty = Number(row.quantity || row.qty || 0);
-          const price = Number(row.price || 0);
-          return [
-            index + 1,
-            row.item_code || row.code || "",
-            row.description || row.name || row.item || "",
-            qty,
-            formatMoney(price),
-            formatMoney(qty * price),
-          ];
-        })
-      : [[1, "", quotation.notes || "Quotation summary", 1, formatMoney(quotation.subtotal || quotation.amount || 0), formatMoney(quotation.amount || 0)]],
+    head: [["Item Code", "Item", "Description", "Qty", "Unit Price", "Total"]],
+    body: normalizedItems.map((row) => [row.item_code || "", row.item, row.description, row.quantity, formatMoney(row.price), formatMoney(row.quantity * row.price)]),
     styles: { fontSize: 9 },
-    headStyles: { fillColor: [225, 225, 225], textColor: 30 },
+    headStyles: { fillColor: [30, 41, 59] },
   });
 
   const finalY = doc.lastAutoTable?.finalY || 90;
@@ -414,14 +448,16 @@ export const downloadQuotationPdf = async (quotation) => {
     doc,
     finalY,
     lines: [
-      { label: "Grand Total", value: `${formatNumber(tax.subtotal)} ${currency}` },
-      { label: `VAT(${tax.vatRate.toFixed(1)}%)`, value: `${formatNumber(tax.vatAmount)} ${currency}` },
-      { label: "Net Total", value: `${formatNumber(total)} ${currency}` },
+      { label: "Subtotal", value: formatMoney(subtotal) },
+      { label: "DISCOUNT", value: formatMoney(discountAmount) },
+      { label: "VAT", value: formatMoney(vatAmountValue) },
+      { label: "Total", value: formatMoney(grandTotal) },
+      { label: "Status", value: quotation.status || "Pending" },
     ],
   });
 
   doc.setFont("helvetica", "bold");
-  doc.text(`${currency} ${amountToWords(total)} Only`, 14, summaryEndY + 8);
+  doc.text(`${currencySign} ${amountToWords(grandTotal)} Only`, 14, summaryEndY + 8);
   doc.setFont("helvetica", "normal");
 
   if (quotation.terms) {
@@ -431,7 +467,7 @@ export const downloadQuotationPdf = async (quotation) => {
 
   await drawManagerBlock({
     doc,
-    startY: summaryEndY + 18,
+    startY: summaryEndY + 16,
     signatureImage: quotation.signature_image,
   });
 
