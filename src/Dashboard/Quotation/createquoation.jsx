@@ -50,6 +50,8 @@ const convertAmount = (amount, fromCurrency, toCurrency, currencies) => {
   return Number.isFinite(numericAmount) ? (numericAmount * fromRate) / toRate : 0;
 };
 
+const roundToTwoDecimals = (value) => Number(Number(value || 0).toFixed(2));
+
 const formatMoney = (amount, currencyCode) => {
   const code = String(currencyCode || "NGN").toUpperCase();
   try {
@@ -163,7 +165,7 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
       vat_rate: newVatRate,
       items: prev.items.map((item) => ({
         ...item,
-        price: Number(convertAmount(item.price, prevCurrency, nextCurrency, safeCurrencies).toFixed(2)),
+        price: roundToTwoDecimals(convertAmount(item.price, prevCurrency, nextCurrency, safeCurrencies)),
       })),
     }));
 
@@ -370,7 +372,7 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
       id: inv.id,
       label: inv.product_name || inv.name || `Item ${inv.id}`,
       item_code: inv.item_code || "",
-      price: Number(inv.selling_price || inv.price || 0),
+      price: roundToTwoDecimals(inv.selling_price || inv.price || 0),
       description: inv.description || "",
     }));
   }, [inventoryItems]);
@@ -601,7 +603,7 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
                         updateItem(index, "name", selectedName);
                         if (selected) {
                           if (!item.description) updateItem(index, "description", selected.description);
-                              if (!Number(item.price)) updateItem(index, "price", Number(selected.price || 0) / selectedCurrencyRate);
+                          if (!Number(item.price)) updateItem(index, "price", roundToTwoDecimals(Number(selected.price || 0) / selectedCurrencyRate));
                           updateItem(index, "item_code", selected.item_code || "");
                         }
                       }}
@@ -660,13 +662,20 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className={`block text-xs font-medium mb-1 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>Unit Price ({formData.currency || "NGN"})</label>
+                  <label className={`block text-xs font-medium mb-1 ${darkMode ? "text-gray-400" : "text-gray-600"}`}>
+                    Unit Price ({formData.currency || "NGN"})
+                  </label>
+
                   <input
                     type="number"
                     min="0"
                     step="0.01"
                     value={item.price}
                     onChange={(e) => updateItem(index, "price", e.target.value)}
+                    onBlur={(e) => {
+                      const value = parseFloat(e.target.value || 0).toFixed(2);
+                      updateItem(index, "price", value);
+                    }}
                     className={inputClass}
                     disabled={loading}
                   />
