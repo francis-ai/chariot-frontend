@@ -40,7 +40,7 @@ const formatMoney = (amount, currencyCode) => {
 };
 
 // Modal Component for Viewing/Editing
-const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode, customers = [], inventoryItems = [] }) => {
+const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode, customers = [], inventoryItems = [], documentLabel = "Quotation" }) => {
   const [form, setForm] = useState({ ...quotation });
   const [saving, setSaving] = useState(false);
 
@@ -179,11 +179,11 @@ const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode
           <X size={20} />
         </button>
 
-        <h2 className="text-xl font-bold mb-6">{editable ? 'Edit Quotation' : 'View Quotation'}</h2>
+        <h2 className="text-xl font-bold mb-6">{editable ? `Edit ${documentLabel}` : `View ${documentLabel}`}</h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="flex flex-col">
-            <label className="text-sm font-medium mb-1">Quotation #</label>
+            <label className="text-sm font-medium mb-1">{`${documentLabel} #`}</label>
             <span className={`px-3 py-2 border rounded-lg w-full ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-100 border-gray-300'}`}>
               {form.quotation_number || form.id}
             </span>
@@ -243,7 +243,7 @@ const QuotationModal = ({ quotation, onClose, editable = false, onSave, darkMode
           </div>
 
           <div className="flex flex-col">
-            <label className="text-sm font-medium mb-1">Quotation Date</label>
+            <label className="text-sm font-medium mb-1">{`${documentLabel} Date`}</label>
             {editable ? (
               <input
                 type="date"
@@ -542,10 +542,10 @@ const DeleteConfirmationModal = ({ onClose, onConfirm, data, darkMode, deleting 
             </div>
           </div>
           
-          <h2 className="text-xl font-bold mb-2">Delete Quotation</h2>
+          <h2 className="text-xl font-bold mb-2">{`Delete ${documentLabel}`}</h2>
           
           <p className="text-gray-500 dark:text-gray-400 mb-4">
-            Are you sure you want to delete this quotation?
+            {`Are you sure you want to delete this ${documentLabel.toLowerCase()}?`}
           </p>
           
           <div className={`p-4 rounded-lg text-left mb-4 ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
@@ -585,11 +585,15 @@ const DeleteConfirmationModal = ({ onClose, onConfirm, data, darkMode, deleting 
 };
 
 // Main Quotation Management Component
-const QuotationManagement = () => {
+const QuotationManagement = ({ documentType = "quotation" }) => {
   const { darkMode } = useTheme();
+  const isProforma = String(documentType || "quotation").toLowerCase() === "proforma";
+  const documentLabel = isProforma ? "Proforma Invoice" : "Quotation";
+  const documentLabelPlural = isProforma ? "Proforma Invoices" : "Quotations";
+  const documentTabAll = `All ${documentLabelPlural}`;
   const PAGE_SIZE = 10;
   const [newQuotation, setNewQuotation] = useState(false);
-  const [activeTab, setActiveTab] = useState('All Quotations');
+  const [activeTab, setActiveTab] = useState(documentTabAll);
   const [modalData, setModalData] = useState(null);
   const [isEditable, setIsEditable] = useState(false);
   const [deleteModal, setDeleteModal] = useState(null);
@@ -603,8 +607,8 @@ const QuotationManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [stats, setStats] = useState([
-    { label: "Total Quotations", value: "0" },
-    { label: "Pending Quotations", value: "0" },
+    { label: `Total ${documentLabelPlural}`, value: "0" },
+    { label: `Pending ${documentLabelPlural}`, value: "0" },
     { label: "Total Value", value: "₦0" },
     { label: "Avg. Value", value: "₦0" },
   ]);
@@ -612,7 +616,7 @@ const QuotationManagement = () => {
   const focusQuotationId = searchParams.get("view");
   const [convertingQuotationId, setConvertingQuotationId] = useState(null);
 
-  const tabs = ['All Quotations', 'Pending', 'Accepted', 'Paid', 'Unpaid', 'Expired'];
+  const tabs = [documentTabAll, 'Pending', 'Accepted', 'Paid', 'Unpaid', 'Expired'];
 
   const fetchCurrencies = async () => {
     try {
@@ -665,6 +669,7 @@ const QuotationManagement = () => {
       const mappedQuotations = res.data.map(q => ({
         id: q.id || q._id,
         quotation_number: q.quotation_number || q.id,
+        type: String(q.type || (isProforma ? "proforma" : "quotation")).toLowerCase(),
         customer: q.customer || "",
         quotation_date: q.quotation_date ? q.quotation_date.split('T')[0] : "",
         valid_until: q.valid_until ? q.valid_until.split('T')[0] : "",
@@ -700,8 +705,9 @@ const QuotationManagement = () => {
         created_by_name: q.created_by_name || "",
       }));
       
-      setQuotations(mappedQuotations);
-      calculateStats(mappedQuotations);
+      const filteredQuotations = mappedQuotations.filter((row) => String(row.type || "quotation").toLowerCase() === documentType.toLowerCase());
+      setQuotations(filteredQuotations);
+      calculateStats(filteredQuotations);
     } catch (err) {
       console.error("Fetch quotations error:", err);
       toast.error(err.response?.data?.message || "Failed to fetch quotations");
@@ -749,8 +755,8 @@ const QuotationManagement = () => {
     const avgValue = totalQuotes > 0 ? totalValue / totalQuotes : 0;
 
     setStats([
-      { label: "Total Quotations", value: totalQuotes.toString() },
-      { label: "Pending Quotations", value: pendingCount.toString() },
+      { label: `Total ${documentLabelPlural}`, value: totalQuotes.toString() },
+      { label: `Pending ${documentLabelPlural}`, value: pendingCount.toString() },
       { label: "Total Value", value: `₦${totalValue.toLocaleString()}` },
       { label: "Avg. Value", value: `₦${avgValue.toLocaleString()}` },
     ]);
@@ -821,6 +827,7 @@ const QuotationManagement = () => {
       
       const payload = {
         quotation_number: quotation_number,
+        type: documentType,
         customer: quotationData.customer,
         quotation_date: quotationData.quotation_date,
         valid_until: quotationData.valid_until,
@@ -842,24 +849,24 @@ const QuotationManagement = () => {
         }),
       };
 
-      console.log("Saving quotation with payload:", payload);
+      console.log(`Saving ${documentLabel.toLowerCase()} with payload:`, payload);
 
       if (quotationData.id) {
         // Update existing
         await API.put(`/quotation/${quotationData.id}`, payload);
-        toast.success("Quotation updated successfully!");
+        toast.success(`${documentLabel} updated successfully!`);
       } else {
         // Create new
         await API.post("/quotation", payload);
-        toast.success("Quotation created successfully!");
+        toast.success(`${documentLabel} created successfully!`);
       }
       
       await fetchQuotations(); // Refresh with latest data
       setModalData(null);
       setNewQuotation(false);
     } catch (err) {
-      console.error("Save quotation error:", err);
-      toast.error(err.response?.data?.message || "Failed to save quotation");
+      console.error("Save document error:", err);
+      toast.error(err.response?.data?.message || `Failed to save ${documentLabel.toLowerCase()}`);
     } finally {
       setSubmitting(false);
     }
@@ -874,19 +881,19 @@ const QuotationManagement = () => {
       
       setQuotations(prev => prev.filter(q => q.id !== deleteModal.id));
       setDeleteModal(null);
-      toast.success("Quotation deleted successfully!");
+      toast.success(`${documentLabel} deleted successfully!`);
     } catch (err) {
-      console.error("Delete quotation error:", err);
-      toast.error(err.response?.data?.message || "Failed to delete quotation");
+      console.error("Delete document error:", err);
+      toast.error(err.response?.data?.message || `Failed to delete ${documentLabel.toLowerCase()}`);
     } finally {
       setDeleting(false);
     }
   };
 
   const handleDownload = (quotation) => {
-    downloadQuotationPdf(quotation)
-      .then(() => toast.success("Quotation downloaded successfully!"))
-      .catch(() => toast.error("Failed to download quotation PDF"));
+    downloadQuotationPdf({ ...quotation, type: quotation.type || documentType })
+      .then(() => toast.success(`${documentLabel} downloaded successfully!`))
+      .catch(() => toast.error(`Failed to download ${documentLabel.toLowerCase()} PDF`));
   };
 
   const handleConvertQuotation = async (quotation) => {
@@ -894,11 +901,11 @@ const QuotationManagement = () => {
     setConvertingQuotationId(quotation.id);
     try {
       await API.post(`/quotation/${quotation.id}/convert`, { convert_to: "invoice" });
-      toast.success("Quotation converted to invoice successfully!");
+      toast.success(`${documentLabel} converted to invoice successfully!`);
       await fetchQuotations();
     } catch (err) {
       console.error("Convert quotation error:", err);
-      toast.error(err.response?.data?.message || "Failed to convert quotation to invoice");
+      toast.error(err.response?.data?.message || `Failed to convert ${documentLabel.toLowerCase()} to invoice`);
     } finally {
       setConvertingQuotationId(null);
     }
@@ -935,7 +942,7 @@ const QuotationManagement = () => {
 
   const filteredQuotations = quotations.filter(q => {
     if (focusQuotationId && String(q.id) !== String(focusQuotationId)) return false;
-    const matchesTab = activeTab === 'All Quotations' || q.status === activeTab;
+    const matchesTab = activeTab === documentTabAll || q.status === activeTab;
     const searchValue = searchTerm.trim().toLowerCase();
     const matchesSearch = !searchValue || [q.customer, q.quotation_number, q.notes]
       .filter(Boolean)
@@ -953,7 +960,7 @@ const QuotationManagement = () => {
     if (matched) {
       setModalData(matched);
       setIsEditable(false);
-      setActiveTab("All Quotations");
+      setActiveTab(documentTabAll);
       setSearchTerm("");
       setCurrentPage(1);
     }
@@ -978,13 +985,13 @@ const QuotationManagement = () => {
         <main className="p-4 mt-20 md:p-6 lg:p-8 flex-1">
           {/* Header */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-            <h1 className="text-2xl font-bold tracking-tight">Quotation Management</h1>
+            <h1 className="text-2xl font-bold tracking-tight">{`${documentLabel} Management`}</h1>
             <button
               onClick={() => setNewQuotation(!newQuotation)}
               className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all shadow-md active:scale-95 bg-blue-600 hover:bg-blue-700 text-white"
             >
               <Plus size={18} />
-              {newQuotation ? 'Back to Dashboard' : 'Create Quotation'}
+              {newQuotation ? 'Back to Dashboard' : `Create ${documentLabel}`}
             </button>
           </div>
 
@@ -1011,7 +1018,7 @@ const QuotationManagement = () => {
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search quotation by number or customer"
+                  placeholder={`Search ${documentLabel.toLowerCase()} by number or customer`}
                   className={`w-full px-4 py-2 rounded-lg border outline-none ${darkMode ? 'bg-gray-800 border-gray-700 text-gray-100' : 'bg-white border-gray-300 text-gray-800'}`}
                 />
               </div>
@@ -1025,6 +1032,8 @@ const QuotationManagement = () => {
               customers={customers}
               inventoryItems={inventoryItems}
               onCustomerCreated={fetchCustomers}
+              documentLabel={documentLabel}
+              documentType={documentType}
             />
           ) : (
             <>
@@ -1051,19 +1060,19 @@ const QuotationManagement = () => {
               {loading && (
                 <div className="text-center py-12">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                  <p>Loading quotations...</p>
+                  <p>{`Loading ${documentLabelPlural.toLowerCase()}...`}</p>
                 </div>
               )}
 
               {/* Empty State */}
               {!loading && filteredQuotations.length === 0 && (
                 <div className={`text-center py-12 rounded-xl border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-                  <p className="text-gray-400 mb-4">No quotations found</p>
+                  <p className="text-gray-400 mb-4">{`No ${documentLabelPlural.toLowerCase()} found`}</p>
                   <button
                     onClick={() => setNewQuotation(true)}
                     className="text-blue-600 hover:text-blue-700 font-medium"
                   >
-                    Create your first quotation
+                    {`Create your first ${documentLabel.toLowerCase()}`}
                   </button>
                 </div>
               )}
@@ -1076,7 +1085,7 @@ const QuotationManagement = () => {
                   <table className="min-w-full table-auto">
                     <thead className={`transition-colors ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
                       <tr>
-                        {['Quotation #', 'Customer', 'Date', 'Valid Until', 'Amount', 'Status', 'Actions'].map((h) => (
+                        {[`${documentLabel} #`, 'Customer', 'Date', 'Valid Until', 'Amount', 'Status', 'Actions'].map((h) => (
                           <th key={h} className="px-4 py-2 text-xs font-bold uppercase">{h}</th>
                         ))}
                       </tr>
@@ -1176,6 +1185,7 @@ const QuotationManagement = () => {
               darkMode={darkMode}
               customers={customers}
               inventoryItems={inventoryItems}
+              documentLabel={documentLabel}
             />
           )}
 

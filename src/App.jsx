@@ -13,6 +13,7 @@ import ChatBot from "./chat";
 import HomeDashboard from "./Dashboard/homedashboard";
 import InvoiceManagement from "./Dashboard/InvoiceManagement";
 import QuotationPage from "./Dashboard/Quotation/QuotationPage";
+import ProformaPage from "./Dashboard/Proforma/ProformaPage";
 import Waybill from "./Dashboard/Waybills/Waybillshome";
 import Ordermanagement from "./Dashboard/OrderManagement/ordermanagement";
 import Supplierhome from "./Dashboard/purchaseManagement/purchasehome";
@@ -78,11 +79,17 @@ const AppWrapper = () => {
               <InvoiceManagement />
             </ProtectedRoute>
           }/>
+          <Route path="/admin/ProformaPage" element={
+            <ProtectedRoute allowedRoles={["super-admin"]} loginPath="/admin/login" fallbackPath="/staff/dashboard">
+              <ProformaPage />
+            </ProtectedRoute>
+          }/>
           <Route path="/admin/QuotationPage" element={
             <ProtectedRoute allowedRoles={["super-admin"]} loginPath="/admin/login" fallbackPath="/staff/dashboard">
               <QuotationPage />
             </ProtectedRoute>
           }/>
+          
           <Route path="/admin/Waybill" element={
             <ProtectedRoute allowedRoles={["super-admin"]} loginPath="/admin/login" fallbackPath="/staff/dashboard">
               <Waybill />
@@ -177,9 +184,19 @@ const AppWrapper = () => {
               <InvoiceManagement />
             </ProtectedRoute>
           }/>
+          <Route path="/ProformaPage" element={
+            <ProtectedRoute>
+              <ProformaPage />
+            </ProtectedRoute>
+          }/>
           <Route path="/QuotationPage" element={
             <ProtectedRoute>
               <QuotationPage />
+            </ProtectedRoute>
+          }/>
+          <Route path="/ProformaPage" element={
+            <ProtectedRoute>
+              <ProformaPage />
             </ProtectedRoute>
           }/>
           <Route path="/Waybill" element={

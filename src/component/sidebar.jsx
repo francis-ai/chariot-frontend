@@ -89,6 +89,7 @@ export default function Sidebar({
   const menuItems = [
     { icon: <FaHome />, label: "Dashboard", path: isSuperAdmin ? `${basePath}/HomeDashboard` : "/staff/dashboard" },
     { icon: <FaFileInvoice />, label: "Invoice", path: `${basePath}/invoiceManagement` },
+    { icon: <FaFileAlt />, label: "Proforma Invoice", path: `${basePath}/ProformaPage` },
     { icon: <FaFileAlt />, label: "Quotation", path: `${basePath}/QuotationPage` },
     { icon: <FaTruck />, label: "Waybill", path: `${basePath}/Waybill` },
     { icon: <FaShoppingCart />, label: "Purchase Orders", path: `${basePath}/ordermanagement` },

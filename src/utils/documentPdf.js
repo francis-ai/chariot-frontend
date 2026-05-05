@@ -41,6 +41,11 @@ const getCurrencySign = (currencyCode) => {
   return CURRENCY_SYMBOLS[code] || code;
 };
 
+const isAsciiPrintable = (str) => {
+  if (typeof str !== 'string' || str.length === 0) return false;
+  return /^[\x20-\x7E]+$/.test(str);
+};
+
 const formatNumber = (value) => {
   const numericValue = Number(value || 0);
   const safeValue = Number.isFinite(numericValue) ? numericValue : 0;
@@ -293,7 +298,8 @@ export const downloadInvoicePdf = async (invoice) => {
   const doc = new jsPDF();
   const currency = invoice.currency || "NGN";
   const currencySign = getCurrencySign(currency);
-  const formatMoney = (value) => `${currencySign}${formatNumber(value)}`;
+  const useSymbol = isAsciiPrintable(currencySign);
+  const formatMoney = (value) => useSymbol ? `${currencySign}${formatNumber(value)}` : `${currency} ${formatNumber(value)}`;
   const invoiceItems = Array.isArray(invoice.items)
     ? invoice.items
     : (() => {
@@ -367,7 +373,8 @@ export const downloadInvoicePdf = async (invoice) => {
   });
 
   doc.setFont("helvetica", "bold");
-  doc.text(`${currencySign} ${amountToWords(grandTotal)} Only`, 14, summaryEndY + 8);
+  const amountWordsPrefix = useSymbol ? currencySign : currency;
+  doc.text(`${amountWordsPrefix} ${amountToWords(grandTotal)} Only`, 14, summaryEndY + 8);
   doc.setFont("helvetica", "normal");
 
   await drawManagerBlock({
@@ -383,7 +390,11 @@ export const downloadQuotationPdf = async (quotation) => {
   const doc = new jsPDF();
   const currency = quotation.currency || "NGN";
   const currencySign = getCurrencySign(currency);
-  const formatMoney = (value) => `${currencySign}${formatNumber(value)}`;
+  const useSymbol = isAsciiPrintable(currencySign);
+  const formatMoney = (value) => useSymbol ? `${currencySign}${formatNumber(value)}` : `${currency} ${formatNumber(value)}`;
+  const isProforma = String(quotation.type || "quotation").toLowerCase() === "proforma";
+  const documentTitle = isProforma ? "PROFORMA INVOICE" : "QUOTATION";
+  const documentRefLabel = isProforma ? "Proforma Ref. No" : "Quote Ref. No";
   const items = Array.isArray(quotation.items)
     ? quotation.items
     : (() => {
@@ -429,7 +440,7 @@ export const downloadQuotationPdf = async (quotation) => {
   const vatAmountValue = tax.vatAmount || tax.taxAmount || 0;
   const grandTotal = subtotal + vatAmountValue;
 
-  const headerEndY = await addCompanyHeader(doc, "QUOTATION", "Quote Ref. No", quotation.quotation_number || quotation.id, [
+  const headerEndY = await addCompanyHeader(doc, documentTitle, documentRefLabel, quotation.quotation_number || quotation.id, [
     `Customer: ${quotation.customer || ""}`,
     `Date: ${quotation.quotation_date || ""}`,
     `Valid Until: ${quotation.valid_until || ""}`,
@@ -457,7 +468,8 @@ export const downloadQuotationPdf = async (quotation) => {
   });
 
   doc.setFont("helvetica", "bold");
-  doc.text(`${currencySign} ${amountToWords(grandTotal)} Only`, 14, summaryEndY + 8);
+  const amountWordsPrefix = useSymbol ? currencySign : currency;
+  doc.text(`${amountWordsPrefix} ${amountToWords(grandTotal)} Only`, 14, summaryEndY + 8);
   doc.setFont("helvetica", "normal");
 
   if (quotation.terms) {
@@ -471,7 +483,7 @@ export const downloadQuotationPdf = async (quotation) => {
     signatureImage: quotation.signature_image,
   });
 
-  doc.save(`quotation-${quotation.quotation_number || quotation.id}.pdf`);
+  doc.save(`${isProforma ? "proforma-invoice" : "quotation"}-${quotation.quotation_number || quotation.id}.pdf`);
 };
 
 export const downloadWaybillPdf = async (waybill) => {

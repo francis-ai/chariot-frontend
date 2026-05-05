@@ -65,7 +65,7 @@ const formatMoney = (amount, currencyCode) => {
   }
 };
 
-const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inventoryItems = [], onCustomerCreated }) => {
+const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inventoryItems = [], onCustomerCreated, documentLabel = "Quotation", documentType = "quotation" }) => {
   const [formData, setFormData] = useState({
     customer: "",
     quotation_date: new Date().toISOString().split('T')[0],
@@ -189,7 +189,7 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
       return;
     }
     if (!formData.quotation_date) {
-      toast.error("Quotation date is required");
+      toast.error(`${documentLabel} date is required`);
       return;
     }
     if (!formData.valid_until) {
@@ -404,7 +404,7 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
       <ToastContainer />
 
       <h2 className={`text-xl font-semibold mb-6 ${darkMode ? "text-gray-200" : "text-gray-800"}`}>
-        Create New Quotation
+        {`Create New ${documentLabel}`}
       </h2>
 
       <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -447,10 +447,10 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
           </select>
         </div>
 
-        {/* Quotation Date */}
+        {/* Document Date */}
         <div>
           <label className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-300" : "text-gray-600"}`}>
-            Quotation Date *
+            {`${documentLabel} Date *`}
           </label>
           <input
             type="date"
@@ -560,7 +560,7 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
             name="notes"
             value={formData.notes}
             onChange={handleChange}
-            placeholder="Additional details about this quotation..."
+            placeholder={`Additional details about this ${documentLabel.toLowerCase()}...`}
             rows={4}
             className={inputClass}
             disabled={loading}
@@ -569,7 +569,7 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
 
         <div className="md:col-span-2 space-y-4">
           <div className="flex items-center justify-between gap-4">
-            <h3 className={`text-sm font-semibold ${darkMode ? "text-gray-200" : "text-gray-700"}`}>Quotation Items</h3>
+            <h3 className={`text-sm font-semibold ${darkMode ? "text-gray-200" : "text-gray-700"}`}>{`${documentLabel} Items`}</h3>
           </div>
 
           <div className="space-y-4">
@@ -747,7 +747,7 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
             value={formData.terms}
             onChange={handleChange}
             rows={4}
-            placeholder="Enter quotation terms and conditions..."
+            placeholder={`Enter ${documentLabel.toLowerCase()} terms and conditions...`}
             className={inputClass}
             disabled={loading}
           />
@@ -781,7 +781,7 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
             ) : (
               <>
                 <Save size={18} />
-                Save Quotation
+                {`Save ${documentLabel}`}
               </>
             )}
           </button>
