@@ -278,6 +278,11 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
     const nextCurrency = String(form.currency || "NGN").toUpperCase();
     if (prevCurrency === nextCurrency) return;
 
+    const previousDefaultVatRate = getDefaultVatRate(prevCurrency, safeCurrencies);
+    const currentVatRate = Number(form.tax_rate || 0);
+    const shouldAutoUpdateVatRate =
+      !Number.isFinite(currentVatRate) || currentVatRate === 0 || currentVatRate === previousDefaultVatRate;
+
     setLineItems((prev) =>
       prev.map((row) => ({
         ...row,
@@ -290,7 +295,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
 
     setForm((prev) => ({
       ...prev,
-      tax_rate: newVatRate,
+      tax_rate: shouldAutoUpdateVatRate ? newVatRate : prev.tax_rate,
       tax_amount: Number(convertAmount(prev.tax_amount, prevCurrency, nextCurrency, safeCurrencies).toFixed(2)),
     }));
 
@@ -537,7 +542,7 @@ export default function InvoiceForm({ onClose, onSave, darkMode, invoiceData }) 
       await onSave({
         ...form,
         currency: selectedCurrency,
-        tax_amount: Number((Number(form.tax_amount || 0) * selectedRate).toFixed(2)),
+        tax_amount: Number(form.tax_amount || 0),
         item: normalizedItemsInNgn[0]?.name,
         description: normalizedItemsInNgn[0]?.description,
         quantity: normalizedItemsInNgn[0]?.quantity,

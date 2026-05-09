@@ -157,12 +157,17 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
     const nextCurrency = String(formData.currency || "NGN").toUpperCase();
     if (prevCurrency === nextCurrency) return;
 
+    const previousDefaultVatRate = getDefaultVatRate(prevCurrency, safeCurrencies);
+    const currentVatRate = Number(formData.vat_rate || 0);
+    const shouldAutoUpdateVatRate =
+      !Number.isFinite(currentVatRate) || currentVatRate === 0 || currentVatRate === previousDefaultVatRate;
+
     // Get the default VAT rate for the selected currency
     const newVatRate = getDefaultVatRate(nextCurrency, safeCurrencies);
 
     setFormData((prev) => ({
       ...prev,
-      vat_rate: newVatRate,
+      vat_rate: shouldAutoUpdateVatRate ? newVatRate : prev.vat_rate,
       items: prev.items.map((item) => ({
         ...item,
         price: roundToTwoDecimals(convertAmount(item.price, prevCurrency, nextCurrency, safeCurrencies)),
@@ -190,10 +195,6 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
     }
     if (!formData.quotation_date) {
       toast.error(`${documentLabel} date is required`);
-      return;
-    }
-    if (!formData.valid_until) {
-      toast.error("Valid until date is required");
       return;
     }
     if (!formData.items.length || formData.items.some((item) => !item.name || Number(item.quantity) <= 0 || Number(item.price) < 0)) {
@@ -466,7 +467,7 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
         {/* Valid Until */}
         <div>
           <label className={`block text-sm font-medium mb-1 ${darkMode ? "text-gray-300" : "text-gray-600"}`}>
-            Valid Until *
+            Valid Until
           </label>
           <input
             type="date"
@@ -474,7 +475,6 @@ const CreateQuotationForm = ({ onCancel, onSave, darkMode, customers = [], inven
             value={formData.valid_until}
             onChange={handleChange}
             className={inputClass}
-            required
             disabled={loading}
           />
         </div>

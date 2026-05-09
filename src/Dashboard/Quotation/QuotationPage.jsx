@@ -896,16 +896,28 @@ const QuotationManagement = ({ documentType = "quotation" }) => {
       .catch(() => toast.error(`Failed to download ${documentLabel.toLowerCase()} PDF`));
   };
 
-  const handleConvertQuotation = async (quotation) => {
+  const handleConvertQuotation = async (quotation, convertTo) => {
     if (!quotation?.id) return;
+    if (!convertTo) return;
+
     setConvertingQuotationId(quotation.id);
     try {
-      await API.post(`/quotation/${quotation.id}/convert`, { convert_to: "invoice" });
-      toast.success(`${documentLabel} converted to invoice successfully!`);
+      await API.post(`/quotation/${quotation.id}/convert`, { convert_to: convertTo });
+      const convertedLabel = convertTo === "invoice"
+        ? "invoice"
+        : convertTo === "proforma"
+          ? "proforma"
+          : "quotation";
+      toast.success(`${documentLabel} converted to ${convertedLabel} successfully!`);
       await fetchQuotations();
     } catch (err) {
       console.error("Convert quotation error:", err);
-      toast.error(err.response?.data?.message || `Failed to convert ${documentLabel.toLowerCase()} to invoice`);
+      const convertedLabel = convertTo === "invoice"
+        ? "invoice"
+        : convertTo === "proforma"
+          ? "proforma"
+          : "quotation";
+      toast.error(err.response?.data?.message || `Failed to convert ${documentLabel.toLowerCase()} to ${convertedLabel}`);
     } finally {
       setConvertingQuotationId(null);
     }
@@ -1120,12 +1132,24 @@ const QuotationManagement = ({ documentType = "quotation" }) => {
                                 <Download size={16} />
                               </button>
                               <button
-                                onClick={() => handleConvertQuotation(q)}
+                                onClick={() => handleConvertQuotation(q, "invoice")}
                                 disabled={convertingQuotationId === q.id}
-                                className="p-2 rounded-md transition-colors bg-slate-50 text-slate-600 hover:bg-slate-600 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="flex items-center gap-1 p-2 rounded-md transition-colors bg-slate-50 text-slate-600 hover:bg-slate-600 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Convert to Invoice"
                               >
                                 <ArrowRight size={16} />
+                                <span className="text-[10px] font-semibold uppercase">INV</span>
+                              </button>
+                              <button
+                                onClick={() => handleConvertQuotation(q, String(q.type || documentType || "quotation").toLowerCase() === "proforma" ? "quotation" : "proforma")}
+                                disabled={convertingQuotationId === q.id}
+                                className="flex items-center gap-1 p-2 rounded-md transition-colors bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                                title={`Convert to ${String(q.type || documentType || "quotation").toLowerCase() === "proforma" ? "Quotation" : "Proforma"}`}
+                              >
+                                <ArrowRight size={16} />
+                                <span className="text-[10px] font-semibold uppercase">
+                                  {String(q.type || documentType || "quotation").toLowerCase() === "proforma" ? "QUO" : "PRO"}
+                                </span>
                               </button>
                               <button
                                 onClick={() => { setModalData(q); setIsEditable(true); }}
