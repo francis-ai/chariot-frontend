@@ -32,6 +32,91 @@ const WaybillForm = ({ onCancel, onSave, waybillData, submitting, customers = []
     status: "Pending",
     notes: "",
   });
+  const [invoicesForCustomer, setInvoicesForCustomer] = useState([]);
+  const [quotationsForCustomer, setQuotationsForCustomer] = useState([]);
+  const [proformasForCustomer, setProformasForCustomer] = useState([]);
+  const [selectedQuotationItems, setSelectedQuotationItems] = useState([]);
+  const [selectedInvoiceItems, setSelectedInvoiceItems] = useState([]);
+  const [selectedProformaItems, setSelectedProformaItems] = useState([]);
+  const [manualProducts, setManualProducts] = useState("");
+
+  const formatDocumentItems = (items) => {
+    const rows = Array.isArray(items) ? items : [];
+    if (!rows.length) return [];
+
+    return rows
+      .map((item) => {
+        const name = item?.name || item?.item || item?.product_name || "Item";
+        const qty = Number(item?.quantity || item?.qty || 1);
+        const code = item?.item_code ? `${item.item_code} - ` : "";
+        return `${code}${name} x ${qty}`;
+      })
+      .filter(Boolean);
+  };
+
+  const renderProductGroup = (label, items) => {
+    const rows = Array.isArray(items) ? items : [];
+    if (!rows.length) return "";
+    return `${label}: ${rows.join(", ")}`;
+  };
+
+  const buildCombinedProductReview = (quotationItems, invoiceItems, proformaItems, manualText) => {
+    const sections = [
+      renderProductGroup("Quotation", quotationItems),
+      renderProductGroup("Invoice", invoiceItems),
+      renderProductGroup("Proforma", proformaItems),
+      String(manualText || "").trim() ? `Manual: ${String(manualText || "").trim()}` : "",
+    ].filter(Boolean);
+
+    return sections.join("\n");
+  };
+
+  const loadDocumentItems = async (documentId, source) => {
+    if (!documentId) {
+      if (source === "invoice") setSelectedInvoiceItems([]);
+      if (source === "proforma") setSelectedProformaItems([]);
+      if (source === "quotation") setSelectedQuotationItems([]);
+      return;
+    }
+
+    try {
+      const endpoint = source === "invoice" ? "/invoices" : "/quotation";
+      const res = await API.get(endpoint);
+      const rows = Array.isArray(res.data) ? res.data : [];
+      const found = rows.find((row) => String(row.id) === String(documentId) || String(row.invoice_number || row.quotation_number) === String(documentId));
+      if (!found) return;
+
+      const items = Array.isArray(found.items)
+        ? found.items
+        : (() => {
+            try {
+              const parsed = typeof found.items_json === "string" && found.items_json.trim() ? JSON.parse(found.items_json) : [];
+              if (Array.isArray(parsed)) return parsed;
+              if (parsed && Array.isArray(parsed.items)) return parsed.items;
+              return [];
+            } catch (error) {
+              return [];
+            }
+          })();
+
+      const formattedItems = formatDocumentItems(items);
+
+      if (source === "invoice") {
+        setSelectedInvoiceItems(formattedItems);
+      } else if (source === "proforma") {
+        setSelectedProformaItems(formattedItems);
+      } else {
+        setSelectedQuotationItems(formattedItems);
+      }
+
+      setForm((prev) => ({
+        ...prev,
+        [source === "invoice" ? "invoice_ids" : source === "proforma" ? "quotation_ids" : "quotation_ids"]: String(documentId),
+      }));
+    } catch (error) {
+      console.error(`Failed to load ${source} items`, error);
+    }
+  };
 
   // Load data if editing
   useEffect(() => {
@@ -51,8 +136,27 @@ const WaybillForm = ({ onCancel, onSave, waybillData, submitting, customers = []
         status: waybillData.status || "Pending",
         notes: waybillData.notes || "",
       });
+
+      setManualProducts(String(waybillData.product_list || waybillData.items || ""));
+      setSelectedQuotationItems([]);
+      setSelectedInvoiceItems([]);
+      setSelectedProformaItems([]);
     }
   }, [waybillData]);
+
+  useEffect(() => {
+    const combined = buildCombinedProductReview(
+      selectedQuotationItems,
+      selectedInvoiceItems,
+      selectedProformaItems,
+      manualProducts
+    );
+
+    setForm((prev) => ({
+      ...prev,
+      product_list: combined || String(manualProducts || "").trim(),
+    }));
+  }, [selectedQuotationItems, selectedInvoiceItems, selectedProformaItems, manualProducts]);
 
   useEffect(() => {
     if (!customers.length || !form.customer) return;
@@ -67,9 +171,53 @@ const WaybillForm = ({ onCancel, onSave, waybillData, submitting, customers = []
     }
   }, [customers, form.customer]);
 
+  useEffect(() => {
+    if (selectedCustomerId) return;
+    setSelectedQuotationItems([]);
+    setSelectedInvoiceItems([]);
+    setSelectedProformaItems([]);
+  }, [selectedCustomerId]);
+
+  // When customer is selected, fetch related invoices / quotations / proformas
+  useEffect(() => {
+    const fetchDocuments = async () => {
+      if (!selectedCustomerId) {
+        setInvoicesForCustomer([]);
+        setQuotationsForCustomer([]);
+        setProformasForCustomer([]);
+        return;
+      }
+
+      try {
+        const [invRes, quoRes] = await Promise.all([API.get('/invoices'), API.get('/quotation')]);
+
+        // Match by label used in invoice/quotation.customer (company - name)
+        const selectedLabel = form.customer;
+
+        const invList = (Array.isArray(invRes.data) ? invRes.data : []).filter(inv => String(inv.customer || '').includes(selectedLabel));
+        const quoList = (Array.isArray(quoRes.data) ? quoRes.data : []).filter(q => String(q.customer || '').includes(selectedLabel));
+
+        setInvoicesForCustomer(invList);
+        setQuotationsForCustomer(quoList.filter(q => String(q.type || '').toLowerCase() !== 'proforma'));
+        setProformasForCustomer(quoList.filter(q => String(q.type || '').toLowerCase() === 'proforma'));
+      } catch (err) {
+        console.error('Error fetching related documents:', err);
+        setInvoicesForCustomer([]);
+        setQuotationsForCustomer([]);
+        setProformasForCustomer([]);
+      }
+    };
+
+    fetchDocuments();
+  }, [selectedCustomerId, form.customer]);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleManualProductsChange = (e) => {
+    setManualProducts(e.target.value);
   };
 
   const formatCustomerLabel = (customer) => {
@@ -87,6 +235,9 @@ const WaybillForm = ({ onCancel, onSave, waybillData, submitting, customers = []
   const handleCustomerChange = (e) => {
     const selectedId = e.target.value;
     setSelectedCustomerId(selectedId);
+    setSelectedQuotationItems([]);
+    setSelectedInvoiceItems([]);
+    setSelectedProformaItems([]);
 
     const selectedCustomer = customers.find(
       (customer) => String(customer.id || customer._id) === String(selectedId)
@@ -280,44 +431,107 @@ const WaybillForm = ({ onCancel, onSave, waybillData, submitting, customers = []
         </div>
 
         <div className="md:col-span-2">
-          <label className="text-sm font-medium mb-1 block">Quotation IDs (comma-separated)</label>
-          <input
-            type="text"
-            name="quotation_ids"
-            value={form.quotation_ids}
-            onChange={handleChange}
-            placeholder="e.g. 12, 15 or CLTQUO-00001234"
-            className={inputClass}
-            disabled={loading || submitting}
-          />
-          <p className="text-xs mt-1 opacity-70">Use quotation database IDs or quotation numbers. Products will be auto-fetched from these records.</p>
+          <label className="text-sm font-medium mb-1 block">Quotation</label>
+          {quotationsForCustomer.length > 0 && (
+            <select
+              className={`${inputClass} mb-2`}
+              onChange={(e) => {
+                const val = e.target.value;
+                loadDocumentItems(val, "quotation");
+              }}
+              disabled={loading || submitting}
+            >
+              <option value="">Select from customer quotations</option>
+              {quotationsForCustomer.map(q => (
+                <option key={q.id} value={q.id}>{`${q.quotation_number || q.id} — ${String(q.customer || '').slice(0,40)}`}</option>
+              ))}
+            </select>
+          )}
+          {selectedQuotationItems.length > 0 && (
+            <div className={`mt-2 rounded-xl p-3 text-sm ${darkMode ? "bg-gray-700 text-gray-100" : "bg-gray-50 text-gray-800"}`}>
+              <p className="text-xs uppercase font-bold opacity-60 mb-1">Quotation Items</p>
+              <p>{selectedQuotationItems.join(", ")}</p>
+            </div>
+          )}
         </div>
 
         <div className="md:col-span-2">
-          <label className="text-sm font-medium mb-1 block">Invoice IDs (comma-separated)</label>
-          <input
-            type="text"
-            name="invoice_ids"
-            value={form.invoice_ids}
-            onChange={handleChange}
-            placeholder="e.g. 7, 18 or CLTINV-00001234"
-            className={inputClass}
+          <label className="text-sm font-medium mb-1 block">Invoice</label>
+          {invoicesForCustomer.length > 0 && (
+            <select
+              className={`${inputClass} mb-2`}
+              onChange={(e) => {
+                const val = e.target.value;
+                loadDocumentItems(val, "invoice");
+              }}
+              disabled={loading || submitting}
+            >
+              <option value="">Select from customer invoices</option>
+              {invoicesForCustomer.map(i => (
+                <option key={i.id} value={i.id}>{`${i.invoice_number || i.id} — ${String(i.customer || '').slice(0,40)}`}</option>
+              ))}
+            </select>
+          )}
+          {selectedInvoiceItems.length > 0 && (
+            <div className={`mt-2 rounded-xl p-3 text-sm ${darkMode ? "bg-gray-700 text-gray-100" : "bg-gray-50 text-gray-800"}`}>
+              <p className="text-xs uppercase font-bold opacity-60 mb-1">Invoice Items</p>
+              <p>{selectedInvoiceItems.join(", ")}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Proforma picker */}
+        {proformasForCustomer.length > 0 && (
+          <div className="md:col-span-2">
+            <label className="text-sm font-medium mb-1 block">Proforma</label>
+            <select
+              className={inputClass}
+              onChange={(e) => {
+                const val = e.target.value;
+                loadDocumentItems(val, "proforma");
+              }}
+              disabled={loading || submitting}
+            >
+              <option value="">Select Proforma</option>
+              {proformasForCustomer.map(p => (
+                <option key={p.id} value={p.id}>{`${p.quotation_number || p.id} — ${String(p.customer || '').slice(0,40)}`}</option>
+              ))}
+            </select>
+            {selectedProformaItems.length > 0 && (
+              <div className={`mt-2 rounded-xl p-3 text-sm ${darkMode ? "bg-gray-700 text-gray-100" : "bg-gray-50 text-gray-800"}`}>
+                <p className="text-xs uppercase font-bold opacity-60 mb-1">Proforma Items</p>
+                <p>{selectedProformaItems.join(", ")}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="md:col-span-2">
+          <label className="text-sm font-medium mb-1 block">Manual Products</label>
+          <textarea
+            name="manual_products"
+            value={manualProducts}
+            onChange={handleManualProductsChange}
+            rows={2}
+            placeholder="Enter additional products manually, one line or comma-separated"
+            className={textareaClass}
             disabled={loading || submitting}
           />
-          <p className="text-xs mt-1 opacity-70">Use invoice database IDs or invoice numbers. Products will also be fetched from these records.</p>
         </div>
 
         <div className="md:col-span-2">
-          <label className="text-sm font-medium mb-1 block">Products Conveyed</label>
+          <label className="text-sm font-medium mb-1 block">Products Review</label>
           <textarea
             name="product_list"
             value={form.product_list}
             onChange={handleChange}
             rows={2}
-            placeholder="Leave blank to auto-fill from quotation/invoice IDs, or enter manual products"
+            placeholder="Combined review of selected document items and manual products"
             className={textareaClass}
+            readOnly
             disabled={loading || submitting}
           />
+          <p className="text-xs mt-1 opacity-70">This review is built from the selected invoice, quotation, proforma, and manual products.</p>
         </div>
 
         {/* Status */}

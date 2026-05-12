@@ -68,6 +68,16 @@ const getItemSummary = (invoice) => {
   return `${firstName} +${rows.length - 1} more`;
 };
 
+const formatItemList = (invoice) =>
+  parseInvoiceItems(invoice)
+    .map((row) => {
+      const name = row.name || row.item || row.product_name || "Item";
+      const code = row.item_code ? `${row.item_code} - ` : "";
+      const qty = Number(row.quantity || row.qty || 0);
+      return `${code}${name}${qty ? ` x ${qty}` : ""}`;
+    })
+    .filter(Boolean);
+
 const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefresh, darkMode, focusId }) => {
   const [activeTab, setActiveTab] = useState("All Invoices");
   const [invoices, setInvoices] = useState([]);
@@ -165,6 +175,19 @@ const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefr
     downloadInvoicePdf(invoice)
       .then(() => toast.success("Invoice downloaded successfully!"))
       .catch(() => toast.error("Failed to download invoice PDF"));
+  };
+
+  const handleConvertInvoice = async (invoice, convertTo) => {
+    if (!invoice?.id || !convertTo) return;
+
+    try {
+      await API.post(`/invoices/${invoice.id}/convert`, { convert_to: convertTo });
+      toast.success(`Invoice converted to ${convertTo} successfully`);
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      console.error("Convert invoice error:", err);
+      toast.error(err.response?.data?.message || `Failed to convert invoice to ${convertTo}`);
+    }
   };
 
   const handleSaveEdit = async (updatedData) => {
@@ -354,6 +377,20 @@ const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefr
                           <Edit3 size={18} />
                         </button>
                         <button
+                          onClick={() => handleConvertInvoice(inv, "quotation")}
+                          className="px-2 py-2 rounded bg-indigo-50 text-indigo-700 text-[11px] font-semibold hover:bg-indigo-100"
+                          title="Convert to Quotation"
+                        >
+                          To Q
+                        </button>
+                        <button
+                          onClick={() => handleConvertInvoice(inv, "proforma")}
+                          className="px-2 py-2 rounded bg-violet-50 text-violet-700 text-[11px] font-semibold hover:bg-violet-100"
+                          title="Convert to Proforma"
+                        >
+                          To P
+                        </button>
+                        <button
                           onClick={() => setDeleteModal(inv)}
                           className="p-2 hover:bg-red-100 rounded"
                           title="Delete"
@@ -476,11 +513,8 @@ const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefr
                 <div>
                   <label className="text-xs uppercase opacity-60">Items</label>
                   <div className={`text-sm p-2 rounded space-y-1 ${darkMode ? "bg-slate-700 text-slate-100" : "bg-slate-100 text-slate-800"}`}>
-                    {parseInvoiceItems(selectedInvoice).map((row, index) => (
-                      <p key={`${row.name || row.item}-${index}`}>
-                        {row.item_code ? `${row.item_code} - ` : ""}
-                        {(row.name || row.item || row.product_name || "Item")} x {Number(row.quantity || row.qty || 0)}
-                      </p>
+                    {formatItemList(selectedInvoice).map((row, index) => (
+                      <p key={`${row}-${index}`}>{row}</p>
                     ))}
                   </div>
                 </div>
@@ -571,6 +605,21 @@ const InvoiceDashboard = ({ invoices: propInvoices, loading: propLoading, onRefr
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                 )}
                 {deleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+
+            <div className="flex gap-3 mt-3">
+              <button
+                onClick={() => handleConvertInvoice(deleteModal, "quotation")}
+                className="flex-1 px-4 py-2 rounded-lg font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition"
+              >
+                Convert to Quotation
+              </button>
+              <button
+                onClick={() => handleConvertInvoice(deleteModal, "proforma")}
+                className="flex-1 px-4 py-2 rounded-lg font-medium bg-violet-600 hover:bg-violet-700 text-white transition"
+              >
+                Convert to Proforma
               </button>
             </div>
           </div>

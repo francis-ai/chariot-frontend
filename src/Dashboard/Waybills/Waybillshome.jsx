@@ -10,11 +10,59 @@ import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { downloadWaybillPdf } from "../../utils/documentPdf";
 
-const extractProducts = (productList) =>
-  String(productList || "")
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter(Boolean);
+const parseWaybillProducts = (productList) => {
+  if (Array.isArray(productList)) return productList;
+
+  if (typeof productList === "string" && productList.trim()) {
+    const trimmed = productList.trim();
+
+    if (trimmed.includes("\n")) {
+      return trimmed
+        .split(/\n+/)
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) return parsed;
+      if (parsed && Array.isArray(parsed.items)) return parsed.items;
+    } catch (error) {
+      // Fall through to comma-separated parsing below.
+    }
+
+    return trimmed
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+};
+
+const formatWaybillProduct = (product) => {
+  if (typeof product === "string") return product;
+
+  const name = product?.name || product?.item || product?.product_name || "Item";
+  const code = product?.item_code ? `${product.item_code} - ` : "";
+  const qty = Number(product?.quantity || product?.qty || 0);
+  return `${code}${name}${qty ? ` x ${qty}` : ""}`;
+};
+
+const formatWaybillProductLine = (line) => {
+  const text = String(line || "").trim();
+  if (!text) return "";
+
+  const [label, ...rest] = text.split(":");
+  if (rest.length > 0) {
+    return {
+      label: label.trim(),
+      value: rest.join(":").trim(),
+    };
+  }
+
+  return { label: "", value: text };
+};
 
 const WaybillManagement = () => {
   const { darkMode } = useTheme();
@@ -301,7 +349,7 @@ const WaybillManagement = () => {
               <table className="w-full min-w-[1000px] text-left border-collapse">
                 <thead>
                   <tr className={`border-b ${darkMode ? 'border-gray-600 bg-gray-700 text-gray-200' : 'border-slate-100 bg-slate-50 text-slate-400'}`}>
-                    {['Waybill #', 'Customer', 'Date', 'Pickup', 'Delivery', 'Products', 'Status', 'Actions'].map(h => (
+                    {['Waybill #', 'Customer', 'Date', 'Pickup', 'Delivery', 'Status', 'Actions'].map(h => (
                       <th key={h} className="px-4 py-3 text-[11px] font-black uppercase tracking-[0.05em]">{h}</th>
                     ))}
                   </tr>
@@ -314,9 +362,6 @@ const WaybillManagement = () => {
                       <td className="px-4 py-3 text-sm">{item.waybill_date}</td>
                       <td className="px-4 py-3 text-sm truncate">{item.pickup_location}</td>
                       <td className="px-4 py-3 text-sm truncate">{item.delivery_location}</td>
-                      <td className="px-4 py-3 text-sm truncate">{item.product_list || '-'}</td>
-                      {/* <td className="px-4 py-3 font-medium truncate">{item.driver}</td> */}
-                      {/* <td className="px-4 py-3 text-sm truncate">{item.vehicle}</td> */}
                       <td className="px-4 py-3">
                         <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase border ${statusMap[item.status]}`}>
                           {item.status}
@@ -438,7 +483,7 @@ const WaybillManagement = () => {
 
 /* ===================== VIEW MODAL ===================== */
 const ViewWaybillModal = ({ waybill, onClose, darkMode, onDownload }) => {
-  const productEntries = extractProducts(waybill.product_list);
+  const productEntries = parseWaybillProducts(waybill.product_list);
 
   const statusColors = {
     'Pending': 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
@@ -510,18 +555,31 @@ const ViewWaybillModal = ({ waybill, onClose, darkMode, onDownload }) => {
               <label className="text-xs uppercase opacity-60 font-bold">Vehicle</label>
               <p>{waybill.vehicle}</p>
             </div>
-              <div className="col-span-2">
-                <label className="text-xs uppercase opacity-60 font-bold">Products Conveyed</label>
-                {productEntries.length > 0 ? (
-                  <ul className="mt-1 space-y-1 text-sm">
-                    {productEntries.map((product, index) => (
-                      <li key={`${product}-${index}`}>- {product}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p>-</p>
-                )}
+          </div>
+
+          <div>
+            <label className="text-xs uppercase opacity-60 font-bold">Products Conveyed</label>
+            {productEntries.length > 0 ? (
+              <div className="mt-2 space-y-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/40 p-3 text-sm">
+                {productEntries.map((product, index) => {
+                  const parsed = formatWaybillProductLine(product);
+                  if (parsed.label) {
+                    return (
+                      <div key={`${parsed.label}-${index}`} className="space-y-1">
+                        <p className="text-[11px] font-bold uppercase tracking-wide opacity-60">{parsed.label}</p>
+                        <p className="font-medium">{parsed.value}</p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <p key={`${parsed.value}-${index}`} className="font-medium">{parsed.value}</p>
+                  );
+                })}
               </div>
+            ) : (
+              <p className="mt-1">-</p>
+            )}
           </div>
 
           <div>
