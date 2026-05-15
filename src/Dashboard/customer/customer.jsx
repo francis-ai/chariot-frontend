@@ -80,6 +80,11 @@ export default function CustomersDashboard() {
             obj[header] = row[colIndex] || "";
           });
           return obj;
+        })
+        // remove fully-empty rows (common when spreadsheets have trailing blank lines)
+        .filter(r => {
+          const keys = Object.keys(r).filter(k => k !== "__row");
+          return keys.some(k => String(r[k] || "").trim() !== "");
         });
 
         // Validate rows
@@ -156,7 +161,7 @@ export default function CustomersDashboard() {
       { name: "", company: "XYZ Ltd", phone: "0987654321", email: "info@xyz.com", address: "456 Oak Ave", status: "Active" },
     ];
     const worksheet = XLSX.utils.json_to_sheet(sampleRows, { header: bulkTemplateColumns });
-    const workbook = XLSX.new_workbook();
+    const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Customers");
     XLSX.writeFile(workbook, "customers-bulk-template.xlsx");
   };
